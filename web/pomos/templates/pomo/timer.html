@@ -1,0 +1,96 @@
+<div class="pomo-timer"
+     x-data="pomodoroTimer({{ duration }}, '{{ started_at }}')"
+     x-init="start()">
+
+  <!-- Countdown -->
+  <div class="timer__countdown" x-text="display">{{ duration // 60 }}:00</div>
+  <div class="timer__bar">
+    <div class="timer__bar-fill timer__bar-fill--{{ 'work' if seg_type == 'work' else 'break' }}"
+         :style="'width: ' + percent + '%'"></div>
+  </div>
+  <div class="timer__percent" x-text="Math.round(percent) + '%'">100%</div>
+
+  {% if seg_type == "work" %}
+    <!-- Charge display -->
+    <div class="timer__charge">
+      <span class="timer__charge-label">Your Charge:</span>
+      <span class="timer__charge-text">"{{ charge }}"</span>
+    </div>
+
+    <!-- Journey dots -->
+    {% if journey %}
+    <div class="timer__journey">
+      {% for dot in journey %}
+        <span class="journey-dot journey-dot--{{ dot.status }}"
+              title="Lap {{ dot.lap }}">
+          {% if dot.status == "done" %}●{% elif dot.status == "current" %}◐{% elif dot.status == "broken" %}✕{% else %}○{% endif %}
+        </span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Work segment actions -->
+    <div class="timer__actions">
+      <button class="btn btn--ghost btn--sm"
+              hx-post="/pomos/interrupt"
+              hx-target="#pomo-panel"
+              hx-swap="outerHTML"
+              hx-vals='{"reason": ""}'>
+        ⚡ Interrupt
+      </button>
+      <button class="btn btn--ghost btn--sm"
+              hx-post="/pomos/complete-early"
+              hx-target="#pomo-panel"
+              hx-swap="outerHTML">
+        ⏩ Swiftblade
+      </button>
+    </div>
+  {% else %}
+    <p class="timer__label">
+      {% if seg_type == "short_break" %}☕ Short Break{% elif seg_type == "extended_break" %}☕ Extended Break{% else %}🌙 Long Break{% endif %}
+    </p>
+  {% endif %}
+</div>
+
+<!-- SSE listener for server-authoritative timer -->
+<div hx-ext="sse"
+     sse-connect="/pomos/tick"
+     sse-swap="segment-complete"
+     hx-target="#pomo-panel"
+     hx-swap="outerHTML">
+  <template>
+    <!-- On segment-complete, fetch the next gate -->
+    <div hx-post="/pomos/timer-done"
+         hx-target="#pomo-panel"
+         hx-swap="outerHTML"
+         hx-trigger="load"></div>
+  </template>
+</div>
+
+<script>
+function pomodoroTimer(totalSecs, startedAtISO) {
+  return {
+    remaining: totalSecs,
+    total: totalSecs,
+    display: '',
+    percent: 100,
+    interval: null,
+    start() {
+      const started = new Date(startedAtISO).getTime();
+      const update = () => {
+        const elapsed = (Date.now() - started) / 1000;
+        this.remaining = Math.max(0, this.total - elapsed);
+        this.percent = (this.remaining / this.total) * 100;
+        const m = Math.floor(this.remaining / 60);
+        const s = Math.floor(this.remaining % 60);
+        this.display = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+      };
+      update();
+      this.interval = setInterval(update, 1000);
+    },
+    destroy() {
+      if (this.interval) clearInterval(this.interval);
+    }
+  };
+}
+</script>

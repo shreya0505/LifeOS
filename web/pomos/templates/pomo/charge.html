@@ -1,0 +1,14 @@
+<div class="pomo-gate charge-gate">
+  <h3 class="gate__prompt">What will you have forged when this pomo ends?</h3>
+  <p class="gate__hint">(name the one thing — a fix, a decision, a draft)</p>
+  <form hx-post="/pomos/charge" hx-target="#pomo-panel" hx-swap="outerHTML">
+    <input type="text" name="charge"
+           class="gate__input"
+           required minlength="3" maxlength="120"
+           autofocus
+           placeholder="I will..."
+           x-data="{ val: '' }"
+           x-model="val">
+    <button type="submit" class="btn btn--copper">⚔ Begin Forging</button>
+  </form>
+</div>

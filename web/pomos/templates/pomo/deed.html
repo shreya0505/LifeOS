@@ -1,0 +1,25 @@
+<div class="pomo-gate deed-gate">
+  <h3 class="gate__prompt">Time's up, warrior. What did you claim?</h3>
+  <p class="gate__hint">(a bug slain, a path cleared, a truth discovered)</p>
+  {% if early %}
+    <p class="gate__hint gate__hint--early">⏩ Swiftblade — completed early</p>
+  {% endif %}
+  <form hx-post="/pomos/deed" hx-target="#pomo-panel" hx-swap="outerHTML">
+    <input type="text" name="deed"
+           class="gate__input"
+           required minlength="3"
+           autofocus
+           placeholder="I claimed...">
+    <div class="deed__forge-options">
+      <button type="submit" name="forge_type" value="" class="btn btn--copper">
+        ✦ Submit
+      </button>
+      <button type="submit" name="forge_type" value="hollow" class="btn btn--ghost">
+        💀 Hollow
+      </button>
+      <button type="submit" name="forge_type" value="berserker" class="btn btn--ghost">
+        ⚡ Berserker
+      </button>
+    </div>
+  </form>
+</div>

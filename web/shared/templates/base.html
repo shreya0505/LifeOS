@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QuestLog — STARFORGE</title>
+
+  <!-- Fonts: self-hosted woff2, no external CDN -->
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="/static/reset.css">
+  <link rel="stylesheet" href="/static/tokens.css">
+  <link rel="stylesheet" href="/static/style.css">
+
+  <!-- HTMX -->
+  <script src="/static/htmx.min.js" defer></script>
+  <!-- Alpine.js -->
+  <script src="/static/alpine.min.js" defer></script>
+  <!-- Animations -->
+  <script src="/static/animations.js" defer></script>
+</head>
+
+<body hx-headers='{"X-Requested-With": "htmx"}'>
+  <div class="app-shell">
+    <!-- Header -->
+    <header class="app-header">
+      <h1 class="app-header__title">✧ STARFORGE ✧</h1>
+      <p class="app-header__date">{{ fantasy_date }}</p>
+    </header>
+
+    <!-- Main Content -->
+    <main class="app-main">
+      {% block content %}{% endblock %}
+    </main>
+
+    <!-- Stats Bar -->
+    <footer class="stats-bar" id="stats-bar" hx-get="/stats" hx-trigger="every 60s" hx-swap="innerHTML">
+      {% block stats %}
+      <span class="stats-bar__item">📜 {{ quest_counts.total }} quests</span>
+      <span class="stats-bar__item">⚔ {{ quest_counts.active }} in battle</span>
+      <span class="stats-bar__item">✅ {{ quest_counts.done }} conquered</span>
+      <span class="stats-bar__item">🍅 {{ pomo_count }} pomos today</span>
+      {% endblock %}
+    </footer>
+  </div>
+
+  <!-- Toast container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script>
+    // Simple toast helper
+    function showToast(message, duration = 3000) {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        toast.style.transition = 'all 300ms ease-out';
+        setTimeout(() => toast.remove(), 300);
+      }, duration);
+    }
+
+    // Note: HTMX animation hooks are in animations.js
+    // ── Toast triggers from HX-Trigger response headers ────
+    document.body.addEventListener('quest-done', function () {
+      showToast('⚔ Quest conquered!');
+    });
+    document.body.addEventListener('quest-added', function () {
+      showToast('📜 Quest inscribed');
+    });
+    document.body.addEventListener('quest-deleted', function () {
+      showToast('🗑 Quest removed');
+    });
+    document.body.addEventListener('pomo-complete', function () {
+      showToast('🍅 Pomodoro complete!');
+    });
+    document.body.addEventListener('pomo-berserker', function () {
+      showToast('⚡ Berserker forge!');
+    });
+    document.body.addEventListener('pomo-stopped', function () {
+      showToast('🔥 Session ended');
+    });
+    document.body.addEventListener('pomo-interrupted', function () {
+      showToast('⚠️ Interrupted — refocus!');
+    });
+    document.body.addEventListener('trophy-earned', function () {
+      showToast('🏆 New personal record!');
+    });
+    // ── Keyboard shortcuts ──────────────────────────────────
+    document.addEventListener('keydown', function (e) {
+      // Ignore when typing in an input/textarea
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+        // Escape blurs the input
+        if (e.key === 'Escape') e.target.blur();
+        return;
+      }
+
+      // Close overlays on Escape
+      if (e.key === 'Escape') {
+        const overlay = document.getElementById('dashboard-panel')
+          || document.getElementById('pomo-panel')
+          || document.querySelector('.pomo-overlay');
+        if (overlay) { overlay.remove(); return; }
+        const confirm = document.getElementById('confirm-slot');
+        if (confirm) { confirm.innerHTML = ''; return; }
+      }
+
+      // n — focus add-quest input
+      if (e.key === 'n' && !e.ctrlKey && !e.metaKey) {
+        const input = document.querySelector('.add-quest-form__input');
+        if (input) { e.preventDefault(); input.focus(); }
+      }
+
+      // d — open dashboard
+      if (e.key === 'd' && !e.ctrlKey && !e.metaKey) {
+        const existing = document.getElementById('dashboard-panel');
+        if (!existing) {
+          htmx.ajax('GET', '/dashboard', { target: 'body', swap: 'beforeend' });
+        }
+      }
+
+      // r — open receipt
+      if (e.key === 'r' && !e.ctrlKey && !e.metaKey) {
+        const existing = document.getElementById('pomo-panel');
+        if (!existing) {
+          htmx.ajax('GET', '/pomos/receipt', { target: 'body', swap: 'beforeend' });
+        }
+      }
+
+      // t — start pomo on first active quest
+      if (e.key === 't' && !e.ctrlKey && !e.metaKey) {
+        const activeCard = document.querySelector('.quest-card[data-status="active"]');
+        if (activeCard && !document.querySelector('.pomo-overlay')) {
+          const questId = activeCard.dataset.id;
+          if (questId) {
+            htmx.ajax('POST', '/pomos/start', {
+              target: 'body', swap: 'beforeend',
+              values: { quest_id: questId },
+            });
+          }
+        }
+      }
+    });
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,58 @@
+<div class="chronicle-panel" id="chronicle-panel">
+  <!-- Week Summary -->
+  <div class="chronicle-summary">
+    <span class="chronicle-summary__item">🍅 {{ today_pomos }} today · ⏱ {{ today_focus }}</span>
+    <span class="chronicle-summary__item">📅 {{ week_pomos }} this week · {{ week_focus }}</span>
+  </div>
+
+  <!-- Heatmap -->
+  <div class="heatmap">
+    <div class="heatmap__labels">
+      <span>M</span><span>T</span><span>W</span><span>T</span>
+      <span>F</span><span>S</span><span>S</span>
+    </div>
+    <div class="heatmap__grid">
+      {% for cell in heatmap_cells %}
+      <div class="heatmap__cell heatmap__cell--{{ cell.level }}{% if cell.is_today %} heatmap__cell--today{% endif %}"
+           title="{{ cell.date }}: {{ cell.count }} pomos"
+           style="animation-delay: {{ loop.index * 15 }}ms"
+           data-animate-in>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="heatmap__legend">
+      <span class="heatmap__legend-label">less</span>
+      <div class="heatmap__cell heatmap__cell--empty"></div>
+      <div class="heatmap__cell heatmap__cell--light"></div>
+      <div class="heatmap__cell heatmap__cell--medium"></div>
+      <div class="heatmap__cell heatmap__cell--heavy"></div>
+      <span class="heatmap__legend-label">more</span>
+    </div>
+  </div>
+
+  <!-- Today's Timeline -->
+  <h4 class="chronicle-heading">Today's Forges</h4>
+  {% if today_entries %}
+    <div class="timeline">
+      {% for entry in today_entries %}
+      <div class="timeline-entry{% if entry.forge_type == 'berserker' %} timeline-entry--berserker{% elif entry.forge_type == 'hollow' %} timeline-entry--hollow{% elif not entry.completed %} timeline-entry--broken{% endif %}" data-animate-in>
+        <span class="timeline-entry__time">{{ entry.time }}</span>
+        <div class="timeline-entry__body">
+          <span class="timeline-entry__quest">{{ entry.quest }}</span>
+          {% if entry.charge %}
+            <span class="timeline-entry__charge">{{ entry.charge }}</span>
+          {% endif %}
+          {% if entry.deed %}
+            <span class="timeline-entry__deed">{{ entry.deed }}</span>
+          {% endif %}
+        </div>
+        <span class="timeline-entry__badge">
+          {% if entry.forge_type == "berserker" %}⚡{% elif entry.forge_type == "hollow" %}💀{% elif not entry.completed %}✗{% else %}🍅{% endif %}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="chronicle-empty">No forges today yet. Start a pomo!</p>
+  {% endif %}
+</div>

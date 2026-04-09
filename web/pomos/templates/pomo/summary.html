@@ -1,0 +1,28 @@
+<div class="pomo-overlay" id="pomo-panel">
+  <div class="pomo-overlay__inner pomo-summary">
+    <h2 class="pomo-summary__title">⚔ Session Complete</h2>
+    <p class="pomo-summary__quest">{{ quest_title }}</p>
+    <p class="pomo-summary__count">
+      {% if actual_pomos > 0 %}
+        🍅 {{ actual_pomos }} pomo{{ "s" if actual_pomos != 1 else "" }} forged
+      {% else %}
+        No pomos completed this session.
+      {% endif %}
+    </p>
+    <div class="pomo-summary__actions">
+      <button class="btn btn--copper"
+              onclick="document.getElementById('pomo-panel').remove()"
+              hx-get="/quests"
+              hx-target="#quest-board"
+              hx-swap="innerHTML">
+        Return to Quest Board
+      </button>
+      <button class="btn btn--ghost"
+              hx-get="/pomos/receipt"
+              hx-target="#pomo-panel"
+              hx-swap="outerHTML">
+        📋 View Receipt
+      </button>
+    </div>
+  </div>
+</div>

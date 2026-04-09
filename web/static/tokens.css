@@ -1,0 +1,121 @@
+/* ── QuestLog Design Tokens — "Tavern Workbench" ────────────── */
+
+/* ── Self-hosted fonts ───────────────────────────────────── */
+@font-face {
+  font-family: 'Inter';
+  src: url('/static/fonts/inter-var.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Crimson Pro';
+  src: url('/static/fonts/crimson-pro-var.woff2') format('woff2');
+  font-weight: 200 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Crimson Pro';
+  src: url('/static/fonts/crimson-pro-italic-var.woff2') format('woff2');
+  font-weight: 200 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrainsMono NF';
+  src: url('/static/fonts/JetBrainsMonoNF-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrainsMono NF';
+  src: url('/static/fonts/JetBrainsMonoNF-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* ── Surfaces ──────────────────────────────────────── */
+  --surface-0: #faf6f0;
+  /* parchment — page background */
+  --surface-1: #f3ede4;
+  /* warm cream — card background */
+  --surface-2: #ebe3d7;
+  /* light tan — hover, active card */
+  --surface-3: #ddd3c3;
+  /* deeper tan — borders, dividers */
+
+  /* ── Ink ────────────────────────────────────────────── */
+  --ink-0: #2c2418;
+  /* near-black walnut — primary text */
+  --ink-1: #5c4f3c;
+  /* warm brown — secondary text */
+  --ink-2: #8a7d6b;
+  /* muted — tertiary, timestamps */
+
+  /* ── Accents ────────────────────────────────────────── */
+  --sage: #7a9e7e;
+  /* active, success, done */
+  --sage-dim: #b5ccb7;
+  /* sage at 50% — light backgrounds */
+  --copper: #c07040;
+  /* warm action — start quest, CTA */
+  --copper-dim: #d9a888;
+  --hearth: #d4943a;
+  /* gold/amber — completion, celebration */
+  --hearth-glow: #f5d78e;
+  /* celebration pulse color */
+  --ember: #b5493a;
+  /* blocked, delete, interruption */
+  --ember-dim: #d49e96;
+  --slate: #6b7f8a;
+  /* neutral info, chronicle */
+
+  /* ── Shadows ────────────────────────────────────────── */
+  --shadow-1: 0 1px 2px rgba(44, 36, 24, 0.06);
+  --shadow-2: 0 2px 4px rgba(44, 36, 24, 0.08);
+  --shadow-3: 0 4px 8px rgba(44, 36, 24, 0.10);
+  --shadow-4: 0 8px 16px rgba(44, 36, 24, 0.12);
+  --shadow-5: 0 12px 24px rgba(44, 36, 24, 0.14);
+
+  /* ── Easing ─────────────────────────────────────────── */
+  --ease-out-2: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-out-3: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring-2: cubic-bezier(0.5, 1.25, 0.75, 1.25);
+  --ease-spring-3: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-squish-2: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* ── Spacing ────────────────────────────────────────── */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+
+  /* ── Radii ──────────────────────────────────────────── */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* ── Typography ─────────────────────────────────────── */
+  --font-display: 'Crimson Pro', Georgia, serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrainsMono NF', 'JetBrains Mono', monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 2rem;
+  --text-4xl: 3rem;
+}

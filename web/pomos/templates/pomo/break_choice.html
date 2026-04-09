@@ -1,0 +1,47 @@
+<div class="pomo-gate break-gate">
+  <h3 class="gate__prompt">Your forge cools. Choose your rest.</h3>
+
+  {% if actual_pomos %}
+    <p class="gate__hint">🍅 {{ actual_pomos }} pomo{{ "s" if actual_pomos != 1 else "" }} forged
+    {% if streak > 1 %} · 🔥 streak × {{ streak }}{% endif %}
+    </p>
+  {% endif %}
+
+  <div class="break-gate__options">
+    <button class="btn btn--sage"
+            hx-post="/pomos/break"
+            hx-vals='{"choice": "short"}'
+            hx-target="#pomo-panel"
+            hx-swap="outerHTML">
+      ☕ Short ({{ config.short_break_secs // 60 }}m)
+    </button>
+    <button class="btn btn--sage"
+            hx-post="/pomos/break"
+            hx-vals='{"choice": "extended"}'
+            hx-target="#pomo-panel"
+            hx-swap="outerHTML">
+      ☕ Extended ({{ config.extended_break_secs // 60 }}m)
+    </button>
+    <button class="btn btn--sage"
+            hx-post="/pomos/break"
+            hx-vals='{"choice": "long"}'
+            hx-target="#pomo-panel"
+            hx-swap="outerHTML">
+      🌙 Long ({{ config.long_break_secs // 60 }}m)
+    </button>
+    <button class="btn btn--ghost"
+            hx-post="/pomos/break"
+            hx-vals='{"choice": "skip"}'
+            hx-target="#pomo-panel"
+            hx-swap="outerHTML">
+      ⏩ Skip Break
+    </button>
+    <button class="btn btn--ghost"
+            hx-post="/pomos/break"
+            hx-vals='{"choice": "end"}'
+            hx-target="#pomo-panel"
+            hx-swap="outerHTML">
+      ✕ End Session
+    </button>
+  </div>
+</div>

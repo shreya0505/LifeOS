@@ -1,0 +1,40 @@
+<div class="pomo-overlay" id="pomo-panel">
+  <div class="pomo-overlay__inner">
+    <h2 class="pomo-overlay__quest">📋 Daily Receipt</h2>
+
+    {% if entries %}
+      <div class="receipt-list">
+        {% for entry in entries %}
+          <div class="receipt-entry{% if entry.forge_type == 'berserker' %} receipt-entry--berserker{% elif entry.forge_type == 'hollow' %} receipt-entry--hollow{% endif %}" data-animate-in>
+            <div class="receipt-entry__time">
+              {{ entry.time_str }}
+              {% if entry.forge_type == "berserker" %}⚡{% elif entry.forge_type == "hollow" %}💀{% else %}🍅{% endif %}
+            </div>
+            <div class="receipt-entry__quest">{{ entry.quest_title }}</div>
+            <div class="receipt-entry__charge">⚔ {{ entry.charge }}</div>
+            <div class="receipt-entry__deed">✦ {{ entry.deed }}</div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <div class="receipt-summary">
+        <span>{{ real_pomos }} pomo{{ "s" if real_pomos != 1 else "" }}</span>
+        <span>· ⏱ {{ total_mins }} min focused</span>
+        {% if berserker_count %}<span>· ⚡ {{ berserker_count }} berserker</span>{% endif %}
+        {% if hollow_count %}<span>· 💀 {{ hollow_count }} hollow</span>{% endif %}
+      </div>
+    {% else %}
+      <p class="receipt-empty">No completed pomos with charge & deed today.</p>
+    {% endif %}
+
+    <div class="pomo-summary__actions">
+      <button class="btn btn--copper"
+              onclick="document.getElementById('pomo-panel').remove()"
+              hx-get="/quests"
+              hx-target="#quest-board"
+              hx-swap="innerHTML">
+        Return to Quest Board
+      </button>
+    </div>
+  </div>
+</div>

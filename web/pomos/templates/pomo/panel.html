@@ -1,0 +1,41 @@
+<div class="pomo-overlay" id="pomo-panel">
+  <div class="pomo-overlay__inner">
+    <!-- Quest title -->
+    <h2 class="pomo-overlay__quest">⚔ {{ quest_title }} ⚔</h2>
+
+    {% if engine.is_resume and mode == "charge" %}
+      <p class="pomo-overlay__subtitle">Resumed · Lap {{ engine.lap }}</p>
+    {% elif engine.streak > 1 %}
+      <p class="pomo-overlay__subtitle">Streak 🔥 × {{ engine.streak }}</p>
+    {% endif %}
+
+    {% if interrupted %}
+      <p class="pomo-overlay__notice">⚡ Interrupted. Regroup and declare your next charge.</p>
+    {% endif %}
+
+    {% if notification %}
+      <p class="pomo-overlay__notice pomo-overlay__notice--success">{{ notification }}</p>
+    {% endif %}
+
+    <!-- Mode-specific content -->
+    {% if mode == "charge" %}
+      {% include "pomo/charge.html" %}
+    {% elif mode == "timer" %}
+      {% include "pomo/timer.html" %}
+    {% elif mode == "deed" %}
+      {% include "pomo/deed.html" %}
+    {% elif mode == "break_choice" %}
+      {% include "pomo/break_choice.html" %}
+    {% endif %}
+
+    <!-- Session controls (always visible) -->
+    <div class="pomo-overlay__controls">
+      <button class="btn btn--ghost btn--sm"
+              hx-post="/pomos/stop"
+              hx-target="#pomo-panel"
+              hx-swap="outerHTML">
+        ✕ End Session
+      </button>
+    </div>
+  </div>
+</div>

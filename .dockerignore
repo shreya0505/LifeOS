@@ -1,0 +1,12 @@
+.git
+.venv
+__pycache__
+*.pyc
+*.json.backup.*
+tests/
+features/
+docs/
+tui/
+*.md
+!migrations/*.sql
+questlog.db

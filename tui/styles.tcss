@@ -1,0 +1,438 @@
+/* ── QuestLog — Starforge Theme ──────────────────────────────── */
+
+Screen {
+    background: #0e0e1a;
+    color: #e0e0ff;
+}
+
+/* ── Header ──────────────────────────────────────────────────── */
+
+#header {
+    dock: top;
+    height: 2;
+    text-align: center;
+    content-align: center middle;
+    background: #0e0e1a;
+    color: #bf40ff;
+}
+
+/* ── Main Area (three-column layout) ─────────────────────────── */
+
+#main-area {
+    height: 1fr;
+}
+
+/* ── Roster Panel (left) ─────────────────────────────────────── */
+
+#roster {
+    width: 1fr;
+    min-width: 28;
+}
+
+#roster-stack {
+    height: 1fr;
+}
+
+/* ── StatusPane (each quest lane) ────────────────────────────── */
+
+StatusPane {
+    height: 1fr;
+    border: round #333355;
+    border-title-color: #8888cc;
+    padding: 0 1;
+}
+
+StatusPane.active-pane {
+    border: round #bf40ff;
+    border-title-color: #bf40ff;
+}
+
+/* ── Chronicle Panel (center) ────────────────────────────────── */
+
+#chronicle {
+    width: 2fr;
+    border: round #555577;
+    border-title-color: #bf40ff;
+}
+
+#chronicle-scroll {
+    height: 1fr;
+}
+
+#chronicle-content {
+    padding: 0 1;
+}
+
+/* ── Trophy Panel (right) ────────────────────────────────────── */
+
+#trophy {
+    width: 1fr;
+    border: round #555577;
+    border-title-color: #bf40ff;
+}
+
+#trophy-scroll {
+    height: 1fr;
+}
+
+#trophy-content {
+    padding: 0 1;
+}
+
+/* ── Stats Bar ───────────────────────────────────────────────── */
+
+#stats {
+    dock: bottom;
+    height: 1;
+    background: #1a1a2e;
+    text-align: center;
+    content-align: center middle;
+}
+
+/* ── Footer ──────────────────────────────────────────────────── */
+
+Footer {
+    background: #1a1a2e;
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* ── Pomodoro Panel (War Room) ───────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════ */
+
+PomodoroPanel {
+    background: #0e0e1a;
+}
+
+#pomo-screen-root {
+    height: 1fr;
+    padding: 1 2;
+}
+
+#pomo-header {
+    height: auto;
+    text-align: center;
+    content-align: center middle;
+    padding: 0 2 1 2;
+}
+
+#pomo-left-col {
+    height: 1fr;
+    align: center middle;
+    content-align: center middle;
+    overflow-y: auto;
+}
+
+#pomo-seg-label {
+    text-align: center;
+    content-align: center middle;
+    height: auto;
+    margin: 1 0 0 0;
+}
+
+#pomo-block-clock {
+    text-align: center;
+    content-align: center middle;
+    height: auto;
+    margin: 0;
+    padding: 0 2;
+}
+
+#pomo-health-bar {
+    text-align: center;
+    content-align: center middle;
+    height: auto;
+    margin: 1 0 0 0;
+    padding: 0 4;
+}
+
+#pomo-momentum-bar {
+    text-align: center;
+    content-align: center middle;
+    height: auto;
+    margin: 1 0 0 0;
+    padding: 0 4;
+}
+
+#pomo-journey {
+    text-align: center;
+    content-align: center middle;
+    height: auto;
+    margin: 1 0;
+    padding: 1 0;
+}
+
+/* ── Charge display (during work timer) ──────────────────────── */
+
+#pomo-charge-display-zone {
+    height: auto;
+    padding: 1 4;
+    margin: 1 0;
+    align: center middle;
+    content-align: center middle;
+}
+
+#pomo-charge-display-header {
+    text-align: center;
+    color: #bf40ff;
+}
+
+#pomo-charge-display-text {
+    text-align: center;
+    padding: 0 2;
+}
+
+/* ── Charge gate (before each work segment) ──────────────────── */
+
+#pomo-charge-zone {
+    height: auto;
+    padding: 2 4;
+    margin: 1 0;
+    align: center middle;
+    content-align: center middle;
+}
+
+#pomo-charge-zone-header {
+    text-align: center;
+    color: #bf40ff;
+    text-style: bold;
+    padding: 1 0;
+}
+
+#pomo-charge-prompt {
+    text-align: center;
+    padding: 0 0 1 0;
+}
+
+#pomo-charge-hint {
+    text-align: center;
+}
+
+#pomo-war-cry {
+    text-align: center;
+    padding: 1 0;
+}
+
+#pomo-charge-input {
+    margin: 1 4;
+}
+
+/* ── Deed gate (after each work segment) ─────────────────────── */
+
+#pomo-deed-zone {
+    height: auto;
+    padding: 1 4;
+    margin: 1 0;
+    align: center middle;
+    content-align: center middle;
+}
+
+#pomo-deed-work-done {
+    text-align: center;
+    padding: 1 0;
+}
+
+#pomo-victory-flash {
+    text-align: center;
+    color: green;
+    text-style: bold;
+    padding: 1 0;
+}
+
+#pomo-deed-prompt {
+    text-align: center;
+}
+
+#pomo-deed-hint {
+    text-align: center;
+}
+
+#pomo-deed-input {
+    margin: 1 4;
+}
+
+#pomo-forge-flash {
+    text-align: center;
+}
+
+#pomo-forge-type-selector {
+    text-align: center;
+    padding: 0 0 1 0;
+}
+
+/* ── Break choice gate ───────────────────────────────────────── */
+
+#pomo-break-choice-zone {
+    height: auto;
+    padding: 2 4;
+    margin: 1 0;
+    align: center middle;
+    content-align: center middle;
+}
+
+#pomo-break-choice-header {
+    text-align: center;
+    padding: 1 0;
+}
+
+#pomo-break-choice-options {
+    text-align: center;
+    padding: 1 2;
+}
+
+/* ── Interrupt zone ──────────────────────────────────────────── */
+
+#pomo-interrupt-zone {
+    height: auto;
+    padding: 2 4;
+    margin: 1 0;
+    align: center middle;
+    content-align: center middle;
+}
+
+#pomo-interrupt-header {
+    text-align: center;
+    color: red;
+    text-style: bold;
+    padding: 1 0;
+}
+
+#pomo-interrupt-options {
+    text-align: center;
+    padding: 1 2;
+}
+
+/* ── Session summary ─────────────────────────────────────────── */
+
+#pomo-summary-zone {
+    height: auto;
+    padding: 2 4;
+    margin: 1 0;
+    align: center middle;
+    content-align: center middle;
+}
+
+#pomo-summary-content {
+    padding: 1 2;
+}
+
+/* ── Pomo footer ─────────────────────────────────────────────── */
+
+#pomo-footer {
+    dock: bottom;
+    height: 1;
+    text-align: center;
+    content-align: center middle;
+    background: #1a1a2e;
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* ── Modals ──────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════ */
+
+/* ── Add Quest ───────────────────────────────────────────────── */
+
+AddQuestModal {
+    align: center middle;
+}
+
+#modal-body {
+    width: 60;
+    height: auto;
+    max-height: 80%;
+    background: #1a1a2e;
+    border: round #bf40ff;
+    padding: 1 2;
+}
+
+#modal-buttons {
+    height: auto;
+    align: center middle;
+    padding: 1 0 0 0;
+}
+
+#modal-buttons Button {
+    margin: 0 1;
+}
+
+/* ── Confirm Delete ──────────────────────────────────────────── */
+
+ConfirmModal {
+    align: center middle;
+}
+
+#confirm-body {
+    width: 50;
+    height: auto;
+    background: #1a1a2e;
+    border: round #bf40ff;
+    padding: 1 2;
+}
+
+#confirm-title {
+    text-align: center;
+    padding: 1 0;
+    text-style: italic;
+}
+
+#confirm-buttons {
+    height: auto;
+    align: center middle;
+    padding: 1 0 0 0;
+}
+
+#confirm-buttons Button {
+    margin: 0 1;
+}
+
+/* ── Dashboard ───────────────────────────────────────────────── */
+
+DashboardModal {
+    align: center middle;
+}
+
+#dash-body {
+    width: 80;
+    height: auto;
+    max-height: 90%;
+    background: #1a1a2e;
+    border: round #bf40ff;
+    padding: 1 2;
+}
+
+#dash-metrics {
+    padding: 1 0;
+}
+
+#dash-footer {
+    text-align: center;
+    padding: 1 0 0 0;
+}
+
+/* ── Daily Receipt ───────────────────────────────────────────── */
+
+DailyReceiptModal {
+    align: center middle;
+}
+
+#receipt-body {
+    width: 70;
+    height: 80%;
+    background: #1a1a2e;
+    border: round #bf40ff;
+    padding: 1 2;
+}
+
+#receipt-title {
+    text-align: center;
+    padding: 0 0 1 0;
+}
+
+#receipt-log {
+    height: 1fr;
+    padding: 1 0;
+}
+
+#receipt-footer {
+    text-align: center;
+    padding: 1 0 0 0;
+}

@@ -1,0 +1,107 @@
+<article class="quest-card" data-status="{{ quest.status }}" data-id="{{ quest.id }}" data-animate-in>
+  <div class="quest-card__header">
+    {% if quest.frog %}
+      <span class="quest-card__frog">🐸</span>
+    {% endif %}
+    <h3 class="quest-card__title">{{ quest.title }}</h3>
+  </div>
+  <div class="quest-card__meta">
+    {% if quest.elapsed %}
+      <span>⏱ {{ quest.elapsed }}</span>
+    {% endif %}
+    {% if quest.pomo_count %}
+      <span>🍅 {{ quest.pomo_count }} today</span>
+    {% endif %}
+  </div>
+  <div class="quest-card__actions">
+    {% if quest.status == "log" %}
+      <button class="btn btn--copper btn--sm"
+              hx-patch="/quests/{{ quest.id }}/status"
+              hx-vals='{"status": "active"}'
+              hx-target="#quest-board"
+              hx-swap="innerHTML">
+        ▶ Start
+      </button>
+      <button class="btn btn--ghost btn--sm"
+              hx-patch="/quests/{{ quest.id }}/status"
+              hx-vals='{"status": "blocked"}'
+              hx-target="#quest-board"
+              hx-swap="innerHTML">
+        ⊘ Block
+      </button>
+      <button class="btn btn--ghost btn--sm"
+              hx-patch="/quests/{{ quest.id }}/frog"
+              hx-target="#quest-board"
+              hx-swap="innerHTML">
+        🐸 Frog
+      </button>
+      <button class="btn btn--ember btn--sm"
+              hx-get="/quests/{{ quest.id }}/confirm-delete"
+              hx-target="#confirm-slot"
+              hx-swap="innerHTML">
+        🗑
+      </button>
+    {% elif quest.status == "active" %}
+      <button class="btn btn--copper btn--sm"
+              hx-post="/pomos/start"
+              hx-vals='{"quest_id": "{{ quest.id }}"}'
+              hx-target="body"
+              hx-swap="beforeend">
+        🍅 Pomo
+      </button>
+      <button class="btn btn--sage btn--sm"
+              hx-patch="/quests/{{ quest.id }}/status"
+              hx-vals='{"status": "done"}'
+              hx-target="#quest-board"
+              hx-swap="innerHTML">
+        ✓ Done
+      </button>
+      <button class="btn btn--ghost btn--sm"
+              hx-patch="/quests/{{ quest.id }}/status"
+              hx-vals='{"status": "blocked"}'
+              hx-target="#quest-board"
+              hx-swap="innerHTML">
+        ⊘ Block
+      </button>
+      <button class="btn btn--ghost btn--sm"
+              hx-patch="/quests/{{ quest.id }}/frog"
+              hx-target="#quest-board"
+              hx-swap="innerHTML">
+        🐸 Frog
+      </button>
+      <button class="btn btn--ember btn--sm"
+              hx-get="/quests/{{ quest.id }}/confirm-delete"
+              hx-target="#confirm-slot"
+              hx-swap="innerHTML">
+        🗑
+      </button>
+    {% elif quest.status == "blocked" %}
+      <button class="btn btn--copper btn--sm"
+              hx-patch="/quests/{{ quest.id }}/status"
+              hx-vals='{"status": "active"}'
+              hx-target="#quest-board"
+              hx-swap="innerHTML">
+        ▶ Unblock
+      </button>
+      <button class="btn btn--ghost btn--sm"
+              hx-patch="/quests/{{ quest.id }}/frog"
+              hx-target="#quest-board"
+              hx-swap="innerHTML">
+        🐸 Frog
+      </button>
+      <button class="btn btn--ember btn--sm"
+              hx-get="/quests/{{ quest.id }}/confirm-delete"
+              hx-target="#confirm-slot"
+              hx-swap="innerHTML">
+        🗑
+      </button>
+    {% elif quest.status == "done" %}
+      <button class="btn btn--ember btn--sm"
+              hx-get="/quests/{{ quest.id }}/confirm-delete"
+              hx-target="#confirm-slot"
+              hx-swap="innerHTML">
+        🗑
+      </button>
+    {% endif %}
+  </div>
+</article>
