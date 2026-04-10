@@ -17,14 +17,21 @@
   <section class="tab-panel" x-show="tab === 'inscribe'" x-transition:enter="tab-enter"
     x-transition:enter-start="tab-enter-from" x-transition:enter-end="tab-enter-to">
     <div class="inscribe-panel">
-      <h2 class="inscribe-panel__heading">Inscribe a New Quest</h2>
-      <form class="add-quest-form" hx-post="/quests" hx-target="#quest-board" hx-swap="innerHTML"
-        hx-on::after-request="this.reset(); $data.tab = 'board'">
-        <input type="text" name="title" class="add-quest-form__input" placeholder="What will you conquer today?"
-          required minlength="1" autocomplete="off">
-        <button type="submit" class="btn btn--copper btn--zap">⚡ Add</button>
-      </form>
-      <p class="inscribe-panel__hint">Press <kbd>n</kbd> from any tab to jump here</p>
+      <div class="inscribe-glass" @mousemove="
+          const r = $el.getBoundingClientRect();
+          const x = ($event.clientX - r.left) / r.width;
+          const y = ($event.clientY - r.top) / r.height;
+          $el.style.transform = `perspective(800px) rotateY(${(x - 0.5) * 8}deg) rotateX(${(0.5 - y) * 6}deg)`;
+        " @mouseleave="$el.style.transform = 'perspective(800px) rotateY(0deg) rotateX(0deg)'">
+        <h2 class="inscribe-panel__heading">Inscribe Your Quest</h2>
+        <form class="add-quest-form" hx-post="/quests" hx-target="#quest-board" hx-swap="innerHTML"
+          hx-on::after-request="this.reset(); $data.tab = 'board'">
+          <input type="text" name="title" class="add-quest-form__input" placeholder="What will you conquer today?"
+            required minlength="1" autocomplete="off">
+          <button type="submit" class="btn btn--copper btn--zap">✨ Add</button>
+        </form>
+        <p class="inscribe-panel__hint">Press <kbd>n</kbd> from any tab to jump here</p>
+      </div>
     </div>
   </section>
 

@@ -81,16 +81,16 @@
 }
 
 :root {
-  /* ── Surfaces (paper-on-stone layering) ─────────────── */
-  --surface: #fcf9f3;
-  /* base layer — page background */
-  --surface-container-low: #f6f3ed;
-  /* primary sectioning */
-  --surface-container-lowest: #ffffff;
-  /* elevated interactive cards */
-  --surface-container-high: #ebe8e2;
+  /* ── Surfaces (mocha spectrum — Combination A) ─────── */
+  --surface: #F3EDE3;
+  /* base layer — warm oat parchment */
+  --surface-container-low: #E8DED0;
+  /* section containers — soft mocha wash */
+  --surface-container-lowest: #FBF8F3;
+  /* elevated cards / inputs — clean warm white */
+  --surface-container-high: #DFD2C1;
   /* nested detail groups */
-  --surface-dim: #ddd9d2;
+  --surface-dim: #D6C9B8;
   /* empty/disabled states */
   --surface-tint: rgba(22, 52, 34, 0.06);
   /* focus glow tint */
@@ -144,11 +144,32 @@
   --hearth-glow: #f5d78e;
   /* celebration pulse */
 
-  /* ── Shadows (tinted ambient occlusion) ────────────── */
-  --shadow-ambient: 0 2px 24px rgba(28, 28, 24, 0.04);
-  --shadow-lifted: 0 4px 24px rgba(28, 28, 24, 0.06);
-  --shadow-floating: 0 8px 32px rgba(28, 28, 24, 0.08);
-  --shadow-overlay: 0 16px 48px rgba(28, 28, 24, 0.12);
+  /* ── Shadows (tinted ambient — high blur, low opacity) ── */
+  --shadow-ambient: 0 2px 20px rgba(22, 40, 28, 0.035);
+  --shadow-lifted: 0 4px 24px rgba(22, 40, 28, 0.05),
+    0 1px 6px rgba(22, 40, 28, 0.03);
+  --shadow-floating: 0 8px 30px rgba(22, 40, 28, 0.06),
+    0 2px 8px rgba(22, 40, 28, 0.03);
+  --shadow-overlay: 0 16px 48px rgba(22, 40, 28, 0.10),
+    0 4px 12px rgba(22, 40, 28, 0.04);
+  --shadow-navbar: 0 4px 24px rgba(22, 40, 28, 0.05),
+    0 1px 4px rgba(22, 40, 28, 0.03);
+
+  /* ── Input depth (inset + outer lift) ───────────────── */
+  --shadow-input-inset: inset 0 1px 3px rgba(22, 40, 28, 0.06);
+  --shadow-input-lift: 0 1px 4px rgba(22, 40, 28, 0.03);
+  --shadow-input-focus: 0 0 0 3px rgba(22, 52, 34, 0.08),
+    0 0 12px rgba(22, 52, 34, 0.06);
+
+  /* ── Micro-gradients ───────────────────────────────── */
+  --gradient-cta: linear-gradient(135deg, var(--primary) 0%, #1e4a2e 100%);
+  --gradient-cta-hover: linear-gradient(135deg, #1e4a2e 0%, var(--primary) 100%);
+  --gradient-surface: radial-gradient(circle at top, #F6F1E8, #EFE6DA);
+  --gradient-radial-warmth: radial-gradient(ellipse at 50% 0%, rgba(212, 148, 58, 0.04) 0%, transparent 70%);
+
+  /* ── Grain / paper texture ──────────────────────────── */
+  --grain-opacity: 0.03;
+  --grain-blend: multiply;
 
   /* ── Easing (natural, weighted motion) ─────────────── */
   --ease-natural: cubic-bezier(0.4, 0, 0.2, 1);
@@ -200,7 +221,9 @@
   --text-4xl: 3.5rem;
   /* 56px — display-lg */
 
-  /* ── Glassmorphism ─────────────────────────────────── */
-  --glass-bg: rgba(252, 249, 243, 0.80);
+  /* ── Glassmorphism (warm mocha-compatible) ─────────── */
+  --glass-bg: rgba(255, 255, 255, 0.65);
   --glass-blur: 20px;
+  --glass-border: rgba(120, 100, 80, 0.12);
+  --glass-shadow: 0 4px 24px rgba(22, 40, 28, 0.05);
 }

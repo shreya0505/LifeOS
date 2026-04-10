@@ -7,8 +7,22 @@ body {
   font-weight: 500;
   line-height: 1.6;
   color: var(--on-surface);
-  background: var(--surface);
+  background: var(--gradient-surface);
+  background-attachment: fixed;
   min-height: 100vh;
+}
+
+/* Background grain texture */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.03) 1px, transparent 0);
+  background-size: 4px 4px;
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: 0;
 }
 
 /* ── Focus styles (accessibility) ────────────────────────── */
@@ -42,6 +56,9 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: var(--space-md) var(--space-xl);
+  background: transparent;
+  border-bottom: none;
+  box-shadow: none;
 }
 
 .app-navbar__brand {
@@ -70,12 +87,10 @@ body {
   align-items: center;
   gap: var(--space-lg);
   padding: 8px 24px;
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid rgba(194, 200, 192, 0.15);
+  background: transparent;
+  border: none;
   border-radius: var(--radius-full);
-  box-shadow: 0 8px 24px rgba(28, 28, 24, 0.04);
+  box-shadow: none;
 }
 
 .app-navbar__link {
@@ -122,7 +137,7 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: calc(var(--space-3xl) + var(--space-xl)) var(--space-lg) var(--space-xl);
+  padding: calc(var(--space-3xl) + var(--space-2xl)) var(--space-xl) var(--space-2xl);
   max-width: 1200px;
   margin: 0 auto;
   width: 100%;
@@ -166,7 +181,8 @@ body {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
-  box-shadow: 0 -1px 0 rgba(194, 200, 192, 0.15);
+  border-top: 1px solid var(--glass-border);
+  box-shadow: 0 -4px 20px rgba(22, 40, 28, 0.03);
   font-family: var(--font-body);
   font-size: var(--text-sm);
   font-weight: 500;
@@ -192,7 +208,7 @@ body {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid rgba(194, 200, 192, 0.15);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-full);
   box-shadow: var(--shadow-ambient);
   width: fit-content;
@@ -278,11 +294,88 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 60vh;
-  padding: var(--space-3xl) var(--space-lg);
+  min-height: 65vh;
+  padding: var(--space-3xl) var(--space-xl) var(--space-2xl);
   text-align: center;
 }
 
+/* ── Giant frosted glass card ──────────────────────────────── */
+.inscribe-glass {
+  position: relative;
+  overflow: hidden;
+  max-width: 680px;
+  width: 100%;
+  padding: var(--space-3xl) var(--space-2xl);
+  border-radius: 12px;
+
+  /* Glass base */
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(18px) saturate(120%);
+  -webkit-backdrop-filter: blur(18px) saturate(120%);
+
+  /* Depth */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.05),
+    0 10px 30px rgba(0, 0, 0, 0.05),
+    0 2px 6px rgba(0, 0, 0, 0.03);
+
+  /* Edge definition */
+  border: 1px solid rgba(255, 255, 255, 0.18);
+
+  transform-style: preserve-3d;
+  will-change: transform;
+  transition: all 280ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Frost grain layer */
+.inscribe-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.04) 1px, transparent 0);
+  background-size: 3px 3px;
+  opacity: 0.25;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Light scattering layer */
+.inscribe-glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(120deg,
+      rgba(255, 255, 255, 0.25),
+      rgba(255, 255, 255, 0.05) 40%,
+      rgba(255, 255, 255, 0.15));
+  opacity: 0.35;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Hover = stronger glass (tilt handled by Alpine) */
+.inscribe-glass:hover {
+  backdrop-filter: blur(22px) saturate(130%);
+  -webkit-backdrop-filter: blur(22px) saturate(130%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.06),
+    0 14px 40px rgba(0, 0, 0, 0.06),
+    0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+/* Ensure content sits above pseudo-elements */
+.inscribe-glass>* {
+  position: relative;
+  z-index: 2;
+}
+
+/* Heading inside glass */
 .inscribe-panel__heading {
   font-family: var(--font-display);
   font-size: var(--text-4xl);
@@ -290,69 +383,129 @@ body {
   font-style: normal;
   letter-spacing: -0.01em;
   color: var(--on-surface);
-  margin-bottom: var(--space-xl);
+  margin-bottom: var(--space-2xl);
 }
 
+/* ── Form inside glass card ──────────────────────────────── */
 .inscribe-panel .add-quest-form {
-  max-width: 640px;
+  position: relative;
+  max-width: 100%;
   width: 100%;
   margin-bottom: var(--space-lg);
-  padding: var(--space-md) var(--space-lg);
+  padding: 0;
+  background: transparent;
+  border-radius: var(--radius-xl);
+  box-shadow: none;
 }
 
+.inscribe-panel .add-quest-form:hover,
+.inscribe-panel .add-quest-form:focus-within {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* ── Input: flush with glass surface ─────────────────────── */
 .inscribe-panel .add-quest-form__input {
   padding: var(--space-md) var(--space-lg);
   font-size: var(--text-lg);
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  transition: box-shadow 260ms var(--ease-natural);
 }
 
+.inscribe-panel .add-quest-form__input:focus {
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.2),
+    0 0 12px rgba(22, 52, 34, 0.05);
+}
+
+/* ── CTA button: solid elevated ──────────────────────────── */
 .inscribe-panel .btn--zap {
+  position: relative;
   padding: var(--space-md) var(--space-xl);
   font-size: var(--text-base);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 4px 10px rgba(0, 0, 0, 0.08);
+  transition:
+    box-shadow 200ms ease,
+    transform 200ms ease,
+    filter 200ms ease;
 }
 
+.inscribe-panel .btn--zap:hover {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 6px 14px rgba(0, 0, 0, 0.1);
+}
+
+.inscribe-panel .btn--zap:active {
+  transform: translateY(0);
+  filter: brightness(1);
+}
+
+/* ── Hint text ───────────────────────────────────────────── */
 .inscribe-panel__hint {
   font-family: var(--font-body);
   font-size: var(--text-sm);
   font-weight: 500;
   color: var(--on-surface-muted);
-  margin-top: var(--space-sm);
+  margin-top: var(--space-md);
 }
 
 .inscribe-panel__hint kbd {
   display: inline-block;
   padding: 1px 6px;
-  background: var(--surface-container-high);
+  background: rgba(255, 255, 255, 0.35);
   border-radius: var(--radius-md);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
 }
 
-/* ── Electric zap animation on Add button ────────────────── */
-@keyframes zap-flash {
+/* ── Celebration burst animation on Add button ───────────── */
+@keyframes celebrate-burst {
   0% {
-    box-shadow: 0 0 0 0 rgba(149, 72, 43, 0.5);
+    box-shadow:
+      0 0 0 0 rgba(212, 148, 58, 0.5),
+      0 0 0 0 rgba(245, 215, 142, 0.3);
+    transform: scale(1);
   }
 
-  20% {
-    box-shadow: 0 0 12px 4px rgba(252, 154, 119, 0.7), 0 0 24px 8px rgba(149, 72, 43, 0.3);
+  25% {
+    box-shadow:
+      0 0 16px 6px rgba(212, 148, 58, 0.5),
+      0 0 32px 12px rgba(245, 215, 142, 0.25);
+    transform: scale(1.06);
   }
 
-  40% {
-    box-shadow: 0 0 4px 1px rgba(252, 154, 119, 0.2);
+  50% {
+    box-shadow:
+      0 0 24px 10px rgba(212, 148, 58, 0.35),
+      0 0 48px 20px rgba(245, 215, 142, 0.15);
+    transform: scale(1.02);
   }
 
-  60% {
-    box-shadow: 0 0 16px 6px rgba(252, 154, 119, 0.6), 0 0 32px 12px rgba(149, 72, 43, 0.2);
+  75% {
+    box-shadow:
+      0 0 10px 4px rgba(212, 148, 58, 0.2),
+      0 0 20px 8px rgba(245, 215, 142, 0.08);
+    transform: scale(1.04);
   }
 
   100% {
-    box-shadow: 0 0 0 0 transparent;
+    box-shadow: 0 0 0 0 transparent, 0 0 0 0 transparent;
+    transform: scale(1);
   }
 }
 
 .btn--zap:active,
 .btn--zap.is-zapping {
-  animation: zap-flash 400ms var(--ease-decelerate) forwards;
+  animation: celebrate-burst 600ms var(--ease-decelerate) forwards;
 }
 
 /* ── Metrics Duo (Chronicle + Trophies) ──────────────────── */
@@ -371,7 +524,7 @@ body {
 .metrics-duo__section {
   background: var(--surface-container-low);
   border-radius: var(--radius-xl);
-  padding: var(--space-lg);
+  padding: var(--space-xl);
   box-shadow: var(--shadow-ambient);
 }
 
@@ -405,6 +558,7 @@ body {
   border-radius: var(--radius-xl);
   padding: var(--space-md);
   overflow: visible;
+  box-shadow: var(--shadow-ambient);
 }
 
 .quest-column--log {
@@ -608,15 +762,17 @@ body {
   background: var(--surface-dim);
 }
 
-/* Primary CTA — deep forest green gradient */
+/* Primary CTA — deep forest green micro-gradient */
 .btn--copper {
-  background: linear-gradient(135deg, var(--primary), var(--primary-container));
+  background: var(--gradient-cta);
   color: var(--on-primary);
+  box-shadow: var(--shadow-ambient);
 }
 
 .btn--copper:hover {
-  background: linear-gradient(135deg, var(--primary-container), var(--primary));
-  box-shadow: 0 0 0 3px rgba(22, 52, 34, 0.12);
+  background: var(--gradient-cta-hover);
+  box-shadow: 0 4px 16px rgba(22, 52, 34, 0.15),
+    0 0 0 3px rgba(22, 52, 34, 0.08);
 }
 
 /* Success / done */
@@ -633,22 +789,24 @@ body {
 .btn--ember {
   background: transparent;
   color: var(--error);
-  border: 1px solid rgba(194, 200, 192, 0.15);
+  border: 1px solid var(--glass-border);
 }
 
 .btn--ember:hover {
   background: rgba(181, 73, 58, 0.06);
+  border-color: transparent;
 }
 
 /* Ghost */
 .btn--ghost {
   background: transparent;
   color: var(--on-surface-variant);
-  border: 1px solid rgba(194, 200, 192, 0.15);
+  border: 1px solid var(--glass-border);
 }
 
 .btn--ghost:hover {
   background: var(--surface-container-high);
+  border-color: transparent;
 }
 
 .btn--sm {
@@ -684,9 +842,9 @@ body {
   display: flex;
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
-  background: var(--surface-container-low);
+  background: var(--surface-container-lowest);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-ambient);
+  box-shadow: var(--shadow-lifted);
   margin-bottom: var(--space-md);
 }
 
@@ -695,16 +853,17 @@ body {
   padding: var(--space-sm) var(--space-md);
   border: none;
   border-radius: var(--radius-lg);
-  background: var(--surface-container-high);
+  background: var(--surface-container-lowest);
   font-family: var(--font-body);
   font-size: var(--text-base);
   color: var(--on-surface);
   outline: none;
+  box-shadow: var(--shadow-input-inset), var(--shadow-input-lift);
   transition: box-shadow 250ms var(--ease-natural);
 }
 
 .add-quest-form__input:focus {
-  box-shadow: 0 0 0 3px var(--surface-tint), 0 0 8px rgba(22, 52, 34, 0.08);
+  box-shadow: var(--shadow-input-inset), var(--shadow-input-focus);
 }
 
 .add-quest-form__input::placeholder {
@@ -728,7 +887,7 @@ body {
   background: var(--surface-container-lowest);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-overlay);
-  padding: var(--space-xl);
+  padding: var(--space-xl) var(--space-2xl);
   max-width: 420px;
   width: 90%;
 }
@@ -757,11 +916,13 @@ body {
 /* ── Toast container ─────────────────────────────────────── */
 .toast-container {
   position: fixed;
-  bottom: var(--space-lg);
-  right: var(--space-lg);
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 200;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: var(--space-sm);
 }
 
@@ -769,6 +930,7 @@ body {
   background: var(--surface-container-lowest);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-floating);
+  border: 1px solid var(--glass-border);
   padding: var(--space-sm) var(--space-lg);
   font-family: var(--font-body);
   font-size: var(--text-sm);
@@ -780,7 +942,7 @@ body {
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translateY(10px) scale(0.95);
+    transform: translateY(-10px) scale(0.95);
   }
 
   to {
@@ -793,7 +955,7 @@ body {
 .pomo-overlay {
   position: fixed;
   inset: 0;
-  background: var(--surface);
+  background: var(--gradient-surface);
   z-index: 50;
   display: flex;
   align-items: center;
@@ -885,17 +1047,18 @@ body {
   padding: var(--space-sm) var(--space-md);
   border: none;
   border-radius: var(--radius-lg);
-  background: var(--surface-container-high);
+  background: var(--surface-container-lowest);
   font-family: var(--font-body);
   font-size: var(--text-base);
   color: var(--on-surface);
   outline: none;
   margin-bottom: var(--space-md);
+  box-shadow: var(--shadow-input-inset), var(--shadow-input-lift);
   transition: box-shadow 250ms var(--ease-natural);
 }
 
 .gate__input:focus {
-  box-shadow: 0 0 0 3px var(--surface-tint), 0 0 8px rgba(22, 52, 34, 0.08);
+  box-shadow: var(--shadow-input-inset), var(--shadow-input-focus);
 }
 
 .deed__forge-options {
@@ -1249,6 +1412,12 @@ body {
   border-radius: var(--radius-xl);
   border-left: 3px solid var(--tertiary);
   font-size: var(--text-sm);
+  box-shadow: var(--shadow-ambient);
+  transition: box-shadow 250ms var(--ease-natural);
+}
+
+.timeline-entry:hover {
+  box-shadow: var(--shadow-lifted);
 }
 
 .timeline-entry--berserker {
@@ -1354,12 +1523,14 @@ body {
   border-radius: var(--radius-xl);
   padding: var(--space-md) var(--space-lg);
   box-shadow: var(--shadow-ambient);
-  transition: box-shadow 250ms var(--ease-natural);
+  transition: box-shadow 300ms var(--ease-natural),
+    transform 300ms var(--ease-natural);
   overflow: hidden;
 }
 
 .trophy-card:hover {
   box-shadow: var(--shadow-lifted);
+  transform: translateY(-1px);
 }
 
 .trophy-card--gold {
@@ -1471,7 +1642,7 @@ body {
   background: var(--surface);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-overlay);
-  padding: var(--space-xl);
+  padding: var(--space-xl) var(--space-2xl);
   max-width: 720px;
   width: 90vw;
   max-height: 85vh;
@@ -1520,6 +1691,11 @@ body {
   background: var(--surface-container-lowest);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-ambient);
+  transition: box-shadow 250ms var(--ease-natural);
+}
+
+.metric-card:hover {
+  box-shadow: var(--shadow-lifted);
 }
 
 .metric-card--positive {

@@ -29,7 +29,7 @@ class AddQuestModal(ModalScreen):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="modal-body"):
-            yield Label("📜  Inscribe a New Quest")
+            yield Label("📜  Inscribe Your Quest")
             yield Input(id="quest-input", placeholder="What must be done...")
             with Horizontal(id="modal-buttons"):
                 yield Button("⚔  Add Quest", id="add", variant="primary")
