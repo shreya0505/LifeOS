@@ -205,7 +205,7 @@ async def interrupt(request: Request, reason: str = Form("")):
 @router.post("/complete-early", response_class=HTMLResponse)
 async def complete_early(request: Request):
     engine = get_engine()
-    if not engine.is_active or not engine.is_timing:
+    if not engine.is_active or not engine.is_timing or engine.seg_type != "work":
         return HTMLResponse("No active work segment.", status_code=400)
 
     event = engine.complete_early()
@@ -217,6 +217,23 @@ async def complete_early(request: Request):
             "quest_title": engine.session["quest_title"],
             "early": True,
         })
+
+    return _render(request, "pomo/panel.html", {
+        "engine": engine,
+        "mode": "charge",
+        "quest_title": engine.session["quest_title"],
+    })
+
+
+# ── Skip active break ────────────────────────────────────────────────────
+
+@router.post("/skip-break", response_class=HTMLResponse)
+async def skip_break(request: Request):
+    engine = get_engine()
+    if not engine.is_active or not engine.is_timing or engine.seg_type == "work":
+        return HTMLResponse("No active break segment.", status_code=400)
+
+    engine.end_segment(completed=False)
 
     return _render(request, "pomo/panel.html", {
         "engine": engine,

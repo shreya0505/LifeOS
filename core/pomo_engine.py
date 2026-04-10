@@ -193,6 +193,7 @@ class PomoEngine:
         """End current segment. Returns event indicating next gate."""
         now = datetime.now(timezone.utc)
         seg_secs = (now - self.seg_start).total_seconds() if self.seg_start else 0.0
+        seg_started_at = self.seg_start.isoformat() if self.seg_start else now.isoformat()
 
         if self.seg_type == "work":
             self.lap_history[self.lap] = "done" if completed else "broken"
@@ -210,7 +211,7 @@ class PomoEngine:
             cycle=0,
             completed=completed,
             interruptions=self.seg_interruptions,
-            started_at=self.seg_start.isoformat(),
+            started_at=seg_started_at,
             ended_at=now.isoformat(),
             charge=self.charge if self.seg_type == "work" else None,
             break_size=break_size,
@@ -218,6 +219,7 @@ class PomoEngine:
             early_completion=early_completion,
         )
         self.session = self._repo.get_session(self.session["id"])
+        self.seg_start = None
 
         if not completed:
             return SegmentEnded(
@@ -237,7 +239,7 @@ class PomoEngine:
                 self.streak_peak = self.streak
             # Store deed-gate context
             self.deed_lap = self.lap
-            self.deed_seg_started = self.seg_start.isoformat()
+            self.deed_seg_started = seg_started_at
             self.lap += 1
 
             return SegmentEnded(

@@ -171,6 +171,34 @@ async def test_break_short(client):
     assert "pomodoroTimer" in r.text or "Break" in r.text
 
 
+@pytest.mark.asyncio
+async def test_skip_active_break_timer(client):
+    qid = await _add_active_quest(client)
+    await client.post("/pomos/start", data={"quest_id": qid})
+    await client.post("/pomos/charge", data={"charge": "Work"})
+    await client.post("/pomos/complete-early")
+    await client.post("/pomos/deed", data={"deed": "Done", "forge_type": ""})
+    await client.post("/pomos/break", data={"choice": "short"})
+
+    r = await client.post("/pomos/skip-break")
+    assert r.status_code == 200
+    assert "Declare your intent" in r.text or "charge" in r.text.lower()
+
+
+@pytest.mark.asyncio
+async def test_complete_early_rejects_break_timer(client):
+    qid = await _add_active_quest(client)
+    await client.post("/pomos/start", data={"quest_id": qid})
+    await client.post("/pomos/charge", data={"charge": "Work"})
+    await client.post("/pomos/complete-early")
+    await client.post("/pomos/deed", data={"deed": "Done", "forge_type": ""})
+    await client.post("/pomos/break", data={"choice": "short"})
+
+    r = await client.post("/pomos/complete-early")
+    assert r.status_code == 400
+    assert "No active work segment" in r.text
+
+
 # ── Interrupt ────────────────────────────────────────────────────────────
 
 
