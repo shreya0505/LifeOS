@@ -3835,7 +3835,7 @@ body::before {
 
 .interrupt-screen__header {
   text-align: center;
-  margin-bottom: 2.5rem;
+  margin-bottom: 2rem;
 }
 
 .interrupt-screen__quest {
@@ -3852,6 +3852,7 @@ body::before {
   font-weight: 500;
   font-size: 1.25rem;
   color: var(--on-surface-variant);
+  letter-spacing: 0;
   margin-bottom: 0.5rem;
 }
 
@@ -3866,7 +3867,7 @@ body::before {
 .interrupt-screen__reasons {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 0.25rem;
   width: 100%;
   max-width: 480px;
 }
@@ -3874,47 +3875,19 @@ body::before {
 .interrupt-reason {
   display: flex;
   align-items: center;
-  gap: 1.25rem;
   width: 100%;
-  padding: 1.25rem 1.5rem;
-  background: var(--surface-container-lowest);
+  padding: 1rem 1.25rem;
+  background: transparent;
   border: none;
-  border-bottom: 1px solid var(--surface-container-high);
+  border-radius: var(--radius-md);
   color: var(--on-surface);
   cursor: pointer;
   text-align: left;
-  transition:
-    background 300ms var(--ease-natural),
-    box-shadow 300ms var(--ease-natural);
-}
-
-.interrupt-reason:first-child {
-  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-}
-
-.interrupt-reason:last-child {
-  border-bottom: none;
-  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
-}
-
-.interrupt-reason:only-child {
-  border-radius: var(--radius-xl);
+  transition: background 220ms var(--ease-natural);
 }
 
 .interrupt-reason:hover {
-  background: var(--surface-container-low);
-  box-shadow: var(--shadow-lifted);
-}
-
-.interrupt-reason:active {
-  background: var(--surface-container-high);
-}
-
-.interrupt-reason__icon {
-  font-size: 1.5rem;
-  flex-shrink: 0;
-  width: 2.5rem;
-  text-align: center;
+  background: color-mix(in oklch, var(--surface-container-low) 72%, transparent);
 }
 
 .interrupt-reason__text {
@@ -3927,7 +3900,7 @@ body::before {
   font-family: var(--font-body);
   font-weight: 600;
   font-size: 0.875rem;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--on-surface);
 }
