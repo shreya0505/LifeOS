@@ -1,25 +1,90 @@
-<div class="pomo-gate deed-gate">
-  <h3 class="gate__prompt">Time's up, warrior. What did you claim?</h3>
-  <p class="gate__hint">(a bug slain, a path cleared, a truth discovered)</p>
-  {% if early %}
-    <p class="gate__hint gate__hint--early">⏩ Swiftblade — completed early</p>
-  {% endif %}
-  <form hx-post="/pomos/deed" hx-target="#pomo-panel" hx-swap="outerHTML">
-    <input type="text" name="deed"
-           class="gate__input"
-           required minlength="3"
-           autofocus
-           placeholder="I claimed...">
-    <div class="deed__forge-options">
-      <button type="submit" name="forge_type" value="" class="btn btn--copper">
-        ✦ Submit
-      </button>
-      <button type="submit" name="forge_type" value="hollow" class="btn btn--ghost">
-        💀 Hollow
-      </button>
-      <button type="submit" name="forge_type" value="berserker" class="btn btn--ghost">
-        ⚡ Berserker
-      </button>
+<div class="deed-ritual" x-data="{ focused: false, forge: '' }">
+  <!-- Ambient orbs -->
+  <div class="deed-ritual__ambient" aria-hidden="true">
+    <div class="deed-ritual__orb deed-ritual__orb--primary"></div>
+    <div class="deed-ritual__orb deed-ritual__orb--secondary"></div>
+  </div>
+
+  <!-- Single glass pane -->
+  <div class="deed-ritual__pane">
+
+    {% if early %}
+    <div class="deed-ritual__tag" aria-label="Completed early">
+      <span class="deed-ritual__tag-icon">&#x26A1;</span>
+      <span class="deed-ritual__tag-text">Swiftblade</span>
     </div>
-  </form>
+    {% endif %}
+
+    <!-- Identity Zone ??? the artifact header -->
+    <div class="ritual__identity">
+      <h1 class="ritual__task-name">{{ quest_title }}</h1>
+      {% if engine.streak > 1 %}
+      <span class="ritual__meta">Streak &#x1F525; &times; {{ engine.streak }}</span>
+      {% endif %}
+    </div>
+
+    <form class="deed-ritual__form"
+          hx-post="/pomos/deed"
+          hx-target="#pomo-panel"
+          hx-swap="outerHTML">
+
+      <input type="hidden" name="forge_type" :value="forge">
+
+      <!-- Intent Zone ??? the moment of commitment -->
+      <div class="ritual__intent">
+        <h2 class="ritual__action">What did you claim?</h2>
+        <p class="ritual__supporting">The timer has fallen. Name your conquest.</p>
+
+        <div class="deed-ritual__input-wrap"
+             :class="{ 'deed-ritual__input-wrap--focus': focused }">
+          <input type="text"
+                 name="deed"
+                 id="deed-input"
+                 class="deed-ritual__input"
+                 required
+                 minlength="3"
+                 autofocus
+                 placeholder="I claimed..."
+                 @focus="focused = true"
+                 @blur="focused = false">
+          <div class="deed-ritual__input-line"></div>
+        </div>
+      </div>
+
+      <!-- Forge type segmented control -->
+      <div class="deed-ritual__forge-seg" role="radiogroup" aria-label="Forge quality">
+        <button type="button"
+                class="deed-ritual__seg-opt"
+                :class="{ 'deed-ritual__seg-opt--active': forge === 'hollow' }"
+                @click="forge = 'hollow'">
+          <span class="deed-ritual__seg-icon">&#x1F480;</span>
+          Hollow
+        </button>
+        <span class="deed-ritual__seg-div" aria-hidden="true"></span>
+        <button type="button"
+                class="deed-ritual__seg-opt"
+                :class="{ 'deed-ritual__seg-opt--active': forge === '' }"
+                @click="forge = ''">
+          <span class="deed-ritual__seg-icon">&#x2694;</span>
+          Tempered
+        </button>
+        <span class="deed-ritual__seg-div" aria-hidden="true"></span>
+        <button type="button"
+                class="deed-ritual__seg-opt"
+                :class="{ 'deed-ritual__seg-opt--active': forge === 'berserker' }"
+                @click="forge = 'berserker'">
+          <span class="deed-ritual__seg-icon">&#x26A1;</span>
+          Berserker
+        </button>
+      </div>
+
+      <!-- Action Zone ??? separate decision from thought -->
+      <div class="ritual__action-zone">
+        <button type="submit" class="deed-ritual__seal">
+          <span class="deed-ritual__seal-text">Seal the Forge</span>
+        </button>
+      </div>
+
+    </form>
+  </div>
 </div>

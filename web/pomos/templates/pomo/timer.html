@@ -1,96 +1,150 @@
-<div class="pomo-timer"
-     x-data="pomodoroTimer({{ duration }}, '{{ started_at }}')"
-     x-init="start()">
+<!-- Ritual Interface — the timer is the sun, everything orbits it -->
+<div class="chrono-timer" x-data="pomodoroTimer({{ duration }}, '{{ started_at }}')" x-init="start()">
 
-  <!-- Countdown -->
-  <div class="timer__countdown" x-text="display">{{ duration // 60 }}:00</div>
-  <div class="timer__bar">
-    <div class="timer__bar-fill timer__bar-fill--{{ 'work' if seg_type == 'work' else 'break' }}"
-         :style="'width: ' + percent + '%'"></div>
+  <!-- Ambient atmospheric orbs -->
+  <div class="chrono-timer__ambient" aria-hidden="true">
+    <div class="chrono-timer__orb chrono-timer__orb--primary"></div>
+    <div class="chrono-timer__orb chrono-timer__orb--secondary"></div>
   </div>
-  <div class="timer__percent" x-text="Math.round(percent) + '%'">100%</div>
 
-  {% if seg_type == "work" %}
-    <!-- Charge display -->
-    <div class="timer__charge">
-      <span class="timer__charge-label">Your Charge:</span>
-      <span class="timer__charge-text">"{{ charge }}"</span>
+  <!-- Header: quest name is the identity of this screen -->
+  <div class="chrono-timer__header">
+    <span class="chrono-timer__chapter-label">Current Chapter</span>
+    <h2 class="chrono-timer__chapter-title">{{ quest_title }}</h2>
+  </div>
+
+  <!-- 3-column ritual grid -->
+  <div class="chrono-timer__grid">
+
+    <!-- ─── Left: Flush Progress Rail ─── -->
+    <div class="chrono-timer__rail">
+      <div class="chrono-timer__phase-list">
+        {% for phase in phases %}
+        <div
+          class="chrono-timer__phase {% if phase.active %}chrono-timer__phase--active{% elif phase.done %}chrono-timer__phase--done{% else %}chrono-timer__phase--upcoming{% endif %}">
+          <span class="chrono-timer__phase-name">{{ phase.label }}</span>
+        </div>
+        {% endfor %}
+      </div>
     </div>
 
-    <!-- Journey dots -->
-    {% if journey %}
-    <div class="timer__journey">
-      {% for dot in journey %}
-        <span class="journey-dot journey-dot--{{ dot.status }}"
-              title="Lap {{ dot.lap }}">
-          {% if dot.status == "done" %}●{% elif dot.status == "current" %}◐{% elif dot.status == "broken" %}✕{% else %}○{% endif %}
-        </span>
-      {% endfor %}
-    </div>
-    {% endif %}
+    <!-- ─── Center: Timer Anchor ─── -->
+    <div class="chrono-timer__center">
 
-    <!-- Work segment actions -->
-    <div class="timer__actions">
-      <button class="btn btn--ghost btn--sm"
-              hx-post="/pomos/interrupt"
-              hx-target="#pomo-panel"
-              hx-swap="outerHTML"
-              hx-vals='{"reason": ""}'>
-        ⚡ Interrupt
-      </button>
-      <button class="btn btn--ghost btn--sm"
-              hx-post="/pomos/complete-early"
-              hx-target="#pomo-panel"
-              hx-swap="outerHTML">
-        ⏩ Swiftblade
-      </button>
+      <!-- Bare timer circle — no glass, no card -->
+      <div class="chrono-timer__ring">
+        <svg class="chrono-timer__svg" viewBox="0 0 200 200">
+          <circle class="chrono-timer__track" cx="100" cy="100" r="92" fill="transparent" stroke-width="1.5" />
+          <circle class="chrono-timer__progress chrono-timer__progress--{{ 'work' if seg_type == 'work' else 'break' }}"
+            cx="100" cy="100" r="92" fill="transparent" stroke-width="2.5" stroke-linecap="round"
+            :stroke-dasharray="2 * Math.PI * 92" :stroke-dashoffset="2 * Math.PI * 92 * (1 - percent / 100)" />
+        </svg>
+        <div class="chrono-timer__digits">
+          <h1 class="chrono-timer__time" x-text="display">{{ duration // 60 }}:00</h1>
+          <p class="chrono-timer__mana">
+            {% if seg_type == "work" %}Mana Depleting{% elif seg_type == "short_break" %}Restoring Spirit{% elif
+            seg_type == "extended_break" %}Deep Restoration{% else %}Lunar Recharge{% endif %}
+          </p>
+        </div>
+      </div>
+
+      <!-- Charge inscription — flush under timer -->
+      {% if seg_type == "work" %}
+      <div class="chrono-timer__charge">
+        <span class="chrono-timer__charge-label">Your Charge</span>
+        <p class="chrono-timer__charge-text">"{{ charge }}"</p>
+      </div>
+      {% endif %}
     </div>
-  {% else %}
-    <p class="timer__label">
-      {% if seg_type == "short_break" %}☕ Short Break{% elif seg_type == "extended_break" %}☕ Extended Break{% else %}🌙 Long Break{% endif %}
-    </p>
-  {% endif %}
+
+    <!-- ─── Right: Stacked Controls ─── -->
+    <div class="chrono-timer__actions-col">
+      <div class="chrono-timer__interventions">
+        <span class="chrono-timer__label-micro">Interventions</span>
+
+        {% if seg_type == "work" %}
+        <button class="chrono-timer__btn-swift" hx-post="/pomos/complete-early" hx-target="#pomo-panel"
+          hx-swap="outerHTML">
+          <span class="chrono-timer__btn-label">Swiftblade</span>
+          <span class="chrono-timer__btn-icon">⚡</span>
+        </button>
+
+        <button class="chrono-timer__btn-interrupt" hx-post="/pomos/interrupt/reason" hx-target="#pomo-panel"
+          hx-swap="outerHTML">
+          <span class="chrono-timer__btn-label chrono-timer__btn-label--ghost">Interrupt</span>
+          <span class="chrono-timer__btn-icon chrono-timer__btn-icon--ghost">✕</span>
+        </button>
+        {% else %}
+        <button class="chrono-timer__btn-skip" hx-post="/pomos/complete-early" hx-target="#pomo-panel"
+          hx-swap="outerHTML">
+          <span class="chrono-timer__btn-label">Skip Break</span>
+          <span class="chrono-timer__btn-icon">⏩</span>
+        </button>
+        {% endif %}
+      </div>
+
+      <!-- Separator -->
+      <hr class="chrono-timer__divider">
+
+      <!-- Momentum Aura — gold glass card -->
+      <div class="chrono-timer__aura">
+        <div class="chrono-timer__aura-header">
+          <span class="chrono-timer__label-micro">Momentum</span>
+          <span class="chrono-timer__aura-pct">{{ momentum|default(0) }}</span>
+        </div>
+        <div class="chrono-timer__aura-bar">
+          {% for i in range(8) %}
+          <div
+            class="chrono-timer__aura-seg {{ 'chrono-timer__aura-seg--filled' if i < (momentum|default(0)) else '' }}">
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+
 </div>
 
 <!-- SSE listener for server-authoritative timer -->
-<div hx-ext="sse"
-     sse-connect="/pomos/tick"
-     sse-swap="segment-complete"
-     hx-target="#pomo-panel"
-     hx-swap="outerHTML">
+<div hx-ext="sse" sse-connect="/pomos/tick" sse-swap="segment-complete" hx-target="#pomo-panel" hx-swap="outerHTML">
   <template>
-    <!-- On segment-complete, fetch the next gate -->
-    <div hx-post="/pomos/timer-done"
-         hx-target="#pomo-panel"
-         hx-swap="outerHTML"
-         hx-trigger="load"></div>
+    <div hx-post="/pomos/timer-done" hx-target="#pomo-panel" hx-swap="outerHTML" hx-trigger="load"></div>
   </template>
 </div>
 
 <script>
-function pomodoroTimer(totalSecs, startedAtISO) {
-  return {
-    remaining: totalSecs,
-    total: totalSecs,
-    display: '',
-    percent: 100,
-    interval: null,
-    start() {
-      const started = new Date(startedAtISO).getTime();
-      const update = () => {
-        const elapsed = (Date.now() - started) / 1000;
-        this.remaining = Math.max(0, this.total - elapsed);
-        this.percent = (this.remaining / this.total) * 100;
-        const m = Math.floor(this.remaining / 60);
-        const s = Math.floor(this.remaining % 60);
-        this.display = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
-      };
-      update();
-      this.interval = setInterval(update, 1000);
-    },
-    destroy() {
-      if (this.interval) clearInterval(this.interval);
-    }
-  };
-}
+  // DEBUG: Log SSE events from timer screen
+  document.body.addEventListener('htmx:sseBeforeMessage', function (e) {
+    console.log('[timer-sse] SSE event:', e.detail.type, e.detail);
+  });
+  console.log('[timer] Timer screen loaded, seg_type={{ seg_type }}');
+</script>
+
+<script>
+  function pomodoroTimer(totalSecs, startedAtISO) {
+    return {
+      remaining: totalSecs,
+      total: totalSecs,
+      display: '',
+      percent: 100,
+      interval: null,
+      start() {
+        const started = new Date(startedAtISO).getTime();
+        const update = () => {
+          const elapsed = (Date.now() - started) / 1000;
+          this.remaining = Math.max(0, this.total - elapsed);
+          this.percent = (this.remaining / this.total) * 100;
+          const m = Math.floor(this.remaining / 60);
+          const s = Math.floor(this.remaining % 60);
+          this.display = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+        };
+        update();
+        this.interval = setInterval(update, 1000);
+      },
+      destroy() {
+        if (this.interval) clearInterval(this.interval);
+      }
+    };
+  }
 </script>

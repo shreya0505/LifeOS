@@ -23,9 +23,21 @@ async def _generate_ticks():
     engine = get_engine()
 
     while engine.is_active and engine.is_timing:
+        # If an interrupt is pending (reason screen shown), stop the SSE
+        # so we don't race with the interrupt route.
+        if engine._interrupt_pending:
+            yield {"event": "stopped", "data": "{}"}
+            return
+
         remaining = engine.remaining()
 
         if remaining <= 0:
+            # Re-check: interrupt may have been signalled between the
+            # loop guard and here.
+            if engine._interrupt_pending or not engine.is_timing:
+                yield {"event": "stopped", "data": "{}"}
+                return
+
             # Timer expired — end the segment
             event = engine.end_segment(completed=True)
             yield {

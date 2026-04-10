@@ -272,7 +272,7 @@ async def test_trophy_pr_save_and_load(db):
 
     loaded = await repo.load_prs()
     assert len(loaded) == 2
-    assert loaded["iron_will"]["best"] == "5"
+    assert loaded["iron_will"]["best"] == 5
     assert loaded["frog_slayer"]["date"] == "2026-04-08"
 
 

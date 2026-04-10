@@ -82,6 +82,8 @@ async def submit_charge(request: Request, charge: str = Form(...)):
         "charge": engine.charge,
         "quest_title": engine.session["quest_title"],
         "journey": _journey(engine),
+        "phases": _build_phases(engine),
+        "momentum": engine.momentum,
     })
 
 
@@ -129,10 +131,12 @@ async def choose_break(request: Request, choice: str = Form(...)):
     event = engine.choose_break(choice)
 
     if event.action == "end_session":
+        journey_trail = _build_journey_trail(engine)
         summary = engine.stop_session()
         return _render(request, "pomo/summary.html", {
             "quest_title": summary.quest_title,
             "actual_pomos": summary.actual_pomos,
+            "journey_trail": journey_trail,
         })
 
     if event.action == "skip_to_charge":
@@ -153,10 +157,29 @@ async def choose_break(request: Request, choice: str = Form(...)):
         "lap": seg_event.lap,
         "quest_title": engine.session["quest_title"],
         "journey": _journey(engine),
+        "phases": _build_phases(engine),
+        "momentum": engine.momentum,
     })
 
 
 # ── Interrupt ────────────────────────────────────────────────────────────
+
+@router.post("/interrupt/reason", response_class=HTMLResponse)
+async def interrupt_reason(request: Request):
+    """Show the 'Why did you stop?' screen before recording the interrupt."""
+    engine = get_engine()
+    if not engine.is_active:
+        return HTMLResponse("No active session.", status_code=400)
+
+    # Signal the SSE loop to stop so it doesn't race with the interrupt
+    engine.mark_interrupt_pending()
+
+    return _render(request, "pomo/panel.html", {
+        "engine": engine,
+        "mode": "interrupt_reason",
+        "quest_title": engine.session["quest_title"],
+    })
+
 
 @router.post("/interrupt", response_class=HTMLResponse)
 async def interrupt(request: Request, reason: str = Form("")):
@@ -166,13 +189,14 @@ async def interrupt(request: Request, reason: str = Form("")):
 
     engine.interrupt(reason.strip())
 
-    response = _render(request, "pomo/panel.html", {
-        "engine": engine,
-        "mode": "charge",
-        "quest_title": engine.session["quest_title"],
-        "interrupted": True,
+    journey_trail = _build_journey_trail(engine)
+    summary = engine.stop_session()
+    response = _render(request, "pomo/summary.html", {
+        "quest_title": summary.quest_title,
+        "actual_pomos": summary.actual_pomos,
+        "journey_trail": journey_trail,
     })
-    response.headers["HX-Trigger"] = "pomo-interrupted"
+    response.headers["HX-Trigger"] = "pomo-stopped"
     return response
 
 
@@ -242,10 +266,12 @@ async def stop_session(request: Request):
     if engine.is_timing:
         engine.abandon_mid_segment()
 
+    journey_trail = _build_journey_trail(engine)
     summary = engine.stop_session()
     response = _render(request, "pomo/summary.html", {
         "quest_title": summary.quest_title,
         "actual_pomos": summary.actual_pomos,
+        "journey_trail": journey_trail,
     })
     response.headers["HX-Trigger"] = "pomo-stopped"
     return response
@@ -315,6 +341,8 @@ def _panel_context(engine) -> dict:
         ctx["lap"] = engine.lap
         ctx["charge"] = engine.charge
         ctx["journey"] = _journey(engine)
+        ctx["phases"] = _build_phases(engine)
+        ctx["momentum"] = engine.momentum
     elif engine.deed_lap >= 0:
         ctx["mode"] = "deed"
     else:
@@ -331,3 +359,76 @@ def _journey(engine) -> list[dict]:
             status = "current"
         dots.append({"lap": i, "status": status})
     return dots
+
+
+def _build_journey_trail(engine) -> list[dict]:
+    """Build a flat journey trail from the current session's segments.
+
+    Must be called BEFORE stop_session() since that resets engine state.
+    Returns list of {'type': str, 'completed': bool, 'forge_type': str}.
+    """
+    if not engine.session:
+        return []
+    session_id = engine.session["id"]
+    quest_id = engine.session["quest_id"]
+    all_sessions = get_quest_segment_journey(engine._repo.load_all(), quest_id)
+    trail = []
+    for sess_entry in all_sessions:
+        for seg in sess_entry["segments"]:
+            trail.append({
+                "type": seg.get("type", "work"),
+                "completed": seg.get("completed", False),
+                "forge_type": seg.get("forge_type") or "",
+                "interruption_reason": seg.get("interruption_reason") or "",
+                "is_current_session": sess_entry["session_id"] == session_id,
+            })
+    return trail
+
+
+# Phase labels for the chrono-aesthetic journey sidebar
+_PHASE_LABELS = {
+    "work":           "Deep Work Rite",
+    "short_break":    "Meditation Shell",
+    "extended_break": "Extended Respite",
+    "long_break":     "The Great Recess",
+}
+
+# The fixed cycle of phases a pomodoro follows
+_PHASE_CYCLE = ["short_break", "work", "long_break", "work"]
+
+
+def _build_phases(engine) -> list[dict]:
+    """Build the journey-phase list for the timer sidebar.
+
+    Shows the cycle of segments. The currently-running segment is 'active';
+    segments already completed are 'done'; future ones are unmarked.
+    """
+    seg = engine.seg_type if engine.seg_type else "work"
+    # Normalise extended_break to short_break for matching
+    seg_norm = "short_break" if seg == "extended_break" else seg
+
+    # Build a fixed 4-step cycle contextual to the current position
+    cycle = [
+        ("short_break", "Meditation Shell"),
+        ("work",        "Deep Work Rite"),
+        ("long_break",  "The Great Recess"),
+    ]
+
+    # Find which step matches current
+    active_idx = None
+    for i, (stype, _label) in enumerate(cycle):
+        if stype == seg_norm:
+            active_idx = i
+            break
+
+    if active_idx is None:
+        active_idx = 1  # default to work
+
+    phases = []
+    for i, (stype, label) in enumerate(cycle):
+        phases.append({
+            "label": label,
+            "active": i == active_idx,
+            "done": i < active_idx,
+        })
+    return phases

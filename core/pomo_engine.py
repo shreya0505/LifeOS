@@ -103,9 +103,11 @@ class PomoEngine:
         self.streak: int = 0
         self.streak_peak: int = 0
         self.momentum: int = 0
+        self.last_forge: str | None = None
         self.total_interruptions: int = 0
         self.session_focus_secs: float = 0.0
         self.last_interruption_reason: str = ""
+        self._interrupt_pending: bool = False
 
     @property
     def is_active(self) -> bool:
@@ -143,6 +145,7 @@ class PomoEngine:
         self.total_interruptions = 0
         self.session_focus_secs = 0.0
         self.last_interruption_reason = ""
+        self._interrupt_pending = False
 
         return self.session
 
@@ -244,10 +247,14 @@ class PomoEngine:
                 early_completion=early_completion,
             )
         else:
-            # Break finished — reset streak/momentum for long break
+            # Break finished — long break after berserker rewards momentum
             if self.seg_type == "long_break":
-                self.streak = 0
-                self.momentum = 0
+                if self.last_forge == "berserker":
+                    self.momentum += 2
+                    self.last_forge = None
+                else:
+                    self.streak = 0
+                    self.momentum = 0
 
             return SegmentEnded(
                 next_gate="charge",
@@ -278,6 +285,9 @@ class PomoEngine:
 
         self.deed_lap = -1
 
+        # Track last forge type for momentum decisions
+        self.last_forge = forge_type
+
         return DeedSubmitted(
             forge_type=forge_type,
             actual_pomos=actual,
@@ -307,8 +317,17 @@ class PomoEngine:
 
         return BreakChosen(action="start_break", seg_type=seg_type)
 
+    def mark_interrupt_pending(self) -> None:
+        """Signal that an interrupt is being collected (reason screen shown).
+
+        This tells the SSE loop and other callers to stop touching the
+        segment — the interrupt route will finalise it.
+        """
+        self._interrupt_pending = True
+
     def interrupt(self, reason: str) -> Interrupted:
         """Record interruption, advance lap. Returns event."""
+        self._interrupt_pending = False
         self.last_interruption_reason = reason
         self.total_interruptions += 1
         self.streak = 0
@@ -318,19 +337,22 @@ class PomoEngine:
         self.seg_interruptions += 1
         self.lap_history[self.lap] = "broken"
 
-        self._repo.add_segment(
-            session_id=self.session["id"],
-            seg_type="work",
-            lap=self.lap,
-            cycle=0,
-            completed=False,
-            interruptions=self.seg_interruptions,
-            started_at=self.seg_start.isoformat(),
-            ended_at=now.isoformat(),
-            charge=self.charge or None,
-            interruption_reason=reason or None,
-        )
-        self.session = self._repo.get_session(self.session["id"])
+        # If SSE already consumed the segment (seg_start is None),
+        # skip writing a duplicate segment row.
+        if self.seg_start is not None:
+            self._repo.add_segment(
+                session_id=self.session["id"],
+                seg_type="work",
+                lap=self.lap,
+                cycle=0,
+                completed=False,
+                interruptions=self.seg_interruptions,
+                started_at=self.seg_start.isoformat(),
+                ended_at=now.isoformat(),
+                charge=self.charge or None,
+                interruption_reason=reason or None,
+            )
+            self.session = self._repo.get_session(self.session["id"])
 
         # Update streak_peak on session
         if self.session and self.streak_peak > self.session.get("streak_peak", 0):
@@ -375,6 +397,7 @@ class PomoEngine:
         self.total_interruptions = 0
         self.session_focus_secs = 0.0
         self.last_interruption_reason = ""
+        self._interrupt_pending = False
 
         return SessionStopped(
             quest_title=quest_title,

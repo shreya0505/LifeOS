@@ -1,0 +1,87 @@
+<div class="interrupt-screen">
+
+    <div class="interrupt-screen__header">
+        <h1 class="interrupt-screen__quest">{{ quest_title }}</h1>
+        <h2 class="interrupt-screen__title">&#x26A0; Why did you stop?</h2>
+        <p class="interrupt-screen__sub">Logging the reason helps you spot patterns over time.</p>
+    </div>
+
+    <form hx-post="/pomos/interrupt" hx-target="#pomo-panel" hx-swap="outerHTML">
+        <div class="interrupt-screen__reasons">
+            <button type="submit" name="reason" value="distracted" class="interrupt-reason">
+                <span class="interrupt-reason__icon">🫠</span>
+                <span class="interrupt-reason__text">
+                    <span class="interrupt-reason__label">Distracted</span>
+                    <span class="interrupt-reason__hint">Lost focus, wandered off</span>
+                </span>
+            </button>
+            <button type="submit" name="reason" value="blocked" class="interrupt-reason">
+                <span class="interrupt-reason__icon">🧱</span>
+                <span class="interrupt-reason__text">
+                    <span class="interrupt-reason__label">Blocked</span>
+                    <span class="interrupt-reason__hint">Waiting on something external</span>
+                </span>
+            </button>
+            <button type="submit" name="reason" value="emergency" class="interrupt-reason">
+                <span class="interrupt-reason__icon">🚨</span>
+                <span class="interrupt-reason__text">
+                    <span class="interrupt-reason__label">Emergency</span>
+                    <span class="interrupt-reason__hint">Urgent, unavoidable</span>
+                </span>
+            </button>
+            <button type="submit" name="reason" value="personal" class="interrupt-reason">
+                <span class="interrupt-reason__icon">🧘</span>
+                <span class="interrupt-reason__text">
+                    <span class="interrupt-reason__label">Personal</span>
+                    <span class="interrupt-reason__hint">Needed a moment</span>
+                </span>
+            </button>
+        </div>
+    </form>
+
+</div>
+
+<script>
+    // DEBUG: Log HTMX lifecycle for interrupt → summary transition
+    (function () {
+        const panel = document.getElementById('pomo-panel');
+        console.log('[interrupt] pomo-panel found:', !!panel, panel?.className);
+
+        document.body.addEventListener('htmx:beforeRequest', function (e) {
+            if (e.detail.pathInfo?.requestPath === '/pomos/interrupt') {
+                console.log('[interrupt] htmx:beforeRequest → /pomos/interrupt');
+                console.log('[interrupt] target:', e.detail.target?.id, e.detail.target?.className);
+            }
+        });
+
+        document.body.addEventListener('htmx:beforeSwap', function (e) {
+            if (e.detail.pathInfo?.requestPath === '/pomos/interrupt') {
+                console.log('[interrupt] htmx:beforeSwap status:', e.detail.xhr?.status);
+                console.log('[interrupt] response length:', e.detail.xhr?.responseText?.length);
+                console.log('[interrupt] response preview:', e.detail.xhr?.responseText?.substring(0, 200));
+                console.log('[interrupt] swap target:', e.detail.target?.id);
+                console.log('[interrupt] target in DOM?', document.contains(e.detail.target));
+            }
+        });
+
+        document.body.addEventListener('htmx:afterSwap', function (e) {
+            if (e.detail.pathInfo?.requestPath === '/pomos/interrupt') {
+                console.log('[interrupt] htmx:afterSwap — summary should now be visible');
+                console.log('[interrupt] new #pomo-panel:', document.getElementById('pomo-panel')?.className);
+            }
+        });
+
+        document.body.addEventListener('htmx:swapError', function (e) {
+            console.error('[interrupt] htmx:swapError!', e.detail);
+        });
+
+        document.body.addEventListener('htmx:responseError', function (e) {
+            console.error('[interrupt] htmx:responseError!', e.detail.xhr?.status, e.detail.xhr?.responseText?.substring(0, 300));
+        });
+
+        // Also log any SSE events that might interfere
+        document.body.addEventListener('htmx:sseMessage', function (e) {
+            console.log('[sse] message received while on interrupt screen:', e.detail);
+        });
+    })();
+</script>

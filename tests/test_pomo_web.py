@@ -153,7 +153,7 @@ async def test_break_end_session(client):
 
     r = await client.post("/pomos/break", data={"choice": "end"})
     assert r.status_code == 200
-    assert "Session Complete" in r.text or "complete" in r.text.lower()
+    assert "summary-ritual" in r.text or "Return to Quest Board" in r.text
 
 
 @pytest.mark.asyncio
@@ -181,8 +181,7 @@ async def test_interrupt(client):
 
     r = await client.post("/pomos/interrupt", data={"reason": "Phone call"})
     assert r.status_code == 200
-    # Should be back at charge gate with interrupted notice
-    assert "Interrupt" in r.text or "charge" in r.text.lower()
+    assert "summary-ritual" in r.text or "Return to Quest Board" in r.text
 
 
 # ── Stop session ─────────────────────────────────────────────────────────
@@ -196,7 +195,7 @@ async def test_stop_session(client):
 
     r = await client.post("/pomos/stop")
     assert r.status_code == 200
-    assert "Session Complete" in r.text or "complete" in r.text.lower()
+    assert "summary-ritual" in r.text or "Return to Quest Board" in r.text
 
 
 @pytest.mark.asyncio
@@ -265,7 +264,7 @@ async def test_full_pomo_lifecycle(client):
     # Stop session
     r = await client.post("/pomos/stop")
     assert r.status_code == 200
-    assert "Session Complete" in r.text
+    assert "summary-ritual" in r.text or "Return to Quest Board" in r.text
 
 
 # ── Pomo status ──────────────────────────────────────────────────────────
