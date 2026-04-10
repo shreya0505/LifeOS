@@ -79,9 +79,8 @@ async def test_chronicle_heatmap_has_cells(client):
     r = await client.get("/chronicle")
     assert r.status_code == 200
     assert "heatmap__cell" in r.text
-    # Should have legend
-    assert "less" in r.text
-    assert "more" in r.text
+    # Should have legend swatches
+    assert "heatmap__legend" in r.text
 
 
 # ── Trophies ─────────────────────────────────────────────────────────────
@@ -93,7 +92,7 @@ async def test_trophies_empty(client):
     assert r.status_code == 200
     assert "trophy-panel" in r.text
     # All should be locked
-    assert "🔒" in r.text
+    assert "Locked" in r.text
 
 
 @pytest.mark.asyncio
@@ -103,7 +102,7 @@ async def test_trophies_with_pomo(client):
 
     r = await client.get("/trophies")
     assert r.status_code == 200
-    assert "trophy-card" in r.text
+    assert "valor-card" in r.text
     # Scribe should have at least bronze (1 documented pomo)
     assert "Scribe" in r.text
 
@@ -130,7 +129,7 @@ async def test_trophies_frog_slayer_unlocks(client):
     assert r.status_code == 200
     # Should have at least a bronze frog slayer
     assert "Frog Slayer" in r.text
-    assert "🥉" in r.text or "🥈" in r.text or "🏆" in r.text
+    assert "Mastered" in r.text or "Earned" in r.text or "Legacy" in r.text
 
 
 # ── Dashboard ────────────────────────────────────────────────────────────

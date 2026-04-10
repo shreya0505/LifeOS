@@ -153,6 +153,12 @@ document.body.addEventListener('htmx:afterSettle', function(e) {
       el.style.transition = 'opacity 300ms cubic-bezier(0.4, 0, 0.2, 1), transform 300ms cubic-bezier(0.4, 0, 0.2, 1)';
       el.style.opacity = '1';
       el.style.transform = 'translateY(0)';
+      // Clear inline styles after animation so CSS :hover works
+      setTimeout(function() {
+        el.style.removeProperty('opacity');
+        el.style.removeProperty('transform');
+        el.style.removeProperty('transition');
+      }, 320);
     }, i * 30);
   });
 });

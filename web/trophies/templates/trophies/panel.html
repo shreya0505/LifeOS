@@ -1,34 +1,72 @@
 <div class="trophy-panel" id="trophy-panel">
   <!-- Summary Bar -->
-  <div class="trophy-summary">
-    {% if summary.gold %}<span class="trophy-summary__item trophy-summary__item--gold">🏆 {{ summary.gold }}</span>{% endif %}
-    {% if summary.silver %}<span class="trophy-summary__item trophy-summary__item--silver">🥈 {{ summary.silver }}</span>{% endif %}
-    {% if summary.bronze %}<span class="trophy-summary__item trophy-summary__item--bronze">🥉 {{ summary.bronze }}</span>{% endif %}
-    {% if summary.locked %}<span class="trophy-summary__item trophy-summary__item--locked">🔒 {{ summary.locked }}</span>{% endif %}
+  <div class="valor-summary">
+    <div class="valor-summary__counts">
+      {% if summary.gold %}
+      <div class="valor-summary__stat">
+        <span class="valor-summary__label">Gold</span>
+        <span class="valor-summary__value valor-summary__value--gold">{{ summary.gold }}</span>
+      </div>
+      {% endif %}
+      {% if summary.silver %}
+      <div class="valor-summary__stat">
+        <span class="valor-summary__label">Silver</span>
+        <span class="valor-summary__value valor-summary__value--silver">{{ summary.silver }}</span>
+      </div>
+      {% endif %}
+      {% if summary.bronze %}
+      <div class="valor-summary__stat">
+        <span class="valor-summary__label">Bronze</span>
+        <span class="valor-summary__value valor-summary__value--bronze">{{ summary.bronze }}</span>
+      </div>
+      {% endif %}
+      {% if summary.locked %}
+      <div class="valor-summary__stat valor-summary__stat--locked">
+        <span class="valor-summary__label">Locked</span>
+        <span class="valor-summary__value">{{ summary.locked }}</span>
+      </div>
+      {% endif %}
+    </div>
     {% if best_day.count %}
-      <span class="trophy-summary__best">Best: {{ best_day.count }} trophies ({{ best_day.date[5:] }})</span>
+    <div class="valor-summary__best">
+      <span class="valor-summary__best-label">Best Day Record</span>
+      <span class="valor-summary__best-value">{{ best_day.count }} Forges
+        <span class="valor-summary__best-date">{{ best_day.date }}</span>
+      </span>
+    </div>
     {% endif %}
   </div>
 
-  <!-- Trophy Cards -->
-  <div class="trophy-grid">
+  <!-- Section Title -->
+  <h2 class="valor-title">Hall of Valor</h2>
+
+  <!-- Trophy Grid (3 columns) -->
+  <div class="valor-grid">
     {% for trophy in trophies %}
-    <article class="trophy-card trophy-card--{{ trophy.tier }}" data-animate-in>
-      <div class="trophy-card__header">
-        <span class="trophy-card__badge">{{ trophy.tier_icon }}</span>
-        <div>
-          <h4 class="trophy-card__name">{{ trophy.icon }} {{ trophy.name }}</h4>
-          <p class="trophy-card__desc">{{ trophy.desc }}</p>
+    <article class="valor-card valor-card--{{ trophy.tier }}" data-animate-in>
+      <div class="valor-card__head">
+        <div class="valor-card__icon valor-card__icon--{{ trophy.tier }}">
+          <span>{{ trophy.icon }}</span>
         </div>
+        {% if trophy.tier == 'locked' %}
+        <span class="valor-card__chip valor-card__chip--locked">Locked</span>
+        {% elif trophy.tier == 'gold' %}
+        <span class="valor-card__chip valor-card__chip--gold">Legacy</span>
+        {% elif trophy.tier == 'silver' %}
+        <span class="valor-card__chip valor-card__chip--silver">Earned</span>
+        {% elif trophy.tier == 'bronze' %}
+        <span class="valor-card__chip valor-card__chip--bronze">Mastered</span>
+        {% endif %}
       </div>
-      <div class="trophy-card__progress">
-        <div class="trophy-card__bar">
-          <div class="trophy-card__bar-fill trophy-card__bar-fill--{{ trophy.tier }}"
-               style="width: {{ trophy.progress_pct }}%"></div>
+      <h4 class="valor-card__name">{{ trophy.name }}</h4>
+      <p class="valor-card__desc">{{ trophy.desc }}</p>
+      <div class="valor-card__progress">
+        <div class="valor-card__bar">
+          <div class="valor-card__bar-fill valor-card__bar-fill--{{ trophy.tier }}"
+            style="width: {{ trophy.progress_pct }}%"></div>
         </div>
-        <span class="trophy-card__label">{{ trophy.progress_label }}</span>
+        <span class="valor-card__label">{{ trophy.progress_label }}</span>
       </div>
-      <div class="trophy-card__pr">PR: {{ trophy.pr }}</div>
     </article>
     {% endfor %}
   </div>

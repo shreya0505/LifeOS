@@ -20,11 +20,19 @@ def _render(request: Request, name: str, context: dict):
     return templates.TemplateResponse(request, name, context)
 
 
-def _build_heatmap(sessions: list[dict], weeks: int = 12) -> list[dict]:
-    """Build heatmap cells for the last N weeks (Mon-Sun grid)."""
+def _build_heatmap(sessions: list[dict]) -> list[dict]:
+    """Build heatmap cells for the current month as a Mon-Sun calendar grid."""
     today = today_local()
-    # Start from Monday of (weeks) weeks ago
-    start = today - timedelta(days=today.weekday() + 7 * (weeks - 1))
+    # First and last day of current month
+    first_of_month = today.replace(day=1)
+    if today.month == 12:
+        last_of_month = today.replace(year=today.year + 1, month=1, day=1) - timedelta(days=1)
+    else:
+        last_of_month = today.replace(month=today.month + 1, day=1) - timedelta(days=1)
+
+    # Pad to full weeks (Mon=0 start)
+    grid_start = first_of_month - timedelta(days=first_of_month.weekday())
+    grid_end = last_of_month + timedelta(days=6 - last_of_month.weekday())
 
     # Count completed work pomos per day (excluding hollow)
     daily: dict[str, int] = defaultdict(int)
@@ -40,12 +48,16 @@ def _build_heatmap(sessions: list[dict], weeks: int = 12) -> list[dict]:
                     daily[d] += 1
 
     cells = []
-    current = start
+    current = grid_start
     today_str = today.isoformat()
-    while current <= today:
+    while current <= grid_end:
         d = current.isoformat()
+        in_month = current.month == today.month and current.year == today.year
+        is_future = current > today
         count = daily.get(d, 0)
-        if count == 0:
+        if not in_month or is_future:
+            level = "outside"
+        elif count == 0:
             level = "empty"
         elif count <= 2:
             level = "light"
@@ -58,6 +70,8 @@ def _build_heatmap(sessions: list[dict], weeks: int = 12) -> list[dict]:
             "count": count,
             "level": level,
             "is_today": d == today_str,
+            "in_month": in_month,
+            "day_num": current.day,
         })
         current += timedelta(days=1)
 
@@ -125,6 +139,9 @@ async def chronicle(request: Request, pomo_repo=Depends(get_pomo_repo)):
     today_pomos = sum(1 for e in today_entries if e["completed"] and e.get("forge_type") != "hollow")
     today_focus_secs = sum(e["duration_secs"] for e in today_entries if e["completed"])
 
+    today = today_local()
+    month_label = today.strftime("%B %Y")
+
     return _render(request, "chronicle/panel.html", {
         "heatmap_cells": heatmap_cells,
         "today_entries": today_entries,
@@ -132,4 +149,5 @@ async def chronicle(request: Request, pomo_repo=Depends(get_pomo_repo)):
         "today_focus": fmt_compact(today_focus_secs) if today_focus_secs > 0 else "0m",
         "week_pomos": week["pomos"],
         "week_focus": week["focus_time"],
+        "month_label": month_label,
     })

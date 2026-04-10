@@ -43,21 +43,32 @@
     </div>
   </section>
 
-  <!-- ── Tab: Metrics (Chronicle + Trophies) ───────────────── -->
+  <!-- ── Tab: Metrics (The Grand Ledger) ─────────────────── -->
   <section class="tab-panel" x-show="tab === 'metrics'" x-transition:enter="tab-enter"
     x-transition:enter-start="tab-enter-from" x-transition:enter-end="tab-enter-to">
-    <div class="metrics-duo">
-      <div class="metrics-duo__section">
-        <h3 class="metrics-duo__title">✦ Chronicle</h3>
-        <div id="chronicle-slot" hx-get="/chronicle" hx-trigger="load, quest-changed from:body" hx-swap="innerHTML">
-        </div>
+
+    <!-- Editorial Header -->
+    <header class="ledger-header">
+      <h1 class="ledger-header__title">The Grand Ledger</h1>
+      <p class="ledger-header__subtitle">Volume {{ volume_number }} · Year of the Verdant Forge</p>
+    </header>
+
+    <!-- Section 1: The Chronicle (Retrospective) -->
+    <section class="ledger-section">
+      <div class="ledger-section__head">
+        <h2 class="ledger-section__title">The Chronicle</h2>
+        <span class="ledger-section__badge">● 12 Week Horizon</span>
       </div>
-      <div class="metrics-duo__section">
-        <h3 class="metrics-duo__title">⚔ Hall of Valor</h3>
-        <div id="trophy-slot" hx-get="/trophies" hx-trigger="load, quest-changed from:body" hx-swap="innerHTML">
-        </div>
+      <div id="chronicle-slot" hx-get="/chronicle" hx-trigger="load, quest-changed from:body" hx-swap="innerHTML">
       </div>
-    </div>
+    </section>
+
+    <!-- Section 2: Hall of Valor (Gamified) -->
+    <section class="ledger-valor">
+      <div id="trophy-slot" hx-get="/trophies" hx-trigger="load, quest-changed from:body" hx-swap="innerHTML">
+      </div>
+    </section>
+
   </section>
 
 </div>

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
 from core.config import VALID_SOURCES
-from core.utils import fantasy_date, format_duration, get_elapsed
+from core.utils import fantasy_date, format_duration, get_elapsed, today_local
 from core.pomo_queries import get_all_pomo_counts_today
 from web.deps import get_quest_repo, get_pomo_repo
 
@@ -73,6 +73,7 @@ async def index(request: Request,
         "fantasy_date": fantasy_date(),
         "quest_counts": counts,
         "pomo_count": pomo_count,
+        "volume_number": today_local().isocalendar()[1],
     })
 
 
