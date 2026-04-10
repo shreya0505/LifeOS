@@ -153,6 +153,7 @@ async def test_break_end_session(client):
 
     r = await client.post("/pomos/break", data={"choice": "end"})
     assert r.status_code == 200
+    assert '<div class="pomo-overlay" id="pomo-panel">' in r.text
     assert "summary-ritual" in r.text or "Return to Quest Board" in r.text
 
 
@@ -181,6 +182,7 @@ async def test_interrupt(client):
 
     r = await client.post("/pomos/interrupt", data={"reason": "Phone call"})
     assert r.status_code == 200
+    assert '<div class="pomo-overlay" id="pomo-panel">' in r.text
     assert "summary-ritual" in r.text or "Return to Quest Board" in r.text
 
 
@@ -195,6 +197,7 @@ async def test_stop_session(client):
 
     r = await client.post("/pomos/stop")
     assert r.status_code == 200
+    assert '<div class="pomo-overlay" id="pomo-panel">' in r.text
     assert "summary-ritual" in r.text or "Return to Quest Board" in r.text
 
 

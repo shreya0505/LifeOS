@@ -1,85 +1,77 @@
-<div class="summary-ritual" id="pomo-panel">
-  <!-- Ambient orbs -->
-  <div class="summary-ritual__ambient" aria-hidden="true">
-    <div class="summary-ritual__orb summary-ritual__orb--primary"></div>
-    <div class="summary-ritual__orb summary-ritual__orb--secondary"></div>
-  </div>
-
-  <!-- Single glass pane -->
-  <div class="summary-ritual__pane">
-
-    <!-- Identity Zone -->
-    <div class="ritual__identity">
-      <h1 class="ritual__task-name">{{ quest_title }}</h1>
-      {% if actual_pomos > 0 %}
-      <span class="ritual__meta">{{ actual_pomos }} pomo{{ "s" if actual_pomos != 1 else "" }} forged</span>
-      {% else %}
-      <span class="ritual__meta">Session ended</span>
-      {% endif %}
+<div class="pomo-overlay" id="pomo-panel">
+  <div class="summary-ritual">
+    <!-- Ambient orbs -->
+    <div class="summary-ritual__ambient" aria-hidden="true">
+      <div class="summary-ritual__orb summary-ritual__orb--primary"></div>
+      <div class="summary-ritual__orb summary-ritual__orb--secondary"></div>
     </div>
 
-    <!-- Journey Zone -->
-    <div class="ritual__intent">
-      <h2 class="ritual__action">Your journey</h2>
+    <!-- Single glass pane -->
+    <div class="summary-ritual__pane">
 
-      {% if journey_trail %}
-      <div class="summary-ritual__journey">
-        {% for seg in journey_trail %}
-        {% if seg.type == "work" %}
-        {% if seg.completed %}
-        {% if seg.forge_type == "berserker" %}
-        <span class="journey-glyph journey-glyph--berserker" title="Berserker">&#x26A1;</span>
-        {% elif seg.forge_type == "hollow" %}
-        <span class="journey-glyph journey-glyph--hollow" title="Hollow">&#x1F480;</span>
+      <!-- Identity Zone -->
+      <div class="ritual__identity">
+        <h1 class="ritual__task-name">{{ quest_title }}</h1>
+        {% if actual_pomos > 0 %}
+        <span class="ritual__meta">{{ actual_pomos }} pomo{{ "s" if actual_pomos != 1 else "" }} forged</span>
         {% else %}
-        <span class="journey-glyph journey-glyph--done" title="Tempered">&#x2714;</span>
+        <span class="ritual__meta">Session ended</span>
         {% endif %}
-        {% else %}
-        {% if seg.interruption_reason == "distracted" %}
-        <span class="journey-glyph journey-glyph--broken" title="Distracted">&#x1F4AD;</span>
-        {% elif seg.interruption_reason == "blocked" %}
-        <span class="journey-glyph journey-glyph--broken" title="Blocked">&#x26D4;</span>
-        {% elif seg.interruption_reason == "emergency" %}
-        <span class="journey-glyph journey-glyph--broken" title="Emergency">&#x1F6A8;</span>
-        {% elif seg.interruption_reason == "personal" %}
-        <span class="journey-glyph journey-glyph--broken" title="Personal">&#x1F300;</span>
-        {% else %}
-        <span class="journey-glyph journey-glyph--broken" title="Broken">&#x25D1;</span>
-        {% endif %}
-        {% endif %}
-        {% else %}
-        {% if seg.type == "long_break" %}
-        <span class="journey-glyph journey-glyph--break" title="Long break">&#x1F3D6;</span>
-        {% elif seg.completed %}
-        <span class="journey-glyph journey-glyph--break" title="Break">&#x2615;</span>
-        {% else %}
-        <span class="journey-glyph journey-glyph--break-skip" title="Break skipped">&rarr;</span>
-        {% endif %}
-        {% endif %}
-        {% endfor %}
       </div>
-      {% else %}
-      <p class="ritual__supporting">No segments recorded.</p>
-      {% endif %}
-    </div>
 
-    <!-- Action Zone -->
-    <div class="ritual__action-zone">
-      <button class="summary-ritual__seal" onclick="document.getElementById('pomo-panel').remove()" hx-get="/quests"
-        hx-target="#quest-board" hx-swap="innerHTML">
-        <span class="summary-ritual__seal-text">Return to Quest Board</span>
-      </button>
-    </div>
+      <!-- Journey Zone -->
+      <div class="ritual__intent">
+        <h2 class="ritual__action">Your journey</h2>
 
+        {% if journey_trail %}
+        <div class="summary-ritual__journey">
+          {% for seg in journey_trail %}
+          {% if seg.type == "work" %}
+          {% if seg.completed %}
+          {% if seg.forge_type == "berserker" %}
+          <span class="journey-glyph journey-glyph--berserker" title="Berserker">&#x26A1;</span>
+          {% elif seg.forge_type == "hollow" %}
+          <span class="journey-glyph journey-glyph--hollow" title="Hollow">&#x1F480;</span>
+          {% else %}
+          <span class="journey-glyph journey-glyph--done" title="Tempered">&#x2714;</span>
+          {% endif %}
+          {% else %}
+          {% if seg.interruption_reason == "distracted" %}
+          <span class="journey-glyph journey-glyph--broken" title="Distracted">&#x1F4AD;</span>
+          {% elif seg.interruption_reason == "blocked" %}
+          <span class="journey-glyph journey-glyph--broken" title="Blocked">&#x26D4;</span>
+          {% elif seg.interruption_reason == "emergency" %}
+          <span class="journey-glyph journey-glyph--broken" title="Emergency">&#x1F6A8;</span>
+          {% elif seg.interruption_reason == "personal" %}
+          <span class="journey-glyph journey-glyph--broken" title="Personal">&#x1F300;</span>
+          {% else %}
+          <span class="journey-glyph journey-glyph--broken" title="Broken">&#x25D1;</span>
+          {% endif %}
+          {% endif %}
+          {% else %}
+          {% if seg.type == "long_break" %}
+          <span class="journey-glyph journey-glyph--break" title="Long break">&#x1F3D6;</span>
+          {% elif seg.completed %}
+          <span class="journey-glyph journey-glyph--break" title="Break">&#x2615;</span>
+          {% else %}
+          <span class="journey-glyph journey-glyph--break-skip" title="Break skipped">&rarr;</span>
+          {% endif %}
+          {% endif %}
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="ritual__supporting">No segments recorded.</p>
+        {% endif %}
+      </div>
+
+      <!-- Action Zone -->
+      <div class="ritual__action-zone">
+        <button class="summary-ritual__seal" hx-get="/quests" hx-target="#quest-board" hx-swap="innerHTML"
+          hx-on::after-request="document.getElementById('pomo-panel')?.remove()">
+          <span class="summary-ritual__seal-text">Return to Quest Board</span>
+        </button>
+      </div>
+
+    </div>
   </div>
 </div>
-
-<script>
-  console.log('[summary] Session end screen rendered!', {
-    quest: '{{ quest_title }}',
-    pomos: {{ actual_pomos }},
-    trailLength: {{ journey_trail| length if journey_trail else 0 }},
-  panelId: document.getElementById('pomo-panel')?.id,
-    panelClass: document.getElementById('pomo-panel')?.className,
-  });
-</script>

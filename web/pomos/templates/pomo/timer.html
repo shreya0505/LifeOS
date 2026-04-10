@@ -114,14 +114,6 @@
 </div>
 
 <script>
-  // DEBUG: Log SSE events from timer screen
-  document.body.addEventListener('htmx:sseBeforeMessage', function (e) {
-    console.log('[timer-sse] SSE event:', e.detail.type, e.detail);
-  });
-  console.log('[timer] Timer screen loaded, seg_type={{ seg_type }}');
-</script>
-
-<script>
   function pomodoroTimer(totalSecs, startedAtISO) {
     return {
       remaining: totalSecs,
