@@ -147,68 +147,68 @@ Full metrics overlay accessible via `o` (TUI) or dashboard route (web):
 
 ## Visual Identity & Design
 
-### Design Direction: "Tavern Workbench"
+### Design Direction: "The Modern Chronicle"
 
-A well-lit craftsman's desk in a warm tavern. Parchment warmth, wood-grain depth, ink-dark text, accent colors from nature. **Not** dark mode by default. **Not** SaaS gray.
+An editorial archival system—authoritative, tactile, and ancient in spirit, yet sharp and high-performance. It moves away from the sterile, plastic nature of typical productivity apps, utilizing **Intentional Asymmetry** and color blocking over distracting borders. **Not** dark mode by default. **Not** SaaS gray.
 
-Three sources of soul:
+Three principles of the system:
+1. **The "No-Line" Rule** — Surfaces and tonal shifts define sections. Borders are strictly prohibited.
+2. **Glass & Gradients** — Persistent or floating elements use glassmorphism (80% opacity, 20px blur). Key CTAs use subtle linear gradients.
+3. **Substantial Balance** — Typography is heavy, physical, and devoid of light weights or italics, enforcing a "built" and reliable aesthetic.
 
-1. **Texture** — Subtle noise overlay on card surfaces
-2. **Typography with character** — Serif for display headings, clean sans for body
-3. **Motion that breathes** — Spring physics, earned celebrations
+### Surface Palette & Hierarchy
 
-### Color Palette
+Treat the UI as a physical desk with stacked sheets of fine paper. Layers stack from dark to light or vice versa for natural lift. 
 
-```
+```text
 Surfaces:
-  parchment  #faf6f0    page background
-  cream      #f3ede4    card background
-  tan        #ebe3d7    hover, active
-  deep tan   #ddd3c3    borders, dividers
+  surface                    #fcf9f3  Base Layer
+  surface-container-low      #f6f3ed  Primary Sectioning
+  surface-container-high     #ebe8e2  Nested Detail Groups
+  surface-container-lowest   #ffffff  Interactive Elevated Cards
 
 Ink:
-  walnut     #2c2418    primary text
-  brown      #5c4f3c    secondary text
-  muted      #8a7d6b    tertiary, timestamps
+  on-surface                 #1c1c18  Primary text (never pure black)
+  outline-variant            #c2c8c0  (15% opacity fallback ghost border)
 
 Accents:
-  sage       #7a9e7e    active, success, done
-  copper     #c07040    warm action, CTA, start
-  hearth     #d4943a    gold/amber, celebration
-  ember      #b5493a    blocked, delete, danger
-  slate      #6b7f8a    neutral info
+  primary                    #163422  Deep forest green (stability/buttons)
+  primary-container          #2d4b37  Gradient stops / hover glows
+  on-primary                 #ffffff  Primary button text
+  secondary                  #95482b  Terracotta (momentum / high priority)
+  secondary-container        #fc9a77  Warm callout backgrounds
+  on-secondary-container     #763015  Warm callout text
 ```
 
-### Semantic Color Mapping
+### Semantic Element Mapping
 
-| Element | Color |
-|---------|-------|
-| Quest card: log | surface-1, border surface-3 |
-| Quest card: active | left border copper |
-| Quest card: blocked | left border ember |
-| Quest card: done | left border sage |
-| Frog badge | sage background |
-| Pomo work timer | copper progress bar |
-| Pomo break timer | sage progress bar |
-| Celebration flash | hearth-glow |
-| Trophy gold | hearth |
-| Trophy silver | surface-3 |
-| Trophy bronze | copper-dim |
-| Heatmap levels | surface-3 → sage-dim → sage → deep forest |
+| Element | Styling Strategy |
+|---------|------------------|
+| Primary Buttons | `primary` background, `md` radius, `primary-container` gradient on hover |
+| Action Chips | Pill-shaped, `secondary-container` background, `on-secondary-container` text |
+| Quest Cards | No borders, `surface-container-lowest` bg, 1.5rem padding |
+| High-Priority Quest | Subtle vertical accent of `secondary` on the left edge |
+| Input Fields | `surface-container-highest` bg, soft glow of `surface-tint` on focus |
+| Heatmap / Chronicle | Organic heatmap, `sm` radii, `tertiary-fixed` to `primary` scale |
+| Floating Modals | Glassmorphism (`surface` 80% with 20px blur) |
 
 ### Typography
 
 | Role | Font | Fallback |
 |------|------|----------|
-| Display / headings | Crimson Pro | Georgia, serif |
-| Body / UI | Inter | system-ui, sans-serif |
-| Timer / monospace | JetBrains Mono | monospace |
+| The Voice (Headlines / Ritualistic) | Newsreader | serif |
+| The Engine (Body / UI) | Manrope | sans-serif |
+| The Ledger (Timer / Monospace) | JetBrains Mono | monospace |
 
 Key usage:
-- Page title / section headers → Crimson Pro 600
-- Gate prompts ("What will you forge?") → Crimson Pro 400 italic
-- Quest card titles, body → Inter 400-500
-- Timer countdown → JetBrains Mono 700
+- **Strictly No Italics.** Stateliness achieved through verticality.
+- **No thin fonts.** Functional text starts at 500 (Medium).
+- Display Large (Major milestones) → Newsreader 600-700
+- Headline Medium (Quests / sections) → Newsreader 500-600
+- Quotes / Hints → Newsreader 500
+- Body Text → Manrope 500
+- UI Labels & Buttons → Manrope 600, uppercase, +8% letter spacing
+- Timer & Data → JetBrains Mono 600
 
 ### Animation & Motion (Web)
 

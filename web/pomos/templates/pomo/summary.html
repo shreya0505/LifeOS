@@ -29,30 +29,30 @@
           {% if seg.type == "work" %}
           {% if seg.completed %}
           {% if seg.forge_type == "berserker" %}
-          <span class="journey-glyph journey-glyph--berserker" title="Berserker">&#x26A1;</span>
+          <span class="journey-glyph journey-glyph--berserker" title="Berserker">&#x2738;</span>
           {% elif seg.forge_type == "hollow" %}
-          <span class="journey-glyph journey-glyph--hollow" title="Hollow">&#x1F480;</span>
+          <span class="journey-glyph journey-glyph--hollow" title="Hollow">&#x25CB;</span>
           {% else %}
           <span class="journey-glyph journey-glyph--done" title="Tempered">&#x2714;</span>
           {% endif %}
           {% else %}
           {% if seg.interruption_reason == "distracted" %}
-          <span class="journey-glyph journey-glyph--broken" title="Distracted">&#x1F4AD;</span>
+          <span class="journey-glyph journey-glyph--broken" title="Distracted">&hellip;</span>
           {% elif seg.interruption_reason == "blocked" %}
-          <span class="journey-glyph journey-glyph--broken" title="Blocked">&#x26D4;</span>
+          <span class="journey-glyph journey-glyph--broken" title="Blocked">&#x25A0;</span>
           {% elif seg.interruption_reason == "emergency" %}
-          <span class="journey-glyph journey-glyph--broken" title="Emergency">&#x1F6A8;</span>
+          <span class="journey-glyph journey-glyph--broken" title="Emergency">!</span>
           {% elif seg.interruption_reason == "personal" %}
-          <span class="journey-glyph journey-glyph--broken" title="Personal">&#x1F300;</span>
+          <span class="journey-glyph journey-glyph--broken" title="Personal">&#x25C7;</span>
           {% else %}
           <span class="journey-glyph journey-glyph--broken" title="Broken">&#x25D1;</span>
           {% endif %}
           {% endif %}
           {% else %}
           {% if seg.type == "long_break" %}
-          <span class="journey-glyph journey-glyph--break" title="Long break">&#x1F3D6;</span>
+          <span class="journey-glyph journey-glyph--break" title="Long break">&#x25D2;</span>
           {% elif seg.completed %}
-          <span class="journey-glyph journey-glyph--break" title="Break">&#x2615;</span>
+          <span class="journey-glyph journey-glyph--break" title="Break">&#x2758;&#x2758;</span>
           {% else %}
           <span class="journey-glyph journey-glyph--break-skip" title="Break skipped">&rarr;</span>
           {% endif %}

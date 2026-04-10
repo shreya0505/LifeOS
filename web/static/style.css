@@ -2635,7 +2635,9 @@ body::before {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px 0;
+  width: 100%;
+  min-height: 100%;
+  padding: 0;
 }
 
 /* Ambient orbs */
@@ -2681,33 +2683,55 @@ body::before {
   }
 }
 
-/* The single glass pane */
+/* Session overview: flush with the overlay, not a card. */
 .summary-ritual__pane {
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 420px;
+  max-width: 680px;
+  overflow: hidden;
 
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0;
-  padding: 48px 32px;
+  padding: 64px 48px;
 
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   text-align: center;
 
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(18px) saturate(120%);
-  -webkit-backdrop-filter: blur(18px) saturate(120%);
-
-  border: 1px solid rgba(255, 255, 255, 0.18);
-
-  box-shadow:
-    0 10px 30px rgba(0, 0, 0, 0.05),
-    0 2px 6px rgba(0, 0, 0, 0.03);
+  background: transparent;
+  border: none;
+  box-shadow: none;
 
   animation: summary-pane-enter 450ms var(--ease-decelerate) both;
+}
+
+.summary-ritual__pane::before {
+  content: "";
+  position: absolute;
+  inset: 16px 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(105deg,
+      transparent 0%,
+      color-mix(in oklch, var(--secondary) 8%, transparent) 34%,
+      color-mix(in oklch, var(--hearth) 14%, transparent) 50%,
+      color-mix(in oklch, var(--secondary) 8%, transparent) 66%,
+      transparent 100%);
+  background-size: 260% 100%;
+  background-position: 160% 0;
+  opacity: 0;
+  transition:
+    opacity 260ms var(--ease-natural),
+    background-position 1200ms var(--ease-decelerate);
+}
+
+.summary-ritual__pane:hover::before {
+  opacity: 1;
+  background-position: -160% 0;
 }
 
 .summary-ritual__pane>* {
@@ -2732,7 +2756,7 @@ body::before {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   margin-top: 16px;
 }
 
@@ -2740,49 +2764,51 @@ body::before {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  font-size: 16px;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.04);
-  transition: transform 200ms var(--ease-natural);
+  width: 28px;
+  height: 28px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  border-radius: var(--radius-sm);
+  color: color-mix(in oklch, var(--secondary) 70%, var(--on-surface-muted));
+  background: color-mix(in oklch, var(--secondary) 7%, transparent);
+  opacity: 0.62;
+  transition:
+    background 220ms var(--ease-natural),
+    opacity 220ms var(--ease-natural);
 }
 
 .journey-glyph:hover {
-  transform: scale(1.15);
+  background: color-mix(in oklch, var(--secondary) 11%, transparent);
+  opacity: 0.82;
 }
 
 .journey-glyph--done {
-  color: var(--tertiary);
-  background: rgba(76, 148, 95, 0.1);
+  color: color-mix(in oklch, var(--secondary) 62%, var(--tertiary));
 }
 
 .journey-glyph--berserker {
-  color: var(--hearth);
-  background: rgba(149, 72, 43, 0.1);
+  color: color-mix(in oklch, var(--secondary) 70%, var(--hearth));
 }
 
 .journey-glyph--hollow {
-  color: var(--on-surface-muted);
+  color: color-mix(in oklch, var(--secondary) 45%, var(--on-surface-muted));
   opacity: 0.5;
 }
 
 .journey-glyph--broken {
-  color: var(--error);
-  background: rgba(186, 26, 26, 0.06);
+  color: color-mix(in oklch, var(--secondary) 72%, var(--error));
 }
 
 .journey-glyph--break {
-  color: var(--tertiary);
-  font-size: 14px;
-  opacity: 0.6;
-  background: transparent;
+  color: color-mix(in oklch, var(--secondary) 54%, var(--tertiary));
+  opacity: 0.5;
 }
 
 .journey-glyph--break-skip {
-  color: var(--on-surface-muted);
-  font-size: 14px;
-  opacity: 0.35;
+  color: color-mix(in oklch, var(--secondary) 45%, var(--on-surface-muted));
+  opacity: 0.42;
   background: transparent;
 }
 
@@ -3887,7 +3913,23 @@ body::before {
 }
 
 .interrupt-reason:hover {
-  background: color-mix(in oklch, var(--surface-container-low) 72%, transparent);
+  background: color-mix(in oklch, var(--primary) 8%, transparent);
+}
+
+.interrupt-reason[value="distracted"]:hover {
+  background: color-mix(in oklch, var(--tertiary) 12%, transparent);
+}
+
+.interrupt-reason[value="blocked"]:hover {
+  background: color-mix(in oklch, var(--secondary) 10%, transparent);
+}
+
+.interrupt-reason[value="emergency"]:hover {
+  background: color-mix(in oklch, var(--error) 10%, transparent);
+}
+
+.interrupt-reason[value="personal"]:hover {
+  background: color-mix(in oklch, var(--primary) 8%, transparent);
 }
 
 .interrupt-reason__text {
