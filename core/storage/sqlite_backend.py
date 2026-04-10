@@ -370,7 +370,13 @@ class SqliteTrophyPRRepo:
                 except (json.JSONDecodeError, TypeError):
                     prs[tid] = {"date": r[2]}
             else:
-                prs[tid] = {"best": r[1], "date": r[2], "detail": r[3]}
+                best = r[1]
+                # SQLite stores everything as TEXT; coerce numeric bests back
+                try:
+                    best = int(best)
+                except (ValueError, TypeError):
+                    pass
+                prs[tid] = {"best": best, "date": r[2], "detail": r[3]}
         return prs
 
     async def save_prs(self, prs: dict) -> None:

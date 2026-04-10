@@ -121,8 +121,8 @@ async def test_confirm_delete_modal(client):
 async def test_stats_bar(client):
     r = await client.get("/stats")
     assert r.status_code == 200
-    assert "quests" in r.text
-    assert "pomos" in r.text
+    assert "scrolls" in r.text
+    assert "forges" in r.text
 
 
 @pytest.mark.asyncio

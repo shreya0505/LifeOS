@@ -140,21 +140,21 @@ async def test_trophies_frog_slayer_unlocks(client):
 async def test_dashboard_renders(client):
     r = await client.get("/dashboard")
     assert r.status_code == 200
-    assert "War Room Dashboard" in r.text
-    assert "Quest Metrics" in r.text
-    assert "Pomo Metrics" in r.text
+    assert "War Room" in r.text
+    assert "Battlefield Report" in r.text
+    assert "Forge Report" in r.text
 
 
 @pytest.mark.asyncio
 async def test_dashboard_shows_metrics(client):
     r = await client.get("/dashboard")
     assert r.status_code == 200
-    # Should show quest metric names
-    assert "Weekly Velocity" in r.text
-    assert "Completion Rate" in r.text
-    # Should show pomo metric names
-    assert "Weekly Focus Time" in r.text
-    assert "Berserker Rate" in r.text
+    # Should show quest metric names (RPG-themed)
+    assert "Battle Tempo" in r.text
+    assert "Victory Rate" in r.text
+    # Should show pomo metric names (RPG-themed)
+    assert "Forge Hours" in r.text
+    assert "Berserker Fury" in r.text
 
 
 @pytest.mark.asyncio
@@ -174,4 +174,4 @@ async def test_index_sidebar_loads_panels(client):
     assert r.status_code == 200
     assert 'hx-get="/chronicle"' in r.text
     assert 'hx-get="/trophies"' in r.text
-    assert 'hx-get="/dashboard"' in r.text
+    # Dashboard is accessed via 'd' keyboard shortcut, not a tab button

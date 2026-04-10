@@ -1,17 +1,19 @@
-{% for col in columns %}
-<div class="quest-column" id="col-{{ col.status }}" data-animate-in>
-  <div class="quest-column__header">
-    <h2 class="quest-column__title">{{ col.icon }} {{ col.label }}</h2>
-    <span class="quest-column__count">{{ col.quests | length }}</span>
-  </div>
-  <div class="quest-column__body" id="col-body-{{ col.status }}">
-    {% if col.quests %}
+<div class="kanban">
+  {% for col in columns %}
+  <div class="quest-column quest-column--{{ col.status }}" id="col-{{ col.status }}" data-animate-in>
+    <div class="quest-column__header">
+      <h2 class="quest-column__title">{{ col.icon }} {{ col.label }}</h2>
+      <span class="quest-column__count">{{ col.quests | length }}</span>
+    </div>
+    <div class="quest-column__body" id="col-body-{{ col.status }}">
+      {% if col.quests %}
       {% for quest in col.quests %}
-        {% include "card.html" %}
+      {% include "card.html" %}
       {% endfor %}
-    {% else %}
+      {% else %}
       <p class="quest-column__empty">{{ col.empty_text }}</p>
-    {% endif %}
+      {% endif %}
+    </div>
   </div>
+  {% endfor %}
 </div>
-{% endfor %}

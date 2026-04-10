@@ -8,10 +8,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # First-time setup
 python3 -m venv .venv
 source .venv/bin/activate
-pip install textual rich
+pip install textual rich fastapi uvicorn[standard] jinja2 aiosqlite sse-starlette httpx
 
-# Run
-python3 main.py
+# Run TUI
+python3 -m tui
+
+# Run Web app
+uvicorn web.app:app --reload
+
+# Run with Docker
+docker compose up --build
 
 # Reset all data (creates backups first)
 ./clear_data.sh
@@ -19,39 +25,76 @@ python3 main.py
 
 Requires Python 3.10+.
 
+### Testing
+
+```bash
+pip install pytest pytest-asyncio httpx aiosqlite
+
+# Run all tests
+pytest
+
+# Run a single test file
+pytest tests/test_web_routes.py
+
+# Run a specific test
+pytest tests/test_web_routes.py::test_add_quest -v
+```
+
+Tests use a temp SQLite DB via the `db` and `client` fixtures in `tests/conftest.py`. The `client` fixture yields an `httpx.AsyncClient` wired to the FastAPI app.
+
+### Environment Variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `QUESTLOG_DB` | `./questlog.db` | SQLite database path |
+
 ## Architecture
 
-QuestLog is a **Textual TUI app** with three persistent JSON files as its data store. There is no database.
+QuestLog has two frontends (TUI and Web) that share a common core layer.
 
-### Data Layer
+```
+core/           ← shared business logic + storage
+  config.py     ← all tuneable values (timezone, pomo durations, quest state machine)
+  storage/
+    protocols.py    ← QuestRepo / PomoRepo / TrophyPRRepo Protocol interfaces
+    json_backend.py ← JSON file storage (used by TUI)
+    sqlite_backend.py ← async SQLite storage (used by Web)
+  pomo_engine.py    ← timer state machine (charge → timer → deed → break_choice)
+  pomo_queries.py   ← read-only analytics (keep new pomo analytics here)
+  metrics.py        ← quest/pomo metric computations
+  trophy_defs.py    ← trophy definitions
+  trophy_compute.py ← trophy evaluation logic
+  utils.py          ← format_duration, fantasy_date, date helpers
 
-| File | Store module | Purpose |
-|------|-------------|---------|
-| `quests.json` | `quest_store.py` | Quest records (id, title, status, timestamps, frog flag) |
-| `pomodoros.json` | `pomo_store.py` | Pomodoro sessions and their work/break segments |
-| `trophies.json` | `trophy_store.py` | Personal records / achievements |
+tui/            ← Textual TUI app (reads/writes JSON files)
+  main.py       ← QuestLogApp: owns state, bindings, action handlers
+  quest_panel.py, chronicle_panel.py, trophy_panel.py, pomo_panel.py
+  modals.py, renderers.py, styles.tcss
 
-Each store module exposes plain functions (load, save, add, update) that read/write JSON directly. No ORM, no caching.
+web/            ← FastAPI + HTMX + Alpine.js web app (uses SQLite via aiosqlite)
+  app.py        ← FastAPI app, lifespan, template setup, router registration
+  db.py         ← SQLite connection (get_db) and migration runner
+  deps.py       ← FastAPI dependency injection for repos
+  quests/       ← quest board routes + templates
+  pomos/        ← pomo flow routes + SSE timer + templates
+  chronicle/    ← pomo history panel
+  trophies/     ← trophy display
+  dashboard/    ← dashboard modal
+  shared/templates/ ← base.html layout, shared components
+  static/       ← CSS (tokens.css, reset.css, style.css), JS (htmx, Alpine), fonts
+```
 
-`pomo_queries.py` contains read-only analytical queries over `pomodoros.json` (today's receipt, counts, lap history). Keep all new pomodoro analytics here rather than in the store.
+### Storage Pattern
 
-`utils.py` holds shared helpers: `USER_TZ` (change here to switch timezone), `format_duration`, `fantasy_date`, `compute_metrics`, `compute_pomo_metrics`, `today_local`, and `to_local_date`.
+Both frontends use the same `Protocol` interfaces defined in `core/storage/protocols.py` (`QuestRepo`, `PomoRepo`, `TrophyPRRepo`). The TUI uses `json_backend.py` (sync, file-based), the web uses `sqlite_backend.py` (async, aiosqlite). Web dependencies are injected via `web/deps.py`.
 
-### UI Layer
+### Database & Migrations
 
-`main.py` (`QuestLogApp`) owns all application state, bindings, and action handlers. The three panels — `RosterPanel`, `ChroniclePanel`, `TrophyPanel` — are composed as `Horizontal` children.
+SQLite with WAL mode and foreign keys enabled. Schema lives in `migrations/001_initial.sql`. The migration runner in `web/db.py` auto-applies `migrations/*.sql` files in sorted order on startup, tracked by the `_migrations` table.
 
-- `quest_panel.py` (`RosterPanel`) — four `StatusPane` widgets (log/active/blocked/done) in a lazygit-style vertical layout.
-- `chronicle_panel.py` (`ChroniclePanel`) — scrollable pomo history with a green heatmap and per-day breakdowns.
-- `trophy_panel.py` (`TrophyPanel`) — Hall of Valor showing personal records and achievements.
+### Web Stack
 
-The **Pomodoro flow** is a multi-mode overlay screen (`PomodoroPanel`) pushed onto the screen stack. Its modes cycle: `charge → timer → deed → break_choice → charge`. App-level state (`_pomo_*` fields) drives the flow; `PomodoroPanel` is purely display/input. Pressing `Esc` on the pomo screen is intentionally disabled — the timer keeps running while the panel is hidden via `x` (Abandon).
-
-`modals.py` contains push-screen dialogs: `AddQuestModal`, `ConfirmModal`, `DashboardModal`, `DailyReceiptModal`.
-
-`renderers.py` holds Rich markup strings and RPG-flavored display helpers.
-
-`styles.tcss` is the Textual CSS file for layout and theming.
+FastAPI + Jinja2 templates + HTMX for interactivity + Alpine.js for client-side state. SSE for live pomo timer updates (`web/pomos/sse.py`). Each feature module has its own `routes.py` and `templates/` directory. Templates are discovered from all module template directories via `FileSystemLoader`.
 
 ### Quest Status Machine
 
@@ -61,18 +104,16 @@ log → blocked → active → done
 any status → delete
 ```
 
-Valid transitions are enforced by `VALID_SOURCES` dict in `main.py`. Key bindings: `s`=start, `b`=block, `u`=unblock (same binding as `b`, re-activates blocked quests), `d`=done, `x`=delete, `f`=toggle frog flag.
+Valid transitions defined in `core/config.py` as `VALID_SOURCES`.
 
-### Pomodoro Segment Types
+### Pomodoro Flow
 
-Stored as `"work"` / `"short_break"` / `"long_break"` in JSON. `"extended_break"` is a UI-only concept stored as `short_break` + `break_size: "extended"`. Timer durations live in `POMO_CONFIG` in `pomo_store.py`.
-
-During the deed gate, the user can optionally tag the pomo with a **forge type** before submitting: `h`=Hollow (completed but subpar), `b`=Berserker (intense/over-extended). These are stored on the segment for analytics.
+Modes cycle: `charge → timer → deed → break_choice → charge`. The pomo engine (`core/pomo_engine.py`) manages timer state. Segment types stored as `"work"` / `"short_break"` / `"long_break"`. `"extended_break"` is UI-only, stored as `short_break` + `break_size: "extended"`. Forge types: `hollow` (subpar) and `berserker` (over-extended).
 
 ### Timezone
 
-All timestamps are stored as UTC ISO strings. Display conversion uses `USER_TZ` in `utils.py` (default: `Asia/Kolkata`). Change `USER_TZ` there to switch.
+All timestamps stored as UTC ISO strings. Display conversion uses `USER_TZ` in `core/config.py` (default: `Asia/Kolkata`).
 
 ### Feature Specs
 
-`features/` contains product specs and PRDs (e.g. `PRD.md`, `SPEC-war-room-pomo.md`). Consult these before implementing new pomodoro or gamification features — they document intentional design decisions around the charge/deed loop and War Room UX.
+`features/` contains product specs and PRDs. Consult these before implementing new pomodoro or gamification features — they document intentional design decisions around the charge/deed loop and War Room UX.

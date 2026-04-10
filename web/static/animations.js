@@ -1,5 +1,5 @@
 /**
- * QuestLog — Celebration Animations
+ * QuestLog — Celebration Animations (Modern Chronicle)
  *
  * Pure CSS keyframes + vanilla JS particle system.
  * Hooks into HTMX lifecycle via htmx:afterSettle and custom response headers.
@@ -9,7 +9,7 @@
 
 function burstParticles(cx, cy, {
   count = 14,
-  colors = ['#d4943a', '#f5d78e', '#c07040', '#7a9e7e'],
+  colors = ['#d4943a', '#f5d78e', '#95482b', '#7a9e7e'],
   spread = 80,
   duration = 600,
 } = {}) {
@@ -28,7 +28,7 @@ function burstParticles(cx, cy, {
       background:${colors[i % colors.length]};
       pointer-events:none; z-index:9999;
       opacity:1;
-      transition: transform ${duration}ms cubic-bezier(0.22, 1, 0.36, 1),
+      transition: transform ${duration}ms cubic-bezier(0.4, 0, 0.2, 1),
                   opacity ${duration}ms ease-out;
     `;
     document.body.appendChild(dot);
@@ -51,9 +51,9 @@ function celebrateDone(cardEl) {
   const cy = rect.top + rect.height / 2;
 
   // Pulse the card
-  cardEl.style.transition = 'transform 400ms cubic-bezier(0.5, 1.25, 0.75, 1.25), box-shadow 400ms ease-out';
+  cardEl.style.transition = 'transform 400ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 400ms ease-out';
   cardEl.style.transform = 'scale(1.04)';
-  cardEl.style.boxShadow = '0 0 24px rgba(212, 148, 58, 0.5)';
+  cardEl.style.boxShadow = '0 0 24px rgba(212, 148, 58, 0.4)';
   setTimeout(() => {
     cardEl.style.transform = '';
     cardEl.style.boxShadow = '';
@@ -62,7 +62,7 @@ function celebrateDone(cardEl) {
   // Particles
   burstParticles(cx, cy, {
     count: 16,
-    colors: ['#d4943a', '#f5d78e', '#c07040', '#7a9e7e'],
+    colors: ['#d4943a', '#f5d78e', '#95482b', '#7a9e7e'],
     spread: 90,
     duration: 700,
   });
@@ -76,7 +76,7 @@ function flashEdges(color, duration) {
     position:fixed; inset:0; z-index:9998; pointer-events:none;
     box-shadow: inset 0 0 80px 20px ${color};
     opacity:1;
-    transition: opacity ${duration}ms ease-out;
+    transition: opacity ${duration}ms cubic-bezier(0.4, 0, 0.2, 1);
   `;
   document.body.appendChild(flash);
   flash.offsetHeight;
@@ -85,12 +85,12 @@ function flashEdges(color, duration) {
 }
 
 function celebratePomoComplete() {
-  flashEdges('rgba(212, 148, 58, 0.35)', 500);
+  flashEdges('rgba(212, 148, 58, 0.3)', 500);
 }
 
 function celebrateBerserker() {
-  flashEdges('rgba(245, 215, 142, 0.5)', 200);
-  setTimeout(() => flashEdges('rgba(245, 215, 142, 0.3)', 200), 100);
+  flashEdges('rgba(245, 215, 142, 0.45)', 200);
+  setTimeout(() => flashEdges('rgba(245, 215, 142, 0.25)', 200), 100);
 }
 
 // ── Trophy earned celebration ────────────────────────────────────────────
@@ -105,9 +105,9 @@ function celebrateTrophyEarned() {
     const cy = rect.top + rect.height / 2;
 
     // Scale-up pulse
-    card.style.transition = 'transform 500ms cubic-bezier(0.5, 1.25, 0.75, 1.25), box-shadow 500ms ease-out';
+    card.style.transition = 'transform 500ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 500ms ease-out';
     card.style.transform = 'scale(1.06)';
-    card.style.boxShadow = '0 0 32px rgba(212, 148, 58, 0.5)';
+    card.style.boxShadow = '0 0 32px rgba(212, 148, 58, 0.4)';
     setTimeout(() => {
       card.style.transform = '';
       card.style.boxShadow = '';
@@ -120,15 +120,26 @@ function celebrateTrophyEarned() {
     // Gold particles
     burstParticles(cx, cy, {
       count: 12,
-      colors: ['#d4943a', '#f5d78e', '#c07040'],
+      colors: ['#d4943a', '#f5d78e', '#95482b'],
       spread: 70,
       duration: 600,
     });
   }
 
   // Edge flash
-  flashEdges('rgba(212, 148, 58, 0.25)', 400);
+  flashEdges('rgba(212, 148, 58, 0.2)', 400);
 }
+
+// ── Inscribe zap ───────────────────────────────────────────────────────
+
+document.addEventListener('submit', function(e) {
+  const btn = e.target.querySelector('.btn--zap');
+  if (!btn) return;
+  btn.classList.remove('is-zapping');
+  btn.offsetHeight; // force reflow to restart animation
+  btn.classList.add('is-zapping');
+  setTimeout(function() { btn.classList.remove('is-zapping'); }, 450);
+});
 
 // ── HTMX integration ───────────────────────────────────────────────────
 
@@ -139,7 +150,7 @@ document.body.addEventListener('htmx:afterSettle', function(e) {
     el.style.opacity = '0';
     el.style.transform = 'translateY(8px)';
     setTimeout(function() {
-      el.style.transition = 'opacity 300ms cubic-bezier(0.22, 1, 0.36, 1), transform 300ms cubic-bezier(0.22, 1, 0.36, 1)';
+      el.style.transition = 'opacity 300ms cubic-bezier(0.4, 0, 0.2, 1), transform 300ms cubic-bezier(0.4, 0, 0.2, 1)';
       el.style.opacity = '1';
       el.style.transform = 'translateY(0)';
     }, i * 30);

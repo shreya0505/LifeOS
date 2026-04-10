@@ -1,7 +1,7 @@
 <div class="dashboard-overlay" id="dashboard-panel">
   <div class="dashboard-overlay__inner">
     <div class="dashboard-header">
-      <h2 class="dashboard-header__title">📊 War Room Dashboard</h2>
+      <h2 class="dashboard-header__title">⚔ War Room</h2>
       <button class="btn btn--ghost btn--sm"
               onclick="document.getElementById('dashboard-panel').remove()">
         ✕
@@ -9,7 +9,7 @@
     </div>
 
     <!-- Quest Metrics -->
-    <h3 class="dashboard-section-title">Quest Metrics</h3>
+    <h3 class="dashboard-section-title">Battlefield Report</h3>
     <div class="metrics-grid">
       {% for m in quest_metrics %}
       <div class="metric-card metric-card--{{ m.color }}" data-animate-in>
@@ -28,7 +28,7 @@
     </div>
 
     <!-- Pomo Metrics -->
-    <h3 class="dashboard-section-title">Pomo Metrics</h3>
+    <h3 class="dashboard-section-title">Forge Report</h3>
     <div class="metrics-grid">
       {% for m in pomo_metrics %}
       <div class="metric-card metric-card--{{ m.color }}" data-animate-in>

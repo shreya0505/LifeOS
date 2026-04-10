@@ -1,55 +1,59 @@
 {% extends "base.html" %}
 
 {% block content %}
-<!-- Quest Board (left / main) -->
-<section class="quest-board">
-  <!-- Add Quest Form -->
-  <form class="add-quest-form"
-        hx-post="/quests"
-        hx-target="#quest-board"
-        hx-swap="innerHTML"
-        hx-on::after-request="this.reset()">
-    <input type="text" name="title"
-           class="add-quest-form__input"
-           placeholder="Inscribe a new quest..."
-           required minlength="1"
-           autocomplete="off">
-    <button type="submit" class="btn btn--copper">📜 Add Quest</button>
-  </form>
+<div x-data="{ tab: 'board' }" x-init="
+  // Sync navbar active state with initial Alpine tab
+  document.querySelectorAll('.app-navbar__link[data-tab]').forEach(btn => {
+    btn.classList.toggle('is-active', btn.dataset.tab === tab);
+  });
+  $watch('tab', value => {
+    document.querySelectorAll('.app-navbar__link[data-tab]').forEach(btn => {
+      btn.classList.toggle('is-active', btn.dataset.tab === value);
+    });
+  })
+">
 
-  <!-- Board columns -->
-  <div id="quest-board">
-    {% include "board.html" %}
-  </div>
-</section>
+  <!-- ── Tab: Inscribe ─────────────────────────────────────── -->
+  <section class="tab-panel" x-show="tab === 'inscribe'" x-transition:enter="tab-enter"
+    x-transition:enter-start="tab-enter-from" x-transition:enter-end="tab-enter-to">
+    <div class="inscribe-panel">
+      <h2 class="inscribe-panel__heading">Inscribe a New Quest</h2>
+      <form class="add-quest-form" hx-post="/quests" hx-target="#quest-board" hx-swap="innerHTML"
+        hx-on::after-request="this.reset(); $data.tab = 'board'">
+        <input type="text" name="title" class="add-quest-form__input" placeholder="What will you conquer today?"
+          required minlength="1" autocomplete="off">
+        <button type="submit" class="btn btn--copper btn--zap">⚡ Add</button>
+      </form>
+      <p class="inscribe-panel__hint">Press <kbd>n</kbd> from any tab to jump here</p>
+    </div>
+  </section>
 
-<!-- Sidebar (right) -->
-<aside class="sidebar">
-  <div class="sidebar-panel">
-    <h3 class="sidebar-panel__title">✦ Chronicle</h3>
-    <div id="chronicle-slot"
-         hx-get="/chronicle"
-         hx-trigger="load, quest-changed from:body"
-         hx-swap="innerHTML">
+  <!-- ── Tab: Board (Kanban) ───────────────────────────────── -->
+  <section class="tab-panel" x-show="tab === 'board'" x-transition:enter="tab-enter"
+    x-transition:enter-start="tab-enter-from" x-transition:enter-end="tab-enter-to">
+    <div id="quest-board">
+      {% include "board.html" %}
     </div>
-  </div>
-  <div class="sidebar-panel">
-    <h3 class="sidebar-panel__title">⚔ Hall of Valor</h3>
-    <div id="trophy-slot"
-         hx-get="/trophies"
-         hx-trigger="load, quest-changed from:body"
-         hx-swap="innerHTML">
+  </section>
+
+  <!-- ── Tab: Metrics (Chronicle + Trophies) ───────────────── -->
+  <section class="tab-panel" x-show="tab === 'metrics'" x-transition:enter="tab-enter"
+    x-transition:enter-start="tab-enter-from" x-transition:enter-end="tab-enter-to">
+    <div class="metrics-duo">
+      <div class="metrics-duo__section">
+        <h3 class="metrics-duo__title">✦ Chronicle</h3>
+        <div id="chronicle-slot" hx-get="/chronicle" hx-trigger="load, quest-changed from:body" hx-swap="innerHTML">
+        </div>
+      </div>
+      <div class="metrics-duo__section">
+        <h3 class="metrics-duo__title">⚔ Hall of Valor</h3>
+        <div id="trophy-slot" hx-get="/trophies" hx-trigger="load, quest-changed from:body" hx-swap="innerHTML">
+        </div>
+      </div>
     </div>
-  </div>
-  <div class="sidebar-panel sidebar-panel--actions">
-    <button class="btn btn--ghost btn--sm"
-            hx-get="/dashboard"
-            hx-target="body"
-            hx-swap="beforeend">
-      📊 War Room
-    </button>
-  </div>
-</aside>
+  </section>
+
+</div>
 
 <!-- Slot for confirm modals -->
 <div id="confirm-slot"></div>

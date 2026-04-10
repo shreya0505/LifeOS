@@ -65,39 +65,39 @@ def compute_metrics(quests: list[dict]) -> list[dict]:
 
     return [
         {
-            "icon": "🚀", "name": "Weekly Velocity",
-            "value": f"{this_wk} done",
-            "context": "this week",
+            "icon": "⚔", "name": "Battle Tempo",
+            "value": f"{this_wk} slain",
+            "context": "quests conquered this week",
             "delta": fmt_delta_count(vel_d, "vs last week"),
             "arrow": delta_arrow(vel_d),
             "color": classify_delta(vel_d, "up"),
         },
         {
-            "icon": "⚡", "name": "Avg Cycle Time",
+            "icon": "🗡", "name": "Blade Speed",
             "value": fmt_compact(ct_cur),
-            "context": "start → done (last 5)",
+            "context": "draw → kill (last 5)",
             "delta": fmt_delta_duration(ct_d, "vs prev 5"),
             "arrow": delta_arrow(ct_d),
             "color": classify_delta(ct_d, "down"),
         },
         {
-            "icon": "⏳", "name": "Pickup Speed",
+            "icon": "📯", "name": "Call to Arms",
             "value": fmt_compact(ps_cur),
-            "context": "log → active (last 5)",
+            "context": "scroll → battle (last 5)",
             "delta": fmt_delta_duration(ps_d, "vs prev 5"),
             "arrow": delta_arrow(ps_d),
             "color": classify_delta(ps_d, "down"),
         },
         {
-            "icon": "📥", "name": "Backlog Change",
+            "icon": "📜", "name": "Scroll Tide",
             "value": f"{bl_cur:+d} net",
-            "context": "added − done this week",
+            "context": "inscribed − conquered this week",
             "delta": fmt_delta_count(bl_d, "vs last week"),
             "arrow": delta_arrow(bl_d),
             "color": classify_delta(bl_d, "down"),
         },
         {
-            "icon": "📊", "name": "Completion Rate",
+            "icon": "🏆", "name": "Victory Rate",
             "value": f"{cr_cur}%" if cr_cur is not None else "—",
             "context": "last 10 quests",
             "delta": fmt_delta_count(cr_d, "vs prev 10", unit="%") if cr_d is not None else "not enough data",
@@ -185,7 +185,7 @@ def compute_pomo_metrics(sessions: list[dict]) -> list[dict]:
     elif ir_d == 0:
         ir_delta = "no change"
     else:
-        ir_delta = f"{ir_d:+.2f}/seg vs prev 20"
+        ir_delta = f"{ir_d:+.2f}/heat vs prev 20"
 
     # ── 6. Break Compliance ───────────────────────────────────────────────────
     done_sessions = [s for s in sessions if s.get("status") in ("completed", "stopped")]
@@ -238,23 +238,23 @@ def compute_pomo_metrics(sessions: list[dict]) -> list[dict]:
 
     return [
         {
-            "icon": "🍅", "name": "Weekly Focus Time",
+            "icon": "🔥", "name": "Forge Hours",
             "value": fmt_compact(this_wk_secs) if this_wk_secs > 0 else "—",
-            "context": "this week",
+            "context": "time at the anvil this week",
             "delta": fmt_delta_duration(focus_d, "vs last week"),
             "arrow": delta_arrow(focus_d),
             "color": classify_delta(focus_d, "up"),
         },
         {
-            "icon": "✅", "name": "Pomo Completion Rate",
+            "icon": "🔨", "name": "Forge Yield",
             "value": f"{cr_cur}%" if cr_cur is not None else "—",
-            "context": "last 20 segments",
+            "context": "last 20 heats",
             "delta": fmt_delta_count(cr_d, "vs prev 20", unit="%") if cr_d is not None else "not enough data",
             "arrow": delta_arrow(cr_d),
             "color": classify_delta(cr_d, "up"),
         },
         {
-            "icon": "🎯", "name": "Plan Accuracy",
+            "icon": "🔮", "name": "Oracle's Aim",
             "value": f"{pa_cur}%" if pa_cur is not None else "—",
             "context": "last 10 sessions",
             "delta": fmt_delta_count(pa_d, "vs prev 10", unit="%") if pa_d is not None else "not enough data",
@@ -262,23 +262,23 @@ def compute_pomo_metrics(sessions: list[dict]) -> list[dict]:
             "color": classify_delta(pa_d, "up"),
         },
         {
-            "icon": "🔥", "name": "Longest Focus Streak",
-            "value": f"{max_streak} 🍅",
-            "context": "all time best",
-            "delta": "all time best",
+            "icon": "⛓", "name": "Flame Chain",
+            "value": f"{max_streak} heats",
+            "context": "longest unbroken streak",
+            "delta": "all-time record",
             "arrow": "→",
             "color": "neutral",
         },
         {
-            "icon": "⚠️", "name": "Interruption Rate",
-            "value": f"{ir_cur:.2f}/seg" if ir_cur is not None else "—",
-            "context": "last 20 segments",
+            "icon": "👹", "name": "Ambush Rate",
+            "value": f"{ir_cur:.2f}/heat" if ir_cur is not None else "—",
+            "context": "last 20 heats",
             "delta": ir_delta,
             "arrow": delta_arrow(ir_d),
             "color": classify_delta(ir_d, "down"),
         },
         {
-            "icon": "☕", "name": "Break Compliance",
+            "icon": "☕", "name": "Rest Discipline",
             "value": f"{bc_cur}%" if bc_cur is not None else "—",
             "context": "last 10 sessions",
             "delta": fmt_delta_count(bc_d, "vs prev 10", unit="%") if bc_d is not None else "not enough data",
@@ -286,7 +286,7 @@ def compute_pomo_metrics(sessions: list[dict]) -> list[dict]:
             "color": classify_delta(bc_d, "up"),
         },
         {
-            "icon": "🏖", "name": "Cycle Completion",
+            "icon": "♻", "name": "Full Circuit",
             "value": f"{cc_cur}%" if cc_cur is not None else "—",
             "context": "last 5 full cycles",
             "delta": fmt_delta_count(cc_d, "vs prev 5", unit="%") if cc_d is not None else "not enough data",
@@ -294,9 +294,9 @@ def compute_pomo_metrics(sessions: list[dict]) -> list[dict]:
             "color": classify_delta(cc_d, "up"),
         },
         {
-            "icon": "⚡", "name": "Berserker Rate",
+            "icon": "⚡", "name": "Berserker Fury",
             "value": f"{br_cur}%" if br_cur is not None else "—",
-            "context": "last 20 segments",
+            "context": "last 20 heats",
             "delta": fmt_delta_count(br_d, "vs prev 20", unit="%") if br_d is not None else "not enough data",
             "arrow": delta_arrow(br_d),
             "color": classify_delta(br_d, "up"),

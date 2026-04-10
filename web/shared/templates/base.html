@@ -15,7 +15,8 @@
 
   <!-- HTMX -->
   <script src="/static/htmx.min.js" defer></script>
-  <!-- Alpine.js -->
+  <!-- Alpine.js (collapse plugin must load before core) -->
+  <script src="/static/alpine-collapse.min.js" defer></script>
   <script src="/static/alpine.min.js" defer></script>
   <!-- Animations -->
   <script src="/static/animations.js" defer></script>
@@ -23,10 +24,18 @@
 
 <body hx-headers='{"X-Requested-With": "htmx"}'>
   <div class="app-shell">
-    <!-- Header -->
-    <header class="app-header">
-      <h1 class="app-header__title">✧ STARFORGE ✧</h1>
-      <p class="app-header__date">{{ fantasy_date }}</p>
+    <!-- Glassmorphic Navbar -->
+    <header class="app-navbar" id="app-navbar">
+      <div class="app-navbar__brand">
+        <img src="/static/assets/logo.png" alt="QuestLog" class="app-navbar__logo-img">
+      </div>
+      <nav class="app-navbar__nav" id="main-nav">
+        <button class="app-navbar__link is-active" data-tab="inscribe"
+          onclick="switchNavTab('inscribe')">Inscribe</button>
+        <button class="app-navbar__link" data-tab="board" onclick="switchNavTab('board')">Board</button>
+        <button class="app-navbar__link" data-tab="metrics" onclick="switchNavTab('metrics')">Metrics</button>
+      </nav>
+      <div class="app-navbar__end"></div>
     </header>
 
     <!-- Main Content -->
@@ -37,10 +46,10 @@
     <!-- Stats Bar -->
     <footer class="stats-bar" id="stats-bar" hx-get="/stats" hx-trigger="every 60s" hx-swap="innerHTML">
       {% block stats %}
-      <span class="stats-bar__item">📜 {{ quest_counts.total }} quests</span>
+      <span class="stats-bar__item">📜 {{ quest_counts.total }} scrolls</span>
       <span class="stats-bar__item">⚔ {{ quest_counts.active }} in battle</span>
-      <span class="stats-bar__item">✅ {{ quest_counts.done }} conquered</span>
-      <span class="stats-bar__item">🍅 {{ pomo_count }} pomos today</span>
+      <span class="stats-bar__item">🏆 {{ quest_counts.done }} conquered</span>
+      <span class="stats-bar__item">🔥 {{ pomo_count }} forges today</span>
       {% endblock %}
     </footer>
   </div>
@@ -110,10 +119,14 @@
         if (confirm) { confirm.innerHTML = ''; return; }
       }
 
-      // n — focus add-quest input
+      // n — switch to inscribe tab and focus input
       if (e.key === 'n' && !e.ctrlKey && !e.metaKey) {
-        const input = document.querySelector('.add-quest-form__input');
-        if (input) { e.preventDefault(); input.focus(); }
+        e.preventDefault();
+        switchNavTab('inscribe');
+        setTimeout(() => {
+          const input = document.querySelector('.add-quest-form__input');
+          if (input) input.focus();
+        }, 50);
       }
 
       // d — open dashboard
@@ -146,6 +159,28 @@
         }
       }
     });
+
+    // ── Navbar tab switching ───────────────────────────────
+    function switchNavTab(tabName) {
+      // Update navbar active state
+      document.querySelectorAll('.app-navbar__link[data-tab]').forEach(btn => {
+        btn.classList.toggle('is-active', btn.dataset.tab === tabName);
+      });
+      // Drive Alpine tab state in page content
+      const tabRoot = document.querySelector('[x-data]');
+      if (tabRoot && tabRoot._x_dataStack) {
+        tabRoot._x_dataStack[0].tab = tabName;
+      } else if (tabRoot && tabRoot.__x) {
+        tabRoot.__x.$data.tab = tabName;
+      }
+      // Focus inscribe input when switching to inscribe
+      if (tabName === 'inscribe') {
+        setTimeout(() => {
+          const input = document.querySelector('.add-quest-form__input');
+          if (input) input.focus();
+        }, 50);
+      }
+    }
   </script>
 </body>
 
