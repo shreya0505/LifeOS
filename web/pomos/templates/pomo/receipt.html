@@ -1,6 +1,7 @@
+{% from 'components/icons.html' import icon %}
 <div class="pomo-overlay" id="pomo-panel">
   <div class="pomo-overlay__inner">
-    <h2 class="pomo-overlay__quest">📋 Daily Receipt</h2>
+    <h2 class="pomo-overlay__quest">{{ icon('clipboard-list', 'icon') }} Daily Receipt</h2>
 
     {% if entries %}
       <div class="receipt-list">
@@ -8,10 +9,10 @@
           <div class="receipt-entry{% if entry.forge_type == 'berserker' %} receipt-entry--berserker{% elif entry.forge_type == 'hollow' %} receipt-entry--hollow{% endif %}" data-animate-in>
             <div class="receipt-entry__time">
               {{ entry.time_str }}
-              {% if entry.forge_type == "berserker" %}⚡{% elif entry.forge_type == "hollow" %}💀{% else %}🍅{% endif %}
+              {% if entry.forge_type == "berserker" %}{{ icon('zap', 'icon') }}{% elif entry.forge_type == "hollow" %}{{ icon('skull', 'icon') }}{% else %}{{ icon('timer', 'icon') }}{% endif %}
             </div>
             <div class="receipt-entry__quest">{{ entry.quest_title }}</div>
-            <div class="receipt-entry__charge">⚔ {{ entry.charge }}</div>
+            <div class="receipt-entry__charge">{{ icon('flame', 'icon') }} {{ entry.charge }}</div>
             <div class="receipt-entry__deed">✦ {{ entry.deed }}</div>
           </div>
         {% endfor %}
@@ -20,8 +21,8 @@
       <div class="receipt-summary">
         <span>{{ real_pomos }} pomo{{ "s" if real_pomos != 1 else "" }}</span>
         <span>· ⏱ {{ total_mins }} min focused</span>
-        {% if berserker_count %}<span>· ⚡ {{ berserker_count }} berserker</span>{% endif %}
-        {% if hollow_count %}<span>· 💀 {{ hollow_count }} hollow</span>{% endif %}
+        {% if berserker_count %}<span>· {{ icon('zap', 'icon') }} {{ berserker_count }} berserker</span>{% endif %}
+        {% if hollow_count %}<span>· {{ icon('skull', 'icon') }} {{ hollow_count }} hollow</span>{% endif %}
       </div>
     {% else %}
       <p class="receipt-empty">No completed pomos with charge & deed today.</p>

@@ -16,12 +16,7 @@ def _render(request: Request, name: str, context: dict):
     return templates.TemplateResponse(request, name, context)
 
 
-_TIER_ICONS = {
-    "gold": "🏆",
-    "silver": "🥈",
-    "bronze": "🥉",
-    "locked": "🔒",
-}
+
 
 
 @router.get("/trophies", response_class=HTMLResponse)
@@ -47,7 +42,6 @@ async def trophies(
 
     # Add tier icons for template
     for t in result["trophies"]:
-        t["tier_icon"] = _TIER_ICONS.get(t["tier"], "🔒")
         # Compute progress percentage for bar
         if t["target"] > 0:
             t["progress_pct"] = min(int(t["progress"] / t["target"] * 100), 100)

@@ -1,0 +1,4 @@
+{% from 'components/icons.html' import icon %}
+<span class="stats-bar__item">
+  {{ icon('timer', 'icon') }} {{ engine.session["quest_title"] }} — {{ (remaining // 60)|int }}:{{ '%02d'|format((remaining % 60)|int) }}
+</span>

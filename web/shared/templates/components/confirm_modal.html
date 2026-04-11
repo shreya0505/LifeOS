@@ -1,9 +1,10 @@
+{% from 'components/icons.html' import icon %}
 <div class="modal-backdrop" id="confirm-modal"
      x-data="{ open: true }"
      x-show="open"
      @keydown.escape.window="document.getElementById('confirm-modal')?.remove()">
   <div class="modal-card" @click.stop>
-    <h3 class="modal-card__title">🗑 Erase from the Chronicles?</h3>
+    <h3 class="modal-card__title">{{ icon('trash-2', 'icon') }} Erase from the Chronicles?</h3>
     <p class="modal-card__body">"{{ quest_title }}"</p>
     <div class="modal-card__actions">
       <button class="btn btn--ghost"

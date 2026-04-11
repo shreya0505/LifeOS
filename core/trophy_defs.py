@@ -4,7 +4,7 @@ TROPHY_DEFS: list[dict] = [
     {
         "id": "frog_slayer",
         "name": "Frog Slayer",
-        "icon": "🐸",
+        "icon": "target",
         "desc": "Eat your most dreaded task — bonus for doing it first",
         "tiers": {
             "bronze": "Frog eaten",
@@ -16,7 +16,7 @@ TROPHY_DEFS: list[dict] = [
     {
         "id": "swamp_clearer",
         "name": "Swamp Clearer",
-        "icon": "🐸",
+        "icon": "target",
         "desc": "Power through multiple dreaded tasks in one day",
         "tiers": {
             "bronze": "1 frog",
@@ -28,7 +28,7 @@ TROPHY_DEFS: list[dict] = [
     {
         "id": "forge_master",
         "name": "Forge Master",
-        "icon": "🔨",
+        "icon": "flame",
         "desc": "Deep work hours — real focused pomodoros completed",
         "tiers": {
             "bronze": "2 pomos (~1hr)",
@@ -40,7 +40,7 @@ TROPHY_DEFS: list[dict] = [
     {
         "id": "untouchable",
         "name": "Untouchable",
-        "icon": "🛡️",
+        "icon": "shield",
         "desc": "Consecutive pomos with zero interruptions",
         "tiers": {
             "bronze": "2 clean streak",
@@ -52,7 +52,7 @@ TROPHY_DEFS: list[dict] = [
     {
         "id": "quest_closer",
         "name": "Quest Closer",
-        "icon": "⚔️",
+        "icon": "check-circle",
         "desc": "Close quests — move tasks to done and clear the board",
         "tiers": {
             "bronze": "3 quests",
@@ -64,7 +64,7 @@ TROPHY_DEFS: list[dict] = [
     {
         "id": "scribe",
         "name": "Scribe",
-        "icon": "📜",
+        "icon": "scroll",
         "desc": "Log your intent before and result after every pomo",
         "tiers": {
             "bronze": "1 documented",
@@ -76,7 +76,7 @@ TROPHY_DEFS: list[dict] = [
     {
         "id": "ironclad",
         "name": "Ironclad",
-        "icon": "☕",
+        "icon": "moon",
         "desc": "Take your breaks — recovery is part of the fight",
         "tiers": {
             "bronze": "1 break taken",

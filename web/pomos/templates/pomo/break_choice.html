@@ -1,9 +1,10 @@
+{% from 'components/icons.html' import icon %}
 <div class="pomo-gate break-gate">
   <h3 class="gate__prompt">Your forge cools. Choose your rest.</h3>
 
   {% if actual_pomos %}
-    <p class="gate__hint">🍅 {{ actual_pomos }} pomo{{ "s" if actual_pomos != 1 else "" }} forged
-    {% if streak > 1 %} · 🔥 streak × {{ streak }}{% endif %}
+    <p class="gate__hint">{{ icon('timer', 'icon') }} {{ actual_pomos }} pomo{{ "s" if actual_pomos != 1 else "" }} forged
+    {% if streak > 1 %} · {{ icon('flame', 'icon') }} streak × {{ streak }}{% endif %}
     </p>
   {% endif %}
 
@@ -27,7 +28,7 @@
             hx-vals='{"choice": "long"}'
             hx-target="#pomo-panel"
             hx-swap="outerHTML">
-      🌙 Long ({{ config.long_break_secs // 60 }}m)
+      {{ icon('moon', 'icon') }} Long ({{ config.long_break_secs // 60 }}m)
     </button>
     <button class="btn btn--ghost"
             hx-post="/pomos/break"

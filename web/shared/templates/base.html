@@ -1,3 +1,4 @@
+{% from 'components/icons.html' import icon %}
 <!DOCTYPE html>
 <html lang="en">
 
@@ -46,10 +47,10 @@
     <!-- Stats Bar -->
     <footer class="stats-bar" id="stats-bar" hx-get="/stats" hx-trigger="every 60s" hx-swap="innerHTML">
       {% block stats %}
-      <span class="stats-bar__item">📜 {{ quest_counts.total }} scrolls</span>
-      <span class="stats-bar__item">⚔ {{ quest_counts.active }} in battle</span>
-      <span class="stats-bar__item">🏆 {{ quest_counts.done }} conquered</span>
-      <span class="stats-bar__item">🔥 {{ pomo_count }} forges today</span>
+      <span class="stats-bar__item">{{ icon('scroll', 'icon') }} {{ quest_counts.total }} scrolls</span>
+      <span class="stats-bar__item">{{ icon('flame', 'icon') }} {{ quest_counts.active }} in battle</span>
+      <span class="stats-bar__item">{{ icon('trophy', 'icon') }} {{ quest_counts.done }} conquered</span>
+      <span class="stats-bar__item">{{ icon('flame', 'icon') }} {{ pomo_count }} forges today</span>
       {% endblock %}
     </footer>
   </div>
@@ -63,7 +64,7 @@
       const container = document.getElementById('toast-container');
       const toast = document.createElement('div');
       toast.className = 'toast';
-      toast.textContent = message;
+      toast.innerHTML = message;
       container.appendChild(toast);
       setTimeout(() => {
         toast.style.opacity = '0';
@@ -76,28 +77,28 @@
     // Note: HTMX animation hooks are in animations.js
     // ── Toast triggers from HX-Trigger response headers ────
     document.body.addEventListener('quest-done', function () {
-      showToast('⚔ Quest conquered!');
+      showToast(`{{ icon('flame', 'icon') }} Quest conquered!`);
     });
     document.body.addEventListener('quest-added', function () {
-      showToast('📜 Quest inscribed');
+      showToast(`{{ icon('scroll', 'icon') }} Quest inscribed`);
     });
     document.body.addEventListener('quest-deleted', function () {
-      showToast('🗑 Quest removed');
+      showToast(`{{ icon('trash-2', 'icon') }} Quest removed`);
     });
     document.body.addEventListener('pomo-complete', function () {
-      showToast('🍅 Pomodoro complete!');
+      showToast(`{{ icon('timer', 'icon') }} Pomodoro complete!`);
     });
     document.body.addEventListener('pomo-berserker', function () {
-      showToast('⚡ Berserker forge!');
+      showToast(`{{ icon('zap', 'icon') }} Berserker forge!`);
     });
     document.body.addEventListener('pomo-stopped', function () {
-      showToast('🔥 Session ended');
+      showToast(`{{ icon('flame', 'icon') }} Session ended`);
     });
     document.body.addEventListener('pomo-interrupted', function () {
-      showToast('⚠️ Interrupted — refocus!');
+      showToast(`⚠️ Interrupted — refocus!`);
     });
     document.body.addEventListener('trophy-earned', function () {
-      showToast('🏆 New personal record!');
+      showToast(`{{ icon('trophy', 'icon') }} New personal record!`);
     });
     // ── Keyboard shortcuts ──────────────────────────────────
     document.addEventListener('keydown', function (e) {

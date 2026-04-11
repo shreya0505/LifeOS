@@ -1,4 +1,5 @@
-<span class="stats-bar__item">📜 {{ quest_counts.total }} scrolls</span>
-<span class="stats-bar__item">⚔ {{ quest_counts.active }} in battle</span>
-<span class="stats-bar__item">🏆 {{ quest_counts.done }} conquered</span>
-<span class="stats-bar__item">🔥 {{ pomo_count }} forges today</span>
+{% from 'components/icons.html' import icon %}
+<span class="stats-bar__item">{{ icon('scroll', 'icon') }} {{ quest_counts.total }} scrolls</span>
+<span class="stats-bar__item">{{ icon('flame', 'icon') }} {{ quest_counts.active }} in battle</span>
+<span class="stats-bar__item">{{ icon('trophy', 'icon') }} {{ quest_counts.done }} conquered</span>
+<span class="stats-bar__item">{{ icon('flame', 'icon') }} {{ pomo_count }} forges today</span>

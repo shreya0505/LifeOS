@@ -1,8 +1,9 @@
+{% from 'components/icons.html' import icon %}
 <div class="board">
   {% for col in columns %}
   <div class="column" id="col-{{ col.status }}" data-animate-in>
     <div class="column__header">
-      <h2 class="column__title">{{ col.icon }} {{ col.label }}</h2>
+      <h2 class="column__title">{{ icon(col.icon, 'icon') }} {{ col.label }}</h2>
       <span class="column__count">{{ col.quests | length }}</span>
     </div>
     <div class="column__body" id="col-body-{{ col.status }}">

@@ -1,3 +1,4 @@
+{% from 'components/icons.html' import icon %}
 <div class="trophy-panel" id="trophy-panel">
   <h2 class="valor-title">Hall of Valor</h2>
 
@@ -7,7 +8,7 @@
     <article class="valor-card valor-card--{{ trophy.tier }}" data-animate-in>
       <div class="valor-card__head">
         <div class="valor-card__icon valor-card__icon--{{ trophy.tier }}">
-          <span>{{ trophy.icon }}</span>
+          <span>{{ icon(trophy.icon, 'icon') }}</span>
         </div>
         {% if trophy.tier == 'locked' %}
         <span class="valor-card__chip valor-card__chip--locked">Locked</span>

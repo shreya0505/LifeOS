@@ -305,12 +305,7 @@ async def pomo_status(request: Request):
         return HTMLResponse("")
 
     remaining = engine.remaining()
-    return HTMLResponse(
-        f'<span class="stats-bar__item">'
-        f'🍅 {engine.session["quest_title"]} — '
-        f'{int(remaining // 60)}:{int(remaining % 60):02d}'
-        f'</span>'
-    )
+    return _render(request, "pomo/status.html", {"engine": engine, "remaining": remaining})
 
 
 # ── Receipt ──────────────────────────────────────────────────────────────

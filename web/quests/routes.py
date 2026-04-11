@@ -16,10 +16,10 @@ router = APIRouter()
 
 # ── Column definitions ──────────────────────────────────────────────────
 _COLUMNS = [
-    {"status": "log",     "label": "Quest Board",  "icon": "📜", "empty_text": "No quests inscribed yet."},
-    {"status": "active",  "label": "In Battle",    "icon": "⚔",  "empty_text": "No active quests."},
-    {"status": "blocked", "label": "Blocked",       "icon": "🛡", "empty_text": "Nothing blocked."},
-    {"status": "done",    "label": "Conquered",     "icon": "✅", "empty_text": "No victories yet."},
+    {"status": "log",     "label": "Quest Board",  "icon": "scroll", "empty_text": "No quests inscribed yet."},
+    {"status": "active",  "label": "In Battle",    "icon": "flame",  "empty_text": "No active quests."},
+    {"status": "blocked", "label": "Blocked",       "icon": "shield", "empty_text": "Nothing blocked."},
+    {"status": "done",    "label": "Conquered",     "icon": "check-circle", "empty_text": "No victories yet."},
 ]
 
 
