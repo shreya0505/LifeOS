@@ -9,6 +9,7 @@ from core.config import VALID_SOURCES
 from core.utils import fantasy_date, format_duration, get_elapsed, today_local
 from core.pomo_queries import get_all_pomo_counts_today
 from web.deps import get_quest_repo, get_pomo_repo
+from web.pomos.engine import get_engine as _get_pomo_engine
 
 router = APIRouter()
 
@@ -20,6 +21,13 @@ _COLUMNS = [
     {"status": "blocked", "label": "Blocked",       "icon": "🛡", "empty_text": "Nothing blocked."},
     {"status": "done",    "label": "Conquered",     "icon": "✅", "empty_text": "No victories yet."},
 ]
+
+
+def _active_pomo_quest_id() -> str | None:
+    engine = _get_pomo_engine()
+    if engine.is_active and engine.session:
+        return engine.session.get("quest_id")
+    return None
 
 
 async def _build_board_context(quest_repo, pomo_repo) -> list[dict]:
@@ -74,6 +82,7 @@ async def index(request: Request,
         "quest_counts": counts,
         "pomo_count": pomo_count,
         "volume_number": today_local().isocalendar()[1],
+        "active_pomo_quest_id": _active_pomo_quest_id(),
     })
 
 
@@ -84,7 +93,7 @@ async def quest_board(request: Request,
                       quest_repo=Depends(get_quest_repo),
                       pomo_repo=Depends(get_pomo_repo)):
     columns = await _build_board_context(quest_repo, pomo_repo)
-    return _render(request, "board.html", {"columns": columns})
+    return _render(request, "board.html", {"columns": columns, "active_pomo_quest_id": _active_pomo_quest_id()})
 
 
 # ── Add quest ────────────────────────────────────────────────────────────
@@ -98,7 +107,7 @@ async def add_quest(request: Request,
     if title:
         await quest_repo.add(title)
     columns = await _build_board_context(quest_repo, pomo_repo)
-    response = _render(request, "board.html", {"columns": columns})
+    response = _render(request, "board.html", {"columns": columns, "active_pomo_quest_id": _active_pomo_quest_id()})
     if title:
         response.headers["HX-Trigger"] = "quest-added"
     return response
@@ -125,7 +134,7 @@ async def update_status(request: Request,
         transitioned = True
 
     columns = await _build_board_context(quest_repo, pomo_repo)
-    response = _render(request, "board.html", {"columns": columns})
+    response = _render(request, "board.html", {"columns": columns, "active_pomo_quest_id": _active_pomo_quest_id()})
 
     # Fire celebration events via HX-Trigger
     if transitioned and status == "done":
@@ -142,22 +151,7 @@ async def toggle_frog(request: Request,
                       pomo_repo=Depends(get_pomo_repo)):
     await quest_repo.toggle_frog(quest_id)
     columns = await _build_board_context(quest_repo, pomo_repo)
-    return _render(request, "board.html", {"columns": columns})
-
-
-# ── Confirm delete (returns modal HTML) ──────────────────────────────────
-
-@router.get("/quests/{quest_id}/confirm-delete", response_class=HTMLResponse)
-async def confirm_delete(request: Request,
-                         quest_id: str,
-                         quest_repo=Depends(get_quest_repo)):
-    quests = await quest_repo.load_all()
-    quest = next((q for q in quests if q["id"] == quest_id), None)
-    title = quest["title"] if quest else "Unknown quest"
-    return _render(request, "components/confirm_modal.html", {
-        "quest_id": quest_id,
-        "quest_title": title,
-    })
+    return _render(request, "board.html", {"columns": columns, "active_pomo_quest_id": _active_pomo_quest_id()})
 
 
 # ── Delete quest ─────────────────────────────────────────────────────────
@@ -169,7 +163,7 @@ async def delete_quest(request: Request,
                        pomo_repo=Depends(get_pomo_repo)):
     await quest_repo.delete(quest_id)
     columns = await _build_board_context(quest_repo, pomo_repo)
-    response = _render(request, "board.html", {"columns": columns})
+    response = _render(request, "board.html", {"columns": columns, "active_pomo_quest_id": _active_pomo_quest_id()})
     response.headers["HX-Trigger"] = "quest-deleted"
     return response
 

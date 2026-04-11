@@ -5,7 +5,7 @@
       <div class="heatmap-card">
         <div class="heatmap-card__head">
           <div>
-            <span class="heatmap-card__overline">Momentum Graph</span>
+            <span class="heatmap-card__overline">Battle Log</span>
             <h3 class="heatmap-card__title">Forge Consistency</h3>
           </div>
           <div class="heatmap__legend">
@@ -32,11 +32,6 @@
             {% endfor %}
           </div>
         </div>
-        <!-- Summary -->
-        <div class="heatmap-card__summary">
-          <span>🍅 {{ today_pomos }} today · ⏱ {{ today_focus }}</span>
-          <span>📅 {{ week_pomos }} this week · {{ week_focus }}</span>
-        </div>
       </div>
     </div>
 
@@ -53,6 +48,16 @@
           <div class="tl-entry__content">
             <div class="tl-entry__meta">
               <span class="tl-entry__time">{{ entry.time }}</span>
+              {% if not entry.completed and entry.interruption_reason %}
+              <span class="tl-entry__reason">
+                {%- if entry.interruption_reason == "distracted" %}Distracted
+                {%- elif entry.interruption_reason == "blocked" %}Blocked
+                {%- elif entry.interruption_reason == "emergency" %}Emergency
+                {%- elif entry.interruption_reason == "personal" %}Personal
+                {%- else %}{{ entry.interruption_reason | title }}
+                {%- endif %}
+              </span>
+              {% endif %}
               {% if entry.forge_type == "berserker" %}
               <span class="tl-entry__tag tl-entry__tag--berserker">Berserker</span>
               {% elif entry.forge_type == "hollow" %}

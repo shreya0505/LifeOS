@@ -10,6 +10,10 @@
     document.querySelectorAll('.app-navbar__link[data-tab]').forEach(btn => {
       btn.classList.toggle('is-active', btn.dataset.tab === value);
     });
+    if (value === 'metrics') {
+      htmx.trigger('#chronicle-slot', 'refresh');
+      htmx.trigger('#trophy-slot', 'refresh');
+    }
   })
 ">
 
@@ -25,7 +29,8 @@
         " @mouseleave="$el.style.transform = 'perspective(800px) rotateY(0deg) rotateX(0deg)'">
         <h2 class="inscribe-panel__heading">Inscribe Your Quest</h2>
         <form class="add-quest-form" hx-post="/quests" hx-target="#quest-board" hx-swap="innerHTML"
-          hx-on::after-request="this.reset(); $data.tab = 'board'">
+          hx-on::after-request="this.reset()"
+          @htmx:after-request="tab = 'board'">
           <input type="text" name="title" class="add-quest-form__input" placeholder="What will you conquer today?"
             required minlength="1" autocomplete="off">
           <button type="submit" class="btn btn--copper btn--zap">✨ Add</button>
@@ -38,12 +43,15 @@
   <!-- ── Tab: Board (Kanban) ───────────────────────────────── -->
   <section class="tab-panel" x-show="tab === 'board'" x-transition:enter="tab-enter"
     x-transition:enter-start="tab-enter-from" x-transition:enter-end="tab-enter-to">
-    <div id="quest-board">
+    <div id="quest-board"
+      hx-get="/quests"
+      hx-trigger="pomo-started from:body, pomo-stopped from:body"
+      hx-swap="innerHTML">
       {% include "board.html" %}
     </div>
   </section>
 
-  <!-- ── Tab: Metrics (The Grand Ledger) ─────────────────── -->
+  <!-- ── Tab: Codex (The Grand Ledger) ───────────────────── -->
   <section class="tab-panel" x-show="tab === 'metrics'" x-transition:enter="tab-enter"
     x-transition:enter-start="tab-enter-from" x-transition:enter-end="tab-enter-to">
 
@@ -57,15 +65,15 @@
     <section class="ledger-section">
       <div class="ledger-section__head">
         <h2 class="ledger-section__title">The Chronicle</h2>
-        <span class="ledger-section__badge">● 12 Week Horizon</span>
+        <span class="ledger-section__badge">● Echoes of the Realm</span>
       </div>
-      <div id="chronicle-slot" hx-get="/chronicle" hx-trigger="load, quest-changed from:body" hx-swap="innerHTML">
+      <div id="chronicle-slot" hx-get="/chronicle" hx-trigger="load, quest-changed from:body, refresh" hx-swap="innerHTML">
       </div>
     </section>
 
     <!-- Section 2: Hall of Valor (Gamified) -->
     <section class="ledger-valor">
-      <div id="trophy-slot" hx-get="/trophies" hx-trigger="load, quest-changed from:body" hx-swap="innerHTML">
+      <div id="trophy-slot" hx-get="/trophies" hx-trigger="load, quest-changed from:body, refresh" hx-swap="innerHTML">
       </div>
     </section>
 

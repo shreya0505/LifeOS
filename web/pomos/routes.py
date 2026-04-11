@@ -54,11 +54,13 @@ async def start_session(
 
     engine.start_session(quest_id, quest["title"], prior_pomos=prior, lap_history=lap_history)
 
-    return _render(request, "pomo/panel.html", {
+    response = _render(request, "pomo/panel.html", {
         "engine": engine,
         "mode": "charge",
         "quest_title": quest["title"],
     })
+    response.headers["HX-Trigger"] = "pomo-started"
+    return response
 
 
 # ── Submit charge ────────────────────────────────────────────────────────

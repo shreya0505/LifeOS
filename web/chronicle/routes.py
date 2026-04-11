@@ -101,6 +101,7 @@ def _build_today_entries(sessions: list[dict]) -> list[dict]:
                 "deed": deed,
                 "completed": seg.get("completed", False),
                 "forge_type": forge_type,
+                "interruption_reason": seg.get("interruption_reason") or "",
                 "duration_secs": segment_duration(seg),
             })
     entries.sort(key=lambda e: e["time"], reverse=True)

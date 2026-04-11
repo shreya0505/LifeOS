@@ -1,43 +1,4 @@
 <div class="trophy-panel" id="trophy-panel">
-  <!-- Summary Bar -->
-  <div class="valor-summary">
-    <div class="valor-summary__counts">
-      {% if summary.gold %}
-      <div class="valor-summary__stat">
-        <span class="valor-summary__label">Gold</span>
-        <span class="valor-summary__value valor-summary__value--gold">{{ summary.gold }}</span>
-      </div>
-      {% endif %}
-      {% if summary.silver %}
-      <div class="valor-summary__stat">
-        <span class="valor-summary__label">Silver</span>
-        <span class="valor-summary__value valor-summary__value--silver">{{ summary.silver }}</span>
-      </div>
-      {% endif %}
-      {% if summary.bronze %}
-      <div class="valor-summary__stat">
-        <span class="valor-summary__label">Bronze</span>
-        <span class="valor-summary__value valor-summary__value--bronze">{{ summary.bronze }}</span>
-      </div>
-      {% endif %}
-      {% if summary.locked %}
-      <div class="valor-summary__stat valor-summary__stat--locked">
-        <span class="valor-summary__label">Locked</span>
-        <span class="valor-summary__value">{{ summary.locked }}</span>
-      </div>
-      {% endif %}
-    </div>
-    {% if best_day.count %}
-    <div class="valor-summary__best">
-      <span class="valor-summary__best-label">Best Day Record</span>
-      <span class="valor-summary__best-value">{{ best_day.count }} Forges
-        <span class="valor-summary__best-date">{{ best_day.date }}</span>
-      </span>
-    </div>
-    {% endif %}
-  </div>
-
-  <!-- Section Title -->
   <h2 class="valor-title">Hall of Valor</h2>
 
   <!-- Trophy Grid (3 columns) -->

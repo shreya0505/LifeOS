@@ -100,6 +100,14 @@ class SqliteQuestRepo:
         row = await cursor.fetchone()
         if row is None:
             return None
+        # Remove child records first to satisfy FK constraints
+        session_cursor = await self._db.execute(
+            "SELECT id FROM pomo_sessions WHERE quest_id = ?", (quest_id,)
+        )
+        session_ids = [r[0] for r in await session_cursor.fetchall()]
+        for sid in session_ids:
+            await self._db.execute("DELETE FROM pomo_segments WHERE session_id = ?", (sid,))
+        await self._db.execute("DELETE FROM pomo_sessions WHERE quest_id = ?", (quest_id,))
         await self._db.execute("DELETE FROM quests WHERE id = ?", (quest_id,))
         await self._db.commit()
         return {

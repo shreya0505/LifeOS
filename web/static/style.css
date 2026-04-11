@@ -20,7 +20,7 @@ body::before {
   background-image:
     radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.03) 1px, transparent 0);
   background-size: 4px 4px;
-  opacity: 0.4;
+  opacity: 0.25;
   pointer-events: none;
   z-index: 0;
 }
@@ -141,7 +141,7 @@ body::before {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: calc(var(--space-3xl) + var(--space-2xl)) var(--space-xl) var(--space-2xl);
+  padding: calc(var(--space-3xl) + var(--space-2xl) + var(--space-xl)) var(--space-xl) var(--space-2xl);
   max-width: 1200px;
   margin: 0 auto;
   width: 100%;
@@ -577,6 +577,18 @@ body::before {
 }
 
 /* ── Board Grid ──────────────────────────────────────────── */
+
+/* Full-bleed breakout: let the board use the full viewport width
+   while the rest of app-main stays constrained at 1200px.        */
+@media (min-width: 1024px) {
+  #quest-board {
+    width: 100vw;
+    margin-left: calc(-50vw + 50%);
+    padding: 0 var(--space-xl);
+    box-sizing: border-box;
+  }
+}
+
 .board {
   display: grid;
   grid-template-columns: 1fr;
@@ -608,7 +620,9 @@ body::before {
   gap: 0;
   min-width: 0;
   overflow: visible;
-  background: var(--surface-container-low);
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   border-radius: 18px;
   padding: 14px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
@@ -616,19 +630,19 @@ body::before {
 
 /* Column tints — visible wash from system palette */
 #col-log {
-  background: linear-gradient(to bottom, rgba(214, 201, 184, 0.5), var(--surface-container-low) 70%);
+  background: linear-gradient(to bottom, rgba(214, 201, 184, 0.45), rgba(255, 255, 255, 0.18) 70%);
 }
 
 #col-active {
-  background: linear-gradient(to bottom, rgba(22, 52, 34, 0.14), var(--surface-container-low) 70%);
+  background: linear-gradient(to bottom, rgba(22, 52, 34, 0.12), rgba(255, 255, 255, 0.18) 70%);
 }
 
 #col-blocked {
-  background: linear-gradient(to bottom, rgba(149, 72, 43, 0.14), var(--surface-container-low) 70%);
+  background: linear-gradient(to bottom, rgba(149, 72, 43, 0.12), rgba(255, 255, 255, 0.18) 70%);
 }
 
 #col-done {
-  background: linear-gradient(to bottom, rgba(122, 158, 126, 0.18), var(--surface-container-low) 70%);
+  background: linear-gradient(to bottom, rgba(122, 158, 126, 0.16), rgba(255, 255, 255, 0.18) 70%);
 }
 
 .column__header {
@@ -670,6 +684,9 @@ body::before {
     overflow-y: auto;
     overflow-x: visible;
     padding-bottom: var(--space-md);
+    /* Extra right padding so pomo-active glow isn't clipped by the
+       overflow-y: auto scroll container (which forces overflow-x to auto) */
+    padding-right: 6px;
     scrollbar-width: none;
   }
 
@@ -698,9 +715,9 @@ body::before {
   margin: 0;
   max-width: 100%;
   width: 100%;
-  background: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.55);
   color: var(--on-surface);
-  box-shadow: 0 1px 0 rgba(28, 28, 24, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06), 0 1px 0 rgba(28, 28, 24, 0.04);
   transition: background 200ms cubic-bezier(0.4, 0, 0.2, 1),
     transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -718,9 +735,42 @@ body::before {
   opacity: 0.7;
 }
 
+/* ── Active pomo: top accent + separator + float to top ─── */
+.quest-card--pomo-active {
+  order: -1;
+  background: rgba(22, 52, 34, 0.08) !important;
+  border-radius: 0 0 10px 10px;
+  border-top: 2px solid rgba(22, 52, 34, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(22, 52, 34, 0.14);
+}
+
+.quest-card--pomo-active::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(22, 52, 34, 0.18);
+  z-index: 10;
+}
+
+.quest-card--pomo-active:hover {
+  background: rgba(22, 52, 34, 0.11) !important;
+  transform: translateX(-2px);
+}
+
+/* ── Disabled pomo button (another quest has an active pomo) ── */
+.segment--pomo-disabled,
+.segment[disabled] {
+  opacity: 0.25 !important;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 /* ── Hover: selection drift, not lift ────────────────── */
 .quest-card:hover {
-  background: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.72);
   transform: translateX(3px);
 }
 
@@ -780,17 +830,6 @@ body::before {
 }
 
 /* Pomo activity indicator */
-.quest-card__pomo-indicator {
-  height: 2px;
-  margin: 8px 0;
-  border-radius: var(--radius-full);
-  background: linear-gradient(90deg,
-      var(--secondary) 0%,
-      var(--secondary) 40%,
-      transparent 40%);
-  opacity: 0.5;
-}
-
 /* ── Segmented Control (embedded actions) ───────────────── */
 .segmented-control {
   position: relative;
@@ -1114,7 +1153,7 @@ body::before {
 /* ── Toast container ─────────────────────────────────────── */
 .toast-container {
   position: fixed;
-  top: 72px;
+  top: 92px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 200;
@@ -3182,6 +3221,16 @@ body::before {
   color: var(--on-surface-muted);
 }
 
+.tl-entry__reason {
+  font-family: var(--font-body);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--error);
+  opacity: 0.8;
+}
+
 .tl-entry__tag {
   font-family: var(--font-body);
   font-size: 9px;
@@ -3367,6 +3416,56 @@ body::before {
   font-weight: 500;
   color: var(--on-surface-muted);
   margin-left: var(--space-sm);
+}
+
+/* ── Valor Header ────────────────────────────────────────── */
+.valor-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-lg);
+}
+
+.valor-header__counts {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.valor-pip {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  backdrop-filter: blur(8px);
+  border: 1px solid transparent;
+}
+
+.valor-pip--gold {
+  background: rgba(212, 175, 55, 0.12);
+  color: #d4af37;
+  border-color: rgba(212, 175, 55, 0.25);
+}
+
+.valor-pip--silver {
+  background: rgba(168, 168, 168, 0.12);
+  color: #a8a8a8;
+  border-color: rgba(168, 168, 168, 0.25);
+}
+
+.valor-pip--bronze {
+  background: rgba(var(--secondary-rgb, 140, 100, 60), 0.12);
+  color: var(--secondary);
+  border-color: rgba(var(--secondary-rgb, 140, 100, 60), 0.25);
+}
+
+.valor-pip--locked {
+  background: rgba(128, 128, 128, 0.08);
+  color: var(--on-surface-muted);
+  border-color: rgba(128, 128, 128, 0.15);
+  opacity: 0.6;
 }
 
 /* ── Valor Section Title ─────────────────────────────────── */
@@ -3953,4 +4052,225 @@ body::before {
   font-size: 0.75rem;
   color: var(--on-surface-muted);
   line-height: 1.4;
+}
+
+/* ── Deed Screen ─────────────────────────────────────────── */
+.deed-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: 2rem 0;
+}
+
+.deed-screen__header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.deed-screen__badge {
+  display: inline-block;
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--secondary);
+  margin-bottom: 1rem;
+}
+
+.deed-screen__quest {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.75rem;
+  color: var(--on-surface);
+  letter-spacing: -0.01em;
+  margin-bottom: 0.5rem;
+}
+
+.deed-screen__streak {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--secondary);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 1.5rem;
+}
+
+.deed-screen__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.25rem;
+  color: var(--on-surface-variant);
+  letter-spacing: 0;
+  margin-bottom: 0.5rem;
+}
+
+.deed-screen__sub {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: var(--on-surface-muted);
+  line-height: 1.6;
+}
+
+.deed-screen__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+  max-width: 480px;
+}
+
+/* Input — engraved underline, no box */
+.deed-screen__input-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.deed-screen__input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+  font-family: var(--font-mono);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--on-surface);
+  text-align: center;
+  padding: 12px 0;
+  outline: none;
+  transition: border-color 400ms var(--ease-natural);
+}
+
+.deed-screen__input:focus {
+  border-bottom-color: rgba(22, 52, 34, 0.4);
+}
+
+.deed-screen__input::placeholder {
+  color: var(--on-surface-muted);
+  opacity: 0.4;
+  font-weight: 500;
+  font-style: italic;
+}
+
+.deed-screen__input-line {
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 1px;
+  background: var(--primary);
+  opacity: 0.5;
+  transition: width 500ms var(--ease-decelerate);
+  pointer-events: none;
+}
+
+.deed-screen__input-wrap--focus .deed-screen__input-line {
+  width: 100%;
+}
+
+/* Forge options — interrupt-reason button pattern */
+.deed-screen__forge {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 100%;
+}
+
+.deed-forge-opt {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 1rem 1.25rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--on-surface);
+  cursor: pointer;
+  text-align: left;
+  transition: background 220ms var(--ease-natural);
+}
+
+.deed-forge-opt:hover {
+  background: color-mix(in oklch, var(--primary) 8%, transparent);
+}
+
+.deed-forge-opt[data-forge="hollow"]:hover {
+  background: color-mix(in oklch, var(--on-surface) 6%, transparent);
+}
+
+.deed-forge-opt[data-forge="berserker"]:hover {
+  background: color-mix(in oklch, var(--secondary) 10%, transparent);
+}
+
+.deed-forge-opt--active {
+  background: color-mix(in oklch, var(--primary) 7%, transparent);
+}
+
+.deed-forge-opt[data-forge="hollow"].deed-forge-opt--active {
+  background: color-mix(in oklch, var(--on-surface) 5%, transparent);
+}
+
+.deed-forge-opt[data-forge="berserker"].deed-forge-opt--active {
+  background: color-mix(in oklch, var(--secondary) 8%, transparent);
+}
+
+.deed-forge-opt__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.deed-forge-opt__label {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--on-surface);
+}
+
+.deed-forge-opt__hint {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 0.75rem;
+  color: var(--on-surface-muted);
+  line-height: 1.4;
+}
+
+.deed-screen__action {
+  margin-top: 0.5rem;
+}
+
+.deed-screen__seal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 14px 32px;
+  background: var(--primary);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--on-primary);
+  transition: background 180ms var(--ease-natural),
+    transform 120ms var(--ease-natural);
+}
+
+.deed-screen__seal:hover {
+  background: var(--primary-container);
+}
+
+.deed-screen__seal:active {
+  transform: scale(0.975);
+  background: var(--primary);
 }

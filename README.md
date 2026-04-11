@@ -1,61 +1,114 @@
-# QuestLog — Setup Guide
+# LifeOS (QuestLog) ⚔️🍅
 
-A terminal-native quest board + pomodoro timer with RPG theming and trophy gamification.
+**A productivity companion featuring an active quest board and pomodoro timer with RPG theming and trophy gamification.**
 
-## Prerequisites
+LifeOS provides two distinct interfaces built on a shared core logic layer:
+1. **Terminal User Interface (TUI):** A focused, keyboard-driven experience.
+2. **Web Interface:** A sleek, interactive browser-based dashboard.
 
-- **Python 3.10+** (tested on 3.12)
+---
 
-## Setup
+## ✨ Features
 
+- **RPG-Themed Quest Board:** Manage tasks as "quests" to conquer. Prioritize dreaded tasks by marking them as "Frogs" (🐸).
+- **Advanced Pomodoro Timer:** Go into "The Fray" with Pomodoros, logging your "Charge" (intent) and "Deed" (outcome). Track "Hollow" (💀) and "Berserker" (⚡) flows.
+- **Gamification & Trophies:** Earn trophies in the "Hall of Valor" for eating frogs early, deep focus, and consistent logging. Features tiers (🥉, 🥈, 🥇) and personal records.
+- **Detailed Analytics (Adventure's Chronicle):** View daily/weekly stats, focus heatmaps, and interruption analysis.
+- **Dual Interfaces:** Seamlessly switch between the terminal and web frontend depending on your workflow.
+
+---
+
+## 🛠️ Tech Stack
+
+- **Core:** Python 3.10+
+- **Terminal UI:** Textual, Rich (File-based JSON storage)
+- **Web App:** FastAPI, Jinja2, HTMX, Alpine.js, SSE (Async SQLite storage)
+- **Containerization:** Docker & Docker Compose
+
+---
+
+## 🚀 Quick Start
+
+### 1. Prerequisites
+Ensure you have **Python 3.10+** installed, or use **Docker**.
+
+### 2. Local Setup
 ```bash
-# 1. Unzip
-unzip questlog.zip -d questlog
-cd questlog
+# Enter project directory
+cd LifeOS
 
-# 2. Create a virtual environment
+# Create and activate a virtual environment
 python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# 3. Activate it
-source .venv/bin/activate        # Linux / macOS
-# .venv\Scripts\activate         # Windows
-
-# 4. Install dependencies
-pip install textual rich
-
-# 5. Run
-python3 main.py
+# Install dependencies
+pip install textual rich fastapi uvicorn[standard] jinja2 aiosqlite sse-starlette httpx
 ```
 
-## Timezone
+### 3. Run the App
 
-The app defaults to **IST (Asia/Kolkata)**. To change it, edit `USER_TZ` in `utils.py`.
+You can choose to run the app via the TUI, Web App, or use Docker.
 
-## Data
+#### Option A: Terminal UI (TUI)
+```bash
+python3 -m tui
+```
+*Note: Uses localized JSON file storage.*
 
-All data lives in local JSON files — no database needed:
+#### Option B: Web Application
+```bash
+uvicorn web.app:app --reload
+```
+Access the web app at `http://127.0.0.1:8000`.
+*Note: Uses async SQLite storage.*
 
-| File | Purpose |
-|------|---------|
-| `quests.json` | Quest state and history |
-| `pomodoros.json` | Pomodoro sessions and segments |
-| `trophies.json` | Personal records |
+#### Option C: Docker (Web App)
+For a containerized setup, simply run:
+```bash
+docker compose up --build
+```
+Access the app at `http://localhost:8000`.
 
-Run `./clear_data.sh` to reset all data (creates backups first).
+---
 
-## Quick Reference
+## 🧹 Maintenance
 
-| Key | Action |
-|-----|--------|
-| `a` | Add quest |
-| `Enter` | Activate quest |
-| `t` | Start pomodoro |
-| `d` | Mark quest done |
-| `o` | Dashboard |
-| `p` | Daily receipt |
-| `q` | Quit |
+To clear all data and start fresh (this creates backups first):
+```bash
+./clear_data.sh
+```
 
-See `INSTRUCTIONS.md` for the full manual.
+---
+
+## 🏗️ Architecture
+
+QuestLog shares a common `core` across both frontends.
+- `core/`: Shared business logic, storage interfaces (`Protocols`), state machines, and metrics computation.
+- `tui/`: Textual application reading/writing to local JSON files (`json_backend.py`).
+- `web/`: FastAPI application utilizing HTMX, Alpine.js, and Server-Sent Events (SSE) backed by a SQLite database (`sqlite_backend.py`).
+
+---
+
+## 🧪 Testing
+
+Testing requires additional dependencies:
+```bash
+pip install pytest pytest-asyncio httpx aiosqlite
+
+# Run all tests
+pytest
+
+# Run tests with verbose output
+pytest -v
+```
+Tests are executed against a temporary in-memory SQLite database setup via pytest fixtures.
+
+---
+
+## 📖 Instructions & Manuals
+
+- For an in-depth guide on the Pomodoro flow, Quest Lifecycle, RPG mechanics, and keyboard shortcuts, please read [`INSTRUCTIONS.md`](./INSTRUCTIONS.md).
+- For contribution guidelines and deeper architectural details, check [`CLAUDE.md`](./CLAUDE.md).
 
 ---
 
