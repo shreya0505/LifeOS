@@ -4344,9 +4344,15 @@ body::before {
 }
 
 .war-room__card-icon {
-  font-size: var(--text-xl);
-  line-height: 1;
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
+  color: var(--on-surface-muted);
+}
+
+.war-room__card-icon .icon {
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 .war-room__card-meta {

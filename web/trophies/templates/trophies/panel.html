@@ -47,7 +47,7 @@
       {% for chart in quest_charts %}
       <div class="war-room__card">
         <div class="war-room__card-header">
-          <span class="war-room__card-icon">{{ chart.icon }}</span>
+          <span class="war-room__card-icon">{{ icon(chart.icon, 'icon') }}</span>
           <div class="war-room__card-meta">
             <span class="war-room__card-name">{{ chart.name }}</span>
             <span class="war-room__card-sub">{{ chart.sub }}</span>
@@ -70,7 +70,7 @@
       {% for chart in focus_charts %}
       <div class="war-room__card">
         <div class="war-room__card-header">
-          <span class="war-room__card-icon">{{ chart.icon }}</span>
+          <span class="war-room__card-icon">{{ icon(chart.icon, 'icon') }}</span>
           <div class="war-room__card-meta">
             <span class="war-room__card-name">{{ chart.name }}</span>
             <span class="war-room__card-sub">{{ chart.sub }}</span>

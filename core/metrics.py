@@ -601,24 +601,24 @@ def compute_war_room(quests: list[dict], sessions: list[dict]) -> dict:
 
     return {
         "quest_charts": [
-            {"id": "weekly-throughput",  "icon": "⚔",  "name": "Weekly Throughput",
+            {"id": "weekly-throughput",  "icon": "sword",       "name": "Weekly Throughput",
              "sub": f"{WEEK_N} weeks",        "config": qc1},
-            {"id": "added-vs-completed", "icon": "📜", "name": "Added vs Completed",
+            {"id": "added-vs-completed", "icon": "scroll",      "name": "Added vs Completed",
              "sub": f"{WEEK_N} weeks",        "config": qc2},
-            {"id": "backlog-age",        "icon": "⏳", "name": "Backlog Age",
+            {"id": "backlog-age",        "icon": "hourglass",   "name": "Backlog Age",
              "sub": "open quests · now",      "config": qc3},
         ],
         "focus_charts": [
-            {"id": "daily-focus",       "icon": "🔥", "name": "Daily Focus Time",
+            {"id": "daily-focus",       "icon": "flame",        "name": "Daily Focus Time",
              "sub": f"{DAY_D} days",          "config": fc1},
-            {"id": "weekly-focus",      "icon": "📈", "name": "Weekly Focus Trend",
+            {"id": "weekly-focus",      "icon": "trending-up",  "name": "Weekly Focus Trend",
              "sub": f"{WEEK_N} weeks",        "config": fc2},
-            {"id": "session-depth",     "icon": "🔨", "name": "Session Depth",
+            {"id": "session-depth",     "icon": "hammer",       "name": "Session Depth",
              "sub": f"{SESSION_M} sessions",  "config": fc3},
-            {"id": "completion-rate",   "icon": "✅", "name": "Pomo Completion Rate",
+            {"id": "completion-rate",   "icon": "check-circle", "name": "Pomo Completion Rate",
              "sub": f"{SESSION_M} sessions",  "config": fc4, "gauge": True,
              "_center": f"{cr}%"},
-            {"id": "interruption-rate", "icon": "👹", "name": "Interruption Rate",
+            {"id": "interruption-rate", "icon": "triangle-alert", "name": "Interruption Rate",
              "sub": f"{WEEK_N} weeks",        "config": fc5},
         ],
     }
