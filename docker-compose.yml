@@ -1,0 +1,13 @@
+services:
+  questlog:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - questlog-data:/app/data
+    environment:
+      - QUESTLOG_DB=/app/data/questlog.db
+    restart: unless-stopped
+
+volumes:
+  questlog-data:

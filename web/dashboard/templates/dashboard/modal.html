@@ -1,0 +1,56 @@
+<div class="dashboard-overlay" id="dashboard-panel">
+  <div class="dashboard-overlay__inner">
+    <div class="dashboard-header">
+      <h2 class="dashboard-header__title">⚔ War Room</h2>
+      <button class="btn btn--ghost btn--sm"
+              onclick="document.getElementById('dashboard-panel').remove()">
+        ✕
+      </button>
+    </div>
+
+    <!-- Quest Metrics -->
+    <h3 class="dashboard-section-title">Battlefield Report</h3>
+    <div class="metrics-grid">
+      {% for m in quest_metrics %}
+      <div class="metric-card metric-card--{{ m.color }}" data-animate-in>
+        <div class="metric-card__icon">{{ m.icon }}</div>
+        <div class="metric-card__body">
+          <span class="metric-card__name">{{ m.name }}</span>
+          <span class="metric-card__value">{{ m.value }}</span>
+          <span class="metric-card__context">{{ m.context }}</span>
+        </div>
+        <div class="metric-card__delta">
+          <span class="metric-card__arrow">{{ m.arrow }}</span>
+          <span class="metric-card__delta-text">{{ m.delta }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Pomo Metrics -->
+    <h3 class="dashboard-section-title">Forge Report</h3>
+    <div class="metrics-grid">
+      {% for m in pomo_metrics %}
+      <div class="metric-card metric-card--{{ m.color }}" data-animate-in>
+        <div class="metric-card__icon">{{ m.icon }}</div>
+        <div class="metric-card__body">
+          <span class="metric-card__name">{{ m.name }}</span>
+          <span class="metric-card__value">{{ m.value }}</span>
+          <span class="metric-card__context">{{ m.context }}</span>
+        </div>
+        <div class="metric-card__delta">
+          <span class="metric-card__arrow">{{ m.arrow }}</span>
+          <span class="metric-card__delta-text">{{ m.delta }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="dashboard-actions">
+      <button class="btn btn--copper"
+              onclick="document.getElementById('dashboard-panel').remove()">
+        Return to Quest Board
+      </button>
+    </div>
+  </div>
+</div>

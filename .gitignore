@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+.github
+# persistent data stores
+quests.json
+pomodoros.json
+trophies.json
+*.backup.*
+*.db
+*.db-shm
+*.db-wal
+*.db-journal

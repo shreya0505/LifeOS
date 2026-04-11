@@ -1,0 +1,34 @@
+<div class="trophy-panel" id="trophy-panel">
+  <h2 class="valor-title">Hall of Valor</h2>
+
+  <!-- Trophy Grid (3 columns) -->
+  <div class="valor-grid">
+    {% for trophy in trophies %}
+    <article class="valor-card valor-card--{{ trophy.tier }}" data-animate-in>
+      <div class="valor-card__head">
+        <div class="valor-card__icon valor-card__icon--{{ trophy.tier }}">
+          <span>{{ trophy.icon }}</span>
+        </div>
+        {% if trophy.tier == 'locked' %}
+        <span class="valor-card__chip valor-card__chip--locked">Locked</span>
+        {% elif trophy.tier == 'gold' %}
+        <span class="valor-card__chip valor-card__chip--gold">Mythic </span>
+        {% elif trophy.tier == 'silver' %}
+        <span class="valor-card__chip valor-card__chip--silver">Earned</span>
+        {% elif trophy.tier == 'bronze' %}
+        <span class="valor-card__chip valor-card__chip--bronze">Mastered</span>
+        {% endif %}
+      </div>
+      <h4 class="valor-card__name">{{ trophy.name }}</h4>
+      <p class="valor-card__desc">{{ trophy.desc }}</p>
+      <div class="valor-card__progress">
+        <div class="valor-card__bar">
+          <div class="valor-card__bar-fill valor-card__bar-fill--{{ trophy.tier }}"
+            style="width: {{ trophy.progress_pct }}%"></div>
+        </div>
+        <span class="valor-card__label">{{ trophy.progress_label }}</span>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</div>

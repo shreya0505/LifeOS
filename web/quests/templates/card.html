@@ -1,0 +1,50 @@
+<article class="quest-card{% if active_pomo_quest_id and quest.id == active_pomo_quest_id %} quest-card--pomo-active{% endif %}" data-status="{{ quest.status }}" data-id="{{ quest.id }}" data-animate-in>
+  <div class="quest-card__header">
+    <div class="quest-card__left">
+      {% if quest.frog %}
+      <span class="quest-card__frog">🐸</span>
+      {% endif %}
+      <h3 class="quest-card__title">{{ quest.title }}</h3>
+    </div>
+    <span class="quest-card__meta">
+      {% if quest.elapsed %}{{ quest.elapsed }}{% endif %}
+      {% if quest.pomo_count %} · 🍅{{ quest.pomo_count }}{% endif %}
+    </span>
+  </div>
+
+  <div class="segmented-control">
+    {% if quest.status == "log" %}
+    <button class="segment" title="Start quest" hx-patch="/quests/{{ quest.id }}/status" hx-vals='{"status": "active"}'
+      hx-target="#quest-board" hx-swap="innerHTML">⚔️</button>
+    <button class="segment" title="Block quest" hx-patch="/quests/{{ quest.id }}/status" hx-vals='{"status": "blocked"}'
+      hx-target="#quest-board" hx-swap="innerHTML">&#x1F6D1;</button>
+    <button class="segment" title="Mark as frog" hx-patch="/quests/{{ quest.id }}/frog" hx-target="#quest-board"
+      hx-swap="innerHTML">🐸</button>
+    <button class="segment segment--danger" title="Delete" hx-delete="/quests/{{ quest.id }}"
+      hx-target="#quest-board" hx-swap="innerHTML">🗑️</button>
+    {% elif quest.status == "active" %}
+    {% set is_pomo_this = active_pomo_quest_id and quest.id == active_pomo_quest_id %}
+    {% set is_pomo_other = active_pomo_quest_id and quest.id != active_pomo_quest_id %}
+    <button class="segment segment--active{% if is_pomo_other %} segment--pomo-disabled{% endif %}" title="Start pomo"
+      {% if not is_pomo_other %}hx-post="/pomos/start" hx-vals='{"quest_id": "{{ quest.id }}"}' hx-target="body" hx-swap="beforeend"{% else %}disabled{% endif %}>🍅</button>
+    <button class="segment{% if is_pomo_this %} segment--pomo-disabled{% endif %}" title="Mark done"
+      {% if is_pomo_this %}disabled{% else %}hx-patch="/quests/{{ quest.id }}/status" hx-vals='{"status": "done"}' hx-target="#quest-board" hx-swap="innerHTML"{% endif %}>✅</button>
+    <button class="segment{% if is_pomo_this %} segment--pomo-disabled{% endif %}" title="Block quest"
+      {% if is_pomo_this %}disabled{% else %}hx-patch="/quests/{{ quest.id }}/status" hx-vals='{"status": "blocked"}' hx-target="#quest-board" hx-swap="innerHTML"{% endif %}>&#x1F6D1;</button>
+    <button class="segment{% if is_pomo_this %} segment--pomo-disabled{% endif %}" title="Mark as frog"
+      {% if is_pomo_this %}disabled{% else %}hx-patch="/quests/{{ quest.id }}/frog" hx-target="#quest-board" hx-swap="innerHTML"{% endif %}>🐸</button>
+    <button class="segment segment--danger{% if is_pomo_this %} segment--pomo-disabled{% endif %}" title="Delete"
+      {% if is_pomo_this %}disabled{% else %}hx-delete="/quests/{{ quest.id }}" hx-target="#quest-board" hx-swap="innerHTML"{% endif %}>🗑️</button>
+    {% elif quest.status == "blocked" %}
+    <button class="segment" title="Unblock quest" hx-patch="/quests/{{ quest.id }}/status"
+      hx-vals='{"status": "active"}' hx-target="#quest-board" hx-swap="innerHTML">⚔️</button>
+    <button class="segment" title="Mark as frog" hx-patch="/quests/{{ quest.id }}/frog" hx-target="#quest-board"
+      hx-swap="innerHTML">🐸</button>
+    <button class="segment segment--danger" title="Delete" hx-delete="/quests/{{ quest.id }}"
+      hx-target="#quest-board" hx-swap="innerHTML">🗑️</button>
+    {% elif quest.status == "done" %}
+    <button class="segment segment--danger" title="Delete" hx-delete="/quests/{{ quest.id }}"
+      hx-target="#quest-board" hx-swap="innerHTML">🗑️</button>
+    {% endif %}
+  </div>
+</article>

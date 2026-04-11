@@ -1,0 +1,38 @@
+<div class="interrupt-screen">
+
+    <div class="interrupt-screen__header">
+        <h1 class="interrupt-screen__quest">{{ quest_title }}</h1>
+        <h2 class="interrupt-screen__title">Why did you stop?</h2>
+        <p class="interrupt-screen__sub">Logging the reason helps you spot patterns over time.</p>
+    </div>
+
+    <form hx-post="/pomos/interrupt" hx-target="#pomo-panel" hx-swap="outerHTML">
+        <div class="interrupt-screen__reasons">
+            <button type="submit" name="reason" value="distracted" class="interrupt-reason">
+                <span class="interrupt-reason__text">
+                    <span class="interrupt-reason__label">Distracted</span>
+                    <span class="interrupt-reason__hint">Lost focus, wandered off</span>
+                </span>
+            </button>
+            <button type="submit" name="reason" value="blocked" class="interrupt-reason">
+                <span class="interrupt-reason__text">
+                    <span class="interrupt-reason__label">Blocked</span>
+                    <span class="interrupt-reason__hint">Waiting on something external</span>
+                </span>
+            </button>
+            <button type="submit" name="reason" value="emergency" class="interrupt-reason">
+                <span class="interrupt-reason__text">
+                    <span class="interrupt-reason__label">Emergency</span>
+                    <span class="interrupt-reason__hint">Urgent, unavoidable</span>
+                </span>
+            </button>
+            <button type="submit" name="reason" value="personal" class="interrupt-reason">
+                <span class="interrupt-reason__text">
+                    <span class="interrupt-reason__label">Personal</span>
+                    <span class="interrupt-reason__hint">Needed a moment</span>
+                </span>
+            </button>
+        </div>
+    </form>
+
+</div>

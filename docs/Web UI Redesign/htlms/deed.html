@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>QuestLog - Inscribe</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&amp;family=Manrope:wght@200..800&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed-dim": "#adcfb4",
+                        "surface-container-low": "#f6f3ed",
+                        "on-secondary-fixed": "#380d00",
+                        "on-primary-fixed": "#022110",
+                        "secondary-container": "#fc9a77",
+                        "primary": "#163422",
+                        "error": "#ba1a1a",
+                        "on-primary-container": "#99baa1",
+                        "surface-container-highest": "#e5e2dc",
+                        "on-background": "#1c1c18",
+                        "primary-container": "#2d4b37",
+                        "inverse-on-surface": "#f3f0ea",
+                        "tertiary-fixed-dim": "#b9ccb0",
+                        "surface-container": "#f0eee8",
+                        "surface-container-lowest": "#ffffff",
+                        "surface": "#fcf9f3",
+                        "on-surface": "#1c1c18",
+                        "on-tertiary-fixed": "#101f0d",
+                        "on-surface-variant": "#424843",
+                        "tertiary-fixed": "#d5e8cb",
+                        "error-container": "#ffdad6",
+                        "tertiary": "#23321f",
+                        "on-tertiary": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "outline-variant": "#c2c8c0",
+                        "on-secondary-container": "#763015",
+                        "secondary-fixed": "#ffdbcf",
+                        "on-tertiary-fixed-variant": "#3b4b36",
+                        "on-error-container": "#93000a",
+                        "surface-bright": "#fcf9f3",
+                        "surface-variant": "#e5e2dc",
+                        "primary-fixed": "#c8ebd0",
+                        "outline": "#727972",
+                        "inverse-surface": "#31312d",
+                        "secondary-fixed-dim": "#ffb59b",
+                        "tertiary-container": "#394934",
+                        "secondary": "#95482b",
+                        "on-secondary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "background": "#fcf9f3",
+                        "surface-tint": "#466550",
+                        "inverse-primary": "#adcfb4",
+                        "on-secondary-fixed-variant": "#773116",
+                        "surface-dim": "#dcdad4",
+                        "on-primary-fixed-variant": "#2f4d39"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Newsreader", "serif"],
+                        "body": ["Manrope", "sans-serif"],
+                        "label": ["Manrope", "sans-serif"]
+                    }
+                },
+            },
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Manrope', sans-serif;
+            background-color: #fcf9f3;
+        }
+
+        .font-serif {
+            font-family: 'Newsreader', serif;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .runic-text {
+            writing-mode: vertical-rl;
+            text-orientation: upright;
+            letter-spacing: 0.5em;
+            font-size: 0.75rem;
+            opacity: 0.15;
+            user-select: none;
+        }
+
+        .inner-shadow-stone {
+            box-shadow: inset 0 2px 15px rgba(0, 0, 0, 0.1), inset 0 8px 30px rgba(0, 0, 0, 0.05);
+        }
+
+        .copper-glow {
+            background: linear-gradient(135deg, #95482b 0%, #763015 100%);
+            box-shadow: 0 4px 20px rgba(149, 72, 43, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+        }
+
+        .copper-glow:hover {
+            box-shadow: 0 0 25px rgba(252, 154, 119, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.3);
+        }
+
+        .ritual-focus:focus-within {
+            background: radial-gradient(circle at center, #ffffff 0%, #f6f3ed 100%);
+        }
+    </style>
+</head>
+
+<body class="bg-background text-on-background antialiased min-h-screen flex flex-col">
+    <!-- TopAppBar -->
+    <header
+        class="fixed top-4 left-1/2 -translate-x-1/2 w-[92%] max-w-6xl rounded-xl bg-stone-50/80 dark:bg-stone-900/80 backdrop-blur-lg shadow-2xl shadow-stone-900/10 z-50 flex justify-between items-center px-10 py-4 font-serif text-emerald-950 dark:text-emerald-50">
+        <div class="text-2xl font-serif italic text-emerald-950 dark:text-emerald-50">QuestLog</div>
+        <nav class="hidden md:flex items-center gap-8">
+            <a class="text-emerald-900 dark:text-emerald-200 border-b-2 border-orange-800 dark:border-orange-400 pb-1 font-serif transition-colors duration-300"
+                href="#">Inscribe</a>
+            <a class="text-stone-500 dark:text-stone-400 font-sans font-medium hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors duration-300"
+                href="#">Board</a>
+            <a class="text-stone-500 dark:text-stone-400 font-sans font-medium hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors duration-300"
+                href="#">Metrics</a>
+            <a class="text-stone-500 dark:text-stone-400 font-sans font-medium hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors duration-300"
+                href="#">War Room</a>
+        </nav>
+        <div class="text-sm font-serif tracking-wide opacity-80">14th of Harvest Tide</div>
+    </header>
+    <!-- Main Canvas -->
+    <main class="flex-grow flex items-center justify-center px-6 pt-32 pb-24 overflow-hidden relative">
+        <!-- Mysterious Background Elements -->
+        <div class="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+            <div class="absolute top-1/4 -left-20 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[100px]"></div>
+            <div class="absolute bottom-1/4 -right-20 w-[500px] h-[500px] bg-secondary/5 rounded-full blur-[100px]">
+            </div>
+            <!-- Architectural Depth Lines -->
+            <div class="absolute inset-0 opacity-[0.03]"
+                style="background-image: radial-gradient(circle at 50% 50%, #000 1px, transparent 1px); background-size: 60px 60px;">
+            </div>
+            <!-- Runic Side Bars -->
+            <div class="hidden lg:flex absolute left-16 top-1/2 -translate-y-1/2 flex-col gap-4 items-center">
+                <span class="runic-text font-serif">AETHER FOCUS STRENGTH SPIRIT</span>
+                <div class="w-px h-24 bg-surface-variant"></div>
+            </div>
+            <div class="hidden lg:flex absolute right-16 top-1/2 -translate-y-1/2 flex-col gap-4 items-center">
+                <div class="w-px h-24 bg-surface-variant"></div>
+                <span class="runic-text font-serif">ETERNITY ASCENT LEGACY TRUTH</span>
+            </div>
+        </div>
+        <section class="max-w-4xl w-full text-center relative z-10">
+            <div class="mb-12">
+                <div
+                    class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-surface-container-low mb-8 shadow-inner">
+                    <span class="material-symbols-outlined text-primary text-3xl opacity-60"
+                        data-icon="auto_stories">auto_stories</span>
+                </div>
+                <h1 class="font-headline text-5xl md:text-7xl text-on-background tracking-tight mb-4 italic leading-tight"
+                    style="text-shadow: 0 4px 12px rgba(0,0,0,0.02);">Commence Your Ritual</h1>
+                <p class="font-body text-on-surface-variant text-lg max-w-lg mx-auto leading-relaxed opacity-80"
+                    style="">Silence the chaos. What singular legend shall be carved into the annals of your time today?
+                </p>
+            </div>
+            <!-- The Sacred Scroll/Stone Input -->
+            <div
+                class="ritual-focus p-1 rounded-2xl shadow-[0_40px_100px_-20px_rgba(0,0,0,0.08)] relative group transition-all duration-700 backdrop-blur-xl bg-white/40 shadow-[0_20px_50px_rgba(0,0,0,0.1),0_10px_10px_rgba(0,0,0,0.05)] border border-white/40">
+                <div class="rounded-xl p-10 md:p-16 border border-white/20">
+                    <!-- Corner Flourishes -->
+                    <div class="absolute top-6 left-6 w-8 h-8 border-t border-l border-primary/20"></div>
+                    <div class="absolute top-6 right-6 w-8 h-8 border-t border-r border-primary/20"></div>
+                    <div class="absolute bottom-6 left-6 w-8 h-8 border-b border-l border-primary/20"></div>
+                    <div class="absolute bottom-6 right-6 w-8 h-8 border-b border-r border-primary/20"></div>
+                    <form class="space-y-12">
+                        <div class="relative">
+                            <label class="sr-only" for="quest-input">Quest Entry</label>
+                            <input autocomplete="off"
+                                class="w-full bg-transparent border-0 border-b border-primary/10 focus:border-primary focus:ring-0 text-3xl md:text-4xl font-headline italic py-6 placeholder:text-on-surface/40 transition-all duration-700 text-center text-on-surface"
+                                id="quest-input" placeholder="Type to carve your intent..." type="text" />
+                            <!-- Deep Focus Glow under input -->
+                            <div
+                                class="absolute -bottom-px left-1/2 -translate-x-1/2 w-0 h-[2px] bg-primary transition-all duration-700 group-focus-within:w-full opacity-30 blur-sm">
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-center gap-8">
+                            <button
+                                class="copper-glow group relative px-16 py-5 text-on-primary rounded-xl font-body font-bold text-lg tracking-[0.2em] uppercase overflow-hidden transition-all duration-300 hover:scale-[1.02] active:scale-95"
+                                type="submit">
+                                <span class="relative z-10">Inscribe Quest</span>
+                                <!-- Metallic Sheen Effect -->
+                                <div
+                                    class="absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:left-full transition-all duration-1000 ease-in-out">
+                                </div>
+                            </button>
+                            <div class="flex items-center gap-6 opacity-40">
+                                <div class="h-[1px] w-12 bg-gradient-to-r from-transparent to-surface-variant"></div>
+                                <span
+                                    class="text-[10px] uppercase tracking-[0.4em] font-body text-on-surface-variant italic">Press
+                                    Enter to Bind</span>
+                                <div class="h-[1px] w-12 bg-gradient-to-l from-transparent to-surface-variant"></div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <!-- Focus Mode Indicator -->
+            <div
+                class="mt-16 flex justify-center gap-16 opacity-30 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-700">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-lg" data-icon="hourglass">hourglass</span>
+                    <span class="text-[10px] font-label uppercase tracking-[0.2em]">Temporal Anchor Set</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-lg"
+                        data-icon="temp_preferences_custom">temp_preferences_custom</span>
+                    <span class="text-[10px] font-label uppercase tracking-[0.2em]">Sacred Focus Active</span>
+                </div>
+            </div>
+        </section>
+    </main>
+    <!-- Footer -->
+    <footer
+        class="fixed bottom-0 left-0 w-full bg-emerald-950 dark:bg-emerald-950 flex justify-center items-center gap-8 py-4 px-6 z-50">
+        <div class="font-sans text-[10px] uppercase tracking-[0.2em] text-stone-300/70 flex items-center gap-6">
+            <span class="hover:text-white transition-colors cursor-default">Active Legends: 12</span>
+            <span class="text-stone-700">•</span>
+            <span class="hover:text-white transition-colors cursor-default">Rituals Earned: 4 Pomo</span>
+        </div>
+        <div class="h-4 w-px bg-stone-800 mx-2"></div>
+        <nav class="flex gap-8">
+            <a class="font-sans text-[10px] uppercase tracking-[0.2em] text-stone-400/80 hover:text-white transition-colors"
+                href="#">The Great Archive</a>
+            <a class="font-sans text-[10px] uppercase tracking-[0.2em] text-stone-400/80 hover:text-white transition-colors"
+                href="#">Settings</a>
+        </nav>
+    </footer>
+    <!-- Visual Polish: Paper Texture Overlay -->
+    <div class="fixed inset-0 pointer-events-none opacity-[0.04] mix-blend-multiply bg-repeat z-[60]"
+        data-alt="subtle natural paper texture"
+        style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAqruqnBe2rr_4hVtzKDRtL8LLqwj5kRijV1aZwV-Wl83PImigcqY6OFvqYg9xGhj3CTfCe-6plk-uwDxh49RbYDqSTYnMutV_st8kRs9O2lxOnA0NyL_5zTvdwQaAHpIwvmVkkevvdvRiK0XVYIwRHjhBR5CVYK7LWRA_49Cr9x-rQyrHL7vCTah3UAWzfxXrfyWRVCEBuamqg9v-8l_xcH7YaLXjPJQO6wx2NXJ58MTk5P33x6dI2W0eIXjI39wBn5wOdD9mk0eQ');">
+    </div>
+</body>
+
+</html>

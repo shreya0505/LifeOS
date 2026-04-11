@@ -1,0 +1,229 @@
+/* ── QuestLog Design Tokens — "The Modern Chronicle" ─────── */
+
+/* ── Self-hosted fonts ───────────────────────────────────── */
+
+/* Newsreader — The Voice (headers, ritual moments)                */
+/* Stately Chronicle: weights 400-700 only. No italics. No 800+.  */
+@font-face {
+  font-family: 'Newsreader';
+  src: url('/static/fonts/newsreader-regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Newsreader';
+  src: url('/static/fonts/newsreader-medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Newsreader';
+  src: url('/static/fonts/newsreader-semibold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Newsreader';
+  src: url('/static/fonts/newsreader-bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Manrope — The Workhorse (body, labels, data)                          */
+/* No 400/Regular — spec minimum is 500 (Medium). No thin fonts allowed. */
+@font-face {
+  font-family: 'Manrope';
+  src: url('/static/fonts/manrope-medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Manrope';
+  src: url('/static/fonts/manrope-semibold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Manrope';
+  src: url('/static/fonts/manrope-bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* JetBrains Mono — The Ledger (timers, counts)                          */
+/* Spec: weight 600 (Semi-Bold) for timers. Mapped to Bold woff2.        */
+@font-face {
+  font-family: 'JetBrainsMono NF';
+  src: url('/static/fonts/JetBrainsMonoNF-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrainsMono NF';
+  src: url('/static/fonts/JetBrainsMonoNF-Bold.woff2') format('woff2');
+  font-weight: 600 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* ── Surfaces (mocha spectrum — Combination A) ─────── */
+  --surface: #F3EDE3;
+  /* base layer — warm oat parchment */
+  --surface-container-low: #E8DED0;
+  /* section containers — soft mocha wash */
+  --surface-container-lowest: #FBF8F3;
+  /* elevated cards / inputs — clean warm white */
+  --surface-container-high: #DFD2C1;
+  /* nested detail groups */
+  --surface-dim: #D6C9B8;
+  /* empty/disabled states */
+  --surface-tint: rgba(22, 52, 34, 0.06);
+  /* focus glow tint */
+
+  /* ── On-Surface (ink) ──────────────────────────────── */
+  --on-surface: #1c1c18;
+  /* primary text — never pure black */
+  --on-surface-variant: #44483e;
+  /* secondary text */
+  --on-surface-muted: #74796c;
+  /* tertiary, timestamps, metadata */
+  --outline-variant: #c2c8c0;
+  /* ghost borders at 15% opacity */
+
+  /* ── Primary (deep forest green — stability) ───────── */
+  --primary: #163422;
+  /* CTAs, primary action bg */
+  --primary-container: #2d4b37;
+  /* gradient end, hover state */
+  --on-primary: #ffffff;
+  /* text on primary bg */
+
+  /* ── Secondary (terracotta — fire, momentum) ───────── */
+  --secondary: #95482b;
+  /* accent marker, high-priority */
+  --secondary-container: #fc9a77;
+  /* warm chip/tag bg */
+  --on-secondary-container: #763015;
+  /* text on secondary-container */
+
+  /* ── Tertiary (sage — success, growth) ─────────────── */
+  --tertiary: #7a9e7e;
+  /* done, active, break states */
+  --tertiary-dim: #b5ccb7;
+  /* light success bg */
+  --tertiary-fixed: #c8deca;
+  /* heatmap lightest active */
+
+  /* ── Error (ember — blocked, destructive) ──────────── */
+  --error: #b5493a;
+  /* blocked, delete */
+  --error-dim: #d49e96;
+  /* error backgrounds */
+
+  /* ── Neutral (slate — informational) ───────────────── */
+  --slate: #6b7f8a;
+
+  /* ── Celebration ───────────────────────────────────── */
+  --hearth: #d4943a;
+  /* gold/amber — trophy, completion */
+  --hearth-glow: #f5d78e;
+  /* celebration pulse */
+
+  /* ── Shadows (tinted ambient — high blur, low opacity) ── */
+  --shadow-ambient: 0 2px 20px rgba(22, 40, 28, 0.035);
+  --shadow-lifted: 0 4px 24px rgba(22, 40, 28, 0.05),
+    0 1px 6px rgba(22, 40, 28, 0.03);
+  --shadow-floating: 0 8px 30px rgba(22, 40, 28, 0.06),
+    0 2px 8px rgba(22, 40, 28, 0.03);
+  --shadow-overlay: 0 16px 48px rgba(22, 40, 28, 0.10),
+    0 4px 12px rgba(22, 40, 28, 0.04);
+  --shadow-navbar: 0 4px 24px rgba(22, 40, 28, 0.05),
+    0 1px 4px rgba(22, 40, 28, 0.03);
+
+  /* ── Input depth (inset + outer lift) ───────────────── */
+  --shadow-input-inset: inset 0 1px 3px rgba(22, 40, 28, 0.06);
+  --shadow-input-lift: 0 1px 4px rgba(22, 40, 28, 0.03);
+  --shadow-input-focus: 0 0 0 3px rgba(22, 52, 34, 0.08),
+    0 0 12px rgba(22, 52, 34, 0.06);
+
+  /* ── Micro-gradients ───────────────────────────────── */
+  --gradient-cta: linear-gradient(135deg, var(--primary) 0%, #1e4a2e 100%);
+  --gradient-cta-hover: linear-gradient(135deg, #1e4a2e 0%, var(--primary) 100%);
+  --gradient-surface: radial-gradient(circle at top, #F6F1E8, #EFE6DA);
+  --gradient-radial-warmth: radial-gradient(ellipse at 50% 0%, rgba(212, 148, 58, 0.04) 0%, transparent 70%);
+
+  /* ── Grain / paper texture ──────────────────────────── */
+  --grain-opacity: 0.03;
+  --grain-blend: multiply;
+
+  /* ── Easing (natural, weighted motion) ─────────────── */
+  --ease-natural: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
+  --ease-accelerate: cubic-bezier(0.4, 0, 1, 1);
+  --ease-spring: cubic-bezier(0.5, 1.25, 0.75, 1.25);
+
+  /* ── Spacing ───────────────────────────────────────── */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+  --space-3xl: 4rem;
+
+  /* ── Radii ─────────────────────────────────────────── */
+  --radius-sm: 0.125rem;
+  /* heatmap cells */
+  --radius-md: 0.375rem;
+  /* buttons, small interactive */
+  --radius-lg: 0.5rem;
+  /* input fields */
+  --radius-xl: 0.75rem;
+  /* primary containers, cards */
+  --radius-full: 9999px;
+  /* pills, chips */
+
+  /* ── Typography ────────────────────────────────────── */
+  --font-display: 'Newsreader', Georgia, 'Times New Roman', serif;
+  --font-body: 'Manrope', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrainsMono NF', 'JetBrains Mono', monospace;
+
+  /* Type scale */
+  --text-xs: 0.6875rem;
+  /* 11px — metadata */
+  --text-sm: 0.75rem;
+  /* 12px — labels */
+  --text-base: 0.875rem;
+  /* 14px — body */
+  --text-lg: 1rem;
+  /* 16px — body large */
+  --text-xl: 1.25rem;
+  /* 20px */
+  --text-2xl: 1.75rem;
+  /* 28px — headline-md */
+  --text-3xl: 2.5rem;
+  /* 40px */
+  --text-4xl: 3.5rem;
+  /* 56px — display-lg */
+
+  /* ── Glassmorphism (warm mocha-compatible) ─────────── */
+  --glass-bg: rgba(255, 255, 255, 0.65);
+  --glass-blur: 20px;
+  --glass-border: rgba(120, 100, 80, 0.12);
+  --glass-shadow: 0 4px 24px rgba(22, 40, 28, 0.05);
+}

@@ -1,0 +1,75 @@
+<div class="deed-screen" x-data="{ focused: false, forge: '' }">
+
+  <div class="deed-screen__header">
+    {% if early %}
+    <span class="deed-screen__badge">Swiftblade</span>
+    {% endif %}
+    <h1 class="deed-screen__quest">{{ quest_title }}</h1>
+    {% if engine.streak > 1 %}
+    <p class="deed-screen__streak">Streak &times; {{ engine.streak }}</p>
+    {% endif %}
+    <h2 class="deed-screen__title">What did you claim?</h2>
+    <p class="deed-screen__sub">The timer has fallen. Name your conquest.</p>
+  </div>
+
+  <form class="deed-screen__form"
+        hx-post="/pomos/deed"
+        hx-target="#pomo-panel"
+        hx-swap="outerHTML">
+
+    <input type="hidden" name="forge_type" :value="forge">
+
+    <div class="deed-screen__input-wrap"
+         :class="{ 'deed-screen__input-wrap--focus': focused }">
+      <input type="text"
+             name="deed"
+             id="deed-input"
+             class="deed-screen__input"
+             required
+             minlength="3"
+             autofocus
+             placeholder="I claimed..."
+             @focus="focused = true"
+             @blur="focused = false">
+      <div class="deed-screen__input-line"></div>
+    </div>
+
+    <div class="deed-screen__forge" role="radiogroup" aria-label="Forge quality">
+      <button type="button"
+              class="deed-forge-opt"
+              data-forge="hollow"
+              :class="{ 'deed-forge-opt--active': forge === 'hollow' }"
+              @click="forge = 'hollow'">
+        <span class="deed-forge-opt__text">
+          <span class="deed-forge-opt__label">Hollow</span>
+          <span class="deed-forge-opt__hint">Subpar effort, not your best</span>
+        </span>
+      </button>
+      <button type="button"
+              class="deed-forge-opt"
+              data-forge="tempered"
+              :class="{ 'deed-forge-opt--active': forge === '' }"
+              @click="forge = ''">
+        <span class="deed-forge-opt__text">
+          <span class="deed-forge-opt__label">Tempered</span>
+          <span class="deed-forge-opt__hint">Solid, focused work</span>
+        </span>
+      </button>
+      <button type="button"
+              class="deed-forge-opt"
+              data-forge="berserker"
+              :class="{ 'deed-forge-opt--active': forge === 'berserker' }"
+              @click="forge = 'berserker'">
+        <span class="deed-forge-opt__text">
+          <span class="deed-forge-opt__label">Berserker</span>
+          <span class="deed-forge-opt__hint">Over-extended, pushed past the timer</span>
+        </span>
+      </button>
+    </div>
+
+    <div class="deed-screen__action">
+      <button type="submit" class="deed-screen__seal">Seal the Forge</button>
+    </div>
+
+  </form>
+</div>

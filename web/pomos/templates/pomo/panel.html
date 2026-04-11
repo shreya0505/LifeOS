@@ -1,0 +1,25 @@
+<div class="pomo-overlay" id="pomo-panel">
+  <div class="pomo-overlay__inner">
+
+    {% if interrupted %}
+    <p class="pomo-overlay__notice">&#x26A1; Interrupted. Regroup and declare your next charge.</p>
+    {% endif %}
+
+    {% if notification %}
+    <p class="pomo-overlay__notice pomo-overlay__notice--success">{{ notification }}</p>
+    {% endif %}
+
+    <!-- Mode-specific content (quest name passed into each ritual pane) -->
+    {% if mode == "charge" %}
+    {% include "pomo/charge.html" %}
+    {% elif mode == "timer" %}
+    {% include "pomo/timer.html" %}
+    {% elif mode == "deed" %}
+    {% include "pomo/deed.html" %}
+    {% elif mode == "break_choice" %}
+    {% include "pomo/break_choice.html" %}
+    {% elif mode == "interrupt_reason" %}
+    {% include "pomo/interrupt.html" %}
+    {% endif %}
+  </div>
+</div>

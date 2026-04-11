@@ -1,0 +1,4276 @@
+/* ── QuestLog Web — The Modern Chronicle ─────────────────── */
+
+/* ── Base ──────────────────────────────────────────────────── */
+body {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: 500;
+  line-height: 1.6;
+  color: var(--on-surface);
+  background: var(--gradient-surface);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+/* Background grain texture */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.03) 1px, transparent 0);
+  background-size: 4px 4px;
+  opacity: 0.25;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Focus styles (accessibility) ────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
+/* ── Selection ───────────────────────────────────────────── */
+::selection {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+}
+
+/* ── Page Layout ──────────────────────────────────────────── */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ── Glassmorphic Navbar ─────────────────────────────────── */
+.app-navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-md) var(--space-xl);
+  /* surface at 80% opacity — flush with page, per design system Glass rule */
+  background: rgba(243, 237, 227, 0.80);
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
+  /* No-Line Rule: no borders for sectioning — tonal shift only */
+  border-bottom: none;
+  box-shadow: none;
+}
+
+.app-navbar__brand {
+  flex: 1;
+}
+
+.app-navbar__logo {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  font-style: italic;
+  color: var(--primary);
+  user-select: none;
+}
+
+.app-navbar__logo-img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+.app-navbar__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  padding: 8px 24px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-full);
+  box-shadow: none;
+}
+
+.app-navbar__link {
+  all: unset;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--on-surface-muted);
+  cursor: pointer;
+  padding: 4px 0;
+  transition: color 300ms var(--ease-natural);
+}
+
+.app-navbar__link:hover {
+  color: var(--on-surface);
+}
+
+.app-navbar__link:active {
+  transform: scale(0.97);
+}
+
+.app-navbar__link.is-active {
+  color: var(--primary);
+  border-bottom: 2px solid var(--secondary);
+  padding-bottom: 2px;
+}
+
+.app-navbar__end {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.app-navbar__date {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--on-surface-muted);
+}
+
+.app-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: calc(var(--space-3xl) + var(--space-2xl) + var(--space-xl)) var(--space-xl) var(--space-2xl);
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ── Responsive navbar ───────────────────────────────────── */
+@media (max-width: 640px) {
+  .app-navbar {
+    padding: var(--space-sm) var(--space-md);
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+  }
+
+  .app-navbar__brand {
+    flex: unset;
+  }
+
+  .app-navbar__end {
+    flex: unset;
+  }
+
+  .app-navbar__nav {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+    gap: var(--space-md);
+    padding: 6px 16px;
+  }
+
+  .app-navbar__link {
+    font-size: var(--text-xs);
+  }
+}
+
+/* ── Stats Bar (glassmorphism) ───────────────────────────── */
+.stats-bar {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-lg);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-top: 1px solid var(--glass-border);
+  box-shadow: 0 -4px 20px rgba(22, 40, 28, 0.03);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--on-surface-variant);
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+}
+
+.stats-bar__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+/* ── Floating Tab Bar (glassmorphism) ────────────────────── */
+.tab-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: 0 auto var(--space-lg);
+  padding: 4px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-ambient);
+  width: fit-content;
+}
+
+.tab-bar__tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 8px 20px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--on-surface-muted);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 250ms var(--ease-natural);
+  white-space: nowrap;
+}
+
+.tab-bar__tab:hover {
+  color: var(--on-surface);
+  background: var(--surface-container-high);
+}
+
+.tab-bar__tab.is-active {
+  background: var(--surface-container-lowest);
+  color: var(--on-surface);
+  box-shadow: var(--shadow-ambient);
+}
+
+.tab-bar__tab--ghost {
+  color: var(--on-surface-muted);
+}
+
+.tab-bar__tab--ghost:hover {
+  color: var(--secondary);
+}
+
+.tab-bar__icon {
+  font-size: var(--text-lg);
+  line-height: 1;
+}
+
+.tab-bar__label {
+  /* hidden on mobile, shown on wider */
+}
+
+.tab-bar__separator {
+  width: 1px;
+  height: 20px;
+  background: rgba(194, 200, 192, 0.2);
+  margin: 0 var(--space-xs);
+  flex-shrink: 0;
+}
+
+/* ── Tab Panels ──────────────────────────────────────────── */
+.tab-panel {
+  min-height: 0;
+}
+
+.tab-enter {
+  transition: opacity 250ms var(--ease-natural), transform 250ms var(--ease-natural);
+}
+
+.tab-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.tab-enter-to {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Inscribe Panel ──────────────────────────────────────── */
+.inscribe-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 65vh;
+  padding: var(--space-3xl) var(--space-xl) var(--space-2xl);
+  text-align: center;
+}
+
+/* ── Giant frosted glass card ──────────────────────────────── */
+.inscribe-glass {
+  position: relative;
+  overflow: hidden;
+  max-width: 680px;
+  width: 100%;
+  padding: var(--space-3xl) var(--space-2xl);
+  border-radius: 12px;
+
+  /* Glass base */
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(18px) saturate(120%);
+  -webkit-backdrop-filter: blur(18px) saturate(120%);
+
+  /* Depth */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.05),
+    0 10px 30px rgba(0, 0, 0, 0.05),
+    0 2px 6px rgba(0, 0, 0, 0.03);
+
+  /* Edge definition */
+  border: 1px solid rgba(255, 255, 255, 0.18);
+
+  transform-style: preserve-3d;
+  will-change: transform;
+  transition: all 280ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Frost grain layer */
+.inscribe-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.04) 1px, transparent 0);
+  background-size: 3px 3px;
+  opacity: 0.25;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Light scattering layer */
+.inscribe-glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(120deg,
+      rgba(255, 255, 255, 0.25),
+      rgba(255, 255, 255, 0.05) 40%,
+      rgba(255, 255, 255, 0.15));
+  opacity: 0.35;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Hover = stronger glass (tilt handled by Alpine) */
+.inscribe-glass:hover {
+  backdrop-filter: blur(22px) saturate(130%);
+  -webkit-backdrop-filter: blur(22px) saturate(130%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.06),
+    0 14px 40px rgba(0, 0, 0, 0.06),
+    0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+/* Ensure content sits above pseudo-elements */
+.inscribe-glass>* {
+  position: relative;
+  z-index: 2;
+}
+
+/* Heading inside glass */
+.inscribe-panel__heading {
+  font-family: var(--font-display);
+  font-size: var(--text-4xl);
+  font-weight: 700;
+  font-style: normal;
+  letter-spacing: -0.01em;
+  color: var(--on-surface);
+  margin-bottom: var(--space-2xl);
+}
+
+/* ── Form inside glass card ──────────────────────────────── */
+.inscribe-panel .add-quest-form {
+  position: relative;
+  max-width: 100%;
+  width: 100%;
+  margin-bottom: var(--space-lg);
+  padding: 0;
+  background: transparent;
+  border-radius: var(--radius-xl);
+  box-shadow: none;
+}
+
+.inscribe-panel .add-quest-form:hover,
+.inscribe-panel .add-quest-form:focus-within {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* ── Input: flush with glass surface ─────────────────────── */
+.inscribe-panel .add-quest-form__input {
+  padding: var(--space-md) var(--space-lg);
+  font-size: var(--text-lg);
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  transition: box-shadow 260ms var(--ease-natural);
+}
+
+.inscribe-panel .add-quest-form__input:focus {
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.2),
+    0 0 12px rgba(22, 52, 34, 0.05);
+}
+
+/* ── CTA button: solid elevated ──────────────────────────── */
+.inscribe-panel .btn--zap {
+  position: relative;
+  padding: var(--space-md) var(--space-xl);
+  font-size: var(--text-base);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 4px 10px rgba(0, 0, 0, 0.08);
+  transition:
+    box-shadow 200ms ease,
+    transform 200ms ease,
+    filter 200ms ease;
+}
+
+.inscribe-panel .btn--zap:hover {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 6px 14px rgba(0, 0, 0, 0.1);
+}
+
+.inscribe-panel .btn--zap:active {
+  transform: translateY(0);
+  filter: brightness(1);
+}
+
+/* ── Hint text ───────────────────────────────────────────── */
+.inscribe-panel__hint {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--on-surface-muted);
+  margin-top: var(--space-md);
+}
+
+.inscribe-panel__hint kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+/* ── Celebration burst animation on Add button ───────────── */
+@keyframes celebrate-burst {
+  0% {
+    box-shadow:
+      0 0 0 0 rgba(212, 148, 58, 0.5),
+      0 0 0 0 rgba(245, 215, 142, 0.3);
+    transform: scale(1);
+  }
+
+  25% {
+    box-shadow:
+      0 0 16px 6px rgba(212, 148, 58, 0.5),
+      0 0 32px 12px rgba(245, 215, 142, 0.25);
+    transform: scale(1.06);
+  }
+
+  50% {
+    box-shadow:
+      0 0 24px 10px rgba(212, 148, 58, 0.35),
+      0 0 48px 20px rgba(245, 215, 142, 0.15);
+    transform: scale(1.02);
+  }
+
+  75% {
+    box-shadow:
+      0 0 10px 4px rgba(212, 148, 58, 0.2),
+      0 0 20px 8px rgba(245, 215, 142, 0.08);
+    transform: scale(1.04);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 transparent, 0 0 0 0 transparent;
+    transform: scale(1);
+  }
+}
+
+.btn--zap:active,
+.btn--zap.is-zapping {
+  animation: celebrate-burst 600ms var(--ease-decelerate) forwards;
+}
+
+/* ── The Grand Ledger (Metrics Tab) ──────────────────────── */
+
+.ledger-header {
+  margin-bottom: var(--space-2xl);
+}
+
+.ledger-header__title {
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 2rem + 3vw, 3.5rem);
+  font-weight: 800;
+  color: var(--primary);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin-bottom: var(--space-xs);
+}
+
+.ledger-header__subtitle {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--on-surface-muted);
+}
+
+/* ── Ledger Section ──────────────────────────────────────── */
+.ledger-section {
+  margin-bottom: var(--space-3xl);
+}
+
+.ledger-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-lg);
+}
+
+.ledger-section__title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.ledger-section__badge {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--secondary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+/* ── Hall of Valor container ─────────────────────────────── */
+.ledger-valor {
+  background: var(--surface-container-low);
+  padding: var(--space-2xl);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 32px 64px -16px rgba(22, 52, 34, 0.08);
+}
+
+/* ── Board Grid ──────────────────────────────────────────── */
+
+/* Full-bleed breakout: let the board use the full viewport width
+   while the rest of app-main stays constrained at 1200px.        */
+@media (min-width: 1024px) {
+  #quest-board {
+    width: 100vw;
+    margin-left: calc(-50vw + 50%);
+    padding: 0 var(--space-xl);
+    box-sizing: border-box;
+  }
+}
+
+.board {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-xl);
+}
+
+@media (min-width: 1024px) {
+  .board {
+    grid-template-columns: repeat(4, minmax(220px, 1fr));
+    gap: 24px;
+    align-items: start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+    width: 100%;
+  }
+}
+
+@media (min-width: 1440px) {
+  .board {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+  overflow: visible;
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+/* Column tints — visible wash from system palette */
+#col-log {
+  background: linear-gradient(to bottom, rgba(214, 201, 184, 0.45), rgba(255, 255, 255, 0.18) 70%);
+}
+
+#col-active {
+  background: linear-gradient(to bottom, rgba(22, 52, 34, 0.12), rgba(255, 255, 255, 0.18) 70%);
+}
+
+#col-blocked {
+  background: linear-gradient(to bottom, rgba(149, 72, 43, 0.12), rgba(255, 255, 255, 0.18) 70%);
+}
+
+#col-done {
+  background: linear-gradient(to bottom, rgba(122, 158, 126, 0.16), rgba(255, 255, 255, 0.18) 70%);
+}
+
+.column__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px var(--space-xs) 8px;
+}
+
+.column__title {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--on-surface-variant);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.column__count {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--on-surface-muted);
+  background: rgba(0, 0, 0, 0.05);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.column__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 48px;
+}
+
+@media (min-width: 1024px) {
+  .column__body {
+    max-height: 62vh;
+    overflow-y: auto;
+    overflow-x: visible;
+    padding-bottom: var(--space-md);
+    /* Extra right padding so pomo-active glow isn't clipped by the
+       overflow-y: auto scroll container (which forces overflow-x to auto) */
+    padding-right: 6px;
+    scrollbar-width: none;
+  }
+
+  .column__body::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.column__empty {
+  text-align: center;
+  padding: var(--space-lg);
+  color: var(--on-surface-muted);
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 500;
+  font-style: normal;
+  opacity: 0.6;
+}
+
+/* ── Quest Card (ledger row model) ──────────────────── */
+.quest-card {
+  position: relative;
+  z-index: 1;
+  padding: 14px 14px 14px 16px;
+  border-radius: 10px;
+  margin: 0;
+  max-width: 100%;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--on-surface);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06), 0 1px 0 rgba(28, 28, 24, 0.04);
+  transition: background 200ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Status tints ────────────────────────────────────── */
+.quest-card[data-status="active"] {
+  background: rgba(22, 52, 34, 0.06);
+}
+
+.quest-card[data-status="blocked"] {
+  opacity: 0.88;
+}
+
+.quest-card[data-status="done"] {
+  opacity: 0.7;
+}
+
+/* ── Active pomo: top accent + separator + float to top ─── */
+.quest-card--pomo-active {
+  order: -1;
+  background: rgba(22, 52, 34, 0.08) !important;
+  border-radius: 0 0 10px 10px;
+  border-top: 2px solid rgba(22, 52, 34, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(22, 52, 34, 0.14);
+}
+
+.quest-card--pomo-active::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(22, 52, 34, 0.18);
+  z-index: 10;
+}
+
+.quest-card--pomo-active:hover {
+  background: rgba(22, 52, 34, 0.11) !important;
+  transform: translateX(-2px);
+}
+
+/* ── Disabled pomo button (another quest has an active pomo) ── */
+.segment--pomo-disabled,
+.segment[disabled] {
+  opacity: 0.25 !important;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ── Hover: selection drift, not lift ────────────────── */
+.quest-card:hover {
+  background: rgba(255, 255, 255, 0.72);
+  transform: translateX(3px);
+}
+
+.quest-card[data-status="active"]:hover {
+  background: rgba(22, 52, 34, 0.09);
+}
+
+.quest-card[data-status="done"]:hover {
+  opacity: 0.8;
+}
+
+/* Card content */
+.quest-card>* {
+  position: relative;
+  z-index: 2;
+}
+
+/* Card header: structured left/right layout */
+.quest-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+
+.quest-card__left {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+}
+
+.quest-card__frog {
+  font-size: var(--text-lg);
+  flex-shrink: 0;
+}
+
+.quest-card__title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.3;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 0;
+}
+
+.quest-card__meta {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  opacity: 0.6;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Pomo activity indicator */
+/* ── Segmented Control (embedded actions) ───────────────── */
+.segmented-control {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+  opacity: 0.5;
+  transition: opacity 200ms ease;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.quest-card:hover .segmented-control {
+  opacity: 0.9;
+}
+
+.segment {
+  flex: 0;
+  position: relative;
+  border: none;
+  background: transparent;
+  padding: 4px 8px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--on-surface);
+  opacity: 0.85;
+  cursor: pointer;
+  transition: opacity 180ms ease, background 180ms ease;
+  overflow: hidden;
+  white-space: nowrap;
+  min-width: fit-content;
+}
+
+.segment:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* Per-action hover tints */
+.segment[title="Start pomo"]:hover {
+  background: rgba(149, 72, 43, 0.15);
+}
+
+.segment[title="Start quest"]:hover,
+.segment[title="Unblock quest"]:hover {
+  background: rgba(22, 52, 34, 0.15);
+}
+
+.segment[title="Block quest"]:hover {
+  background: rgba(181, 73, 58, 0.15);
+}
+
+.segment[title="Mark as frog"]:hover {
+  background: rgba(122, 158, 126, 0.18);
+}
+
+.segment[title="Mark done"]:hover {
+  background: rgba(122, 158, 126, 0.15);
+}
+
+.segment[title="Delete"]:hover {
+  background: rgba(181, 73, 58, 0.2);
+}
+
+.segment:active {
+  transform: scale(0.96);
+}
+
+/* Active segment highlight */
+.segment--active {
+  background: rgba(0, 0, 0, 0.10);
+  opacity: 1;
+}
+
+/* Danger segment (delete) — subtle */
+.segment--danger {
+  opacity: 0.5;
+  flex: 0;
+}
+
+.segment--danger:hover {
+  opacity: 0.9;
+}
+
+/* Specular hover sweep */
+.segment::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(120deg,
+      transparent,
+      rgba(255, 255, 255, 0.35),
+      transparent);
+  opacity: 0;
+  transition: opacity 180ms ease;
+  pointer-events: none;
+}
+
+.segment:hover::after {
+  opacity: 0.6;
+}
+
+/* ── Noise texture overlay (removed — clean glass) ───────── */
+.valor-card::before {
+  display: none;
+}
+
+/* ── Shimmer sweep (trophy celebration) ──────────────────── */
+@keyframes shimmer {
+  from {
+    background-position: -200% 0;
+  }
+
+  to {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer-sweep {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer-sweep::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(212, 148, 58, 0.2) 40%,
+      rgba(245, 215, 142, 0.35) 50%,
+      rgba(212, 148, 58, 0.2) 60%,
+      transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 800ms var(--ease-decelerate) forwards;
+  pointer-events: none;
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 6px 14px;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 250ms var(--ease-natural);
+  background: var(--surface-container-high);
+  color: var(--on-surface);
+}
+
+.btn:hover {
+  background: var(--surface-dim);
+}
+
+/* Primary CTA — deep forest green micro-gradient */
+.btn--copper {
+  background: var(--gradient-cta);
+  color: var(--on-primary);
+  box-shadow: var(--shadow-ambient);
+}
+
+.btn--copper:hover {
+  background: var(--gradient-cta-hover);
+  box-shadow: 0 4px 16px rgba(22, 52, 34, 0.15),
+    0 0 0 3px rgba(22, 52, 34, 0.08);
+}
+
+/* Success / done */
+.btn--sage {
+  background: var(--tertiary);
+  color: #fff;
+}
+
+.btn--sage:hover {
+  background: color-mix(in oklch, var(--tertiary) 85%, black);
+}
+
+/* Destructive */
+.btn--ember {
+  background: transparent;
+  color: var(--error);
+  border: 1px solid var(--glass-border);
+}
+
+.btn--ember:hover {
+  background: rgba(181, 73, 58, 0.06);
+  border-color: transparent;
+}
+
+/* Ghost */
+.btn--ghost {
+  background: transparent;
+  color: var(--on-surface-variant);
+  border: 1px solid var(--glass-border);
+}
+
+.btn--ghost:hover {
+  background: var(--surface-container-high);
+  border-color: transparent;
+}
+
+.btn--sm {
+  padding: 3px 10px;
+  font-size: var(--text-xs);
+}
+
+.btn:active {
+  transform: scale(0.96);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ── Action Chips (pill-shaped terracotta) ───────────────── */
+.btn--chip {
+  border-radius: var(--radius-full);
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+  font-weight: 700;
+  padding: 4px 14px;
+}
+
+.btn--chip:hover {
+  background: color-mix(in oklch, var(--secondary-container) 85%, var(--secondary));
+}
+
+/* ── Add Quest Form ──────────────────────────────────────── */
+.add-quest-form {
+  display: flex;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface-container-lowest);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lifted);
+  margin-bottom: var(--space-md);
+}
+
+.add-quest-form__input {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  border: none;
+  border-radius: var(--radius-lg);
+  background: var(--surface-container-lowest);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--on-surface);
+  outline: none;
+  box-shadow: var(--shadow-input-inset), var(--shadow-input-lift);
+  transition: box-shadow 250ms var(--ease-natural);
+}
+
+.add-quest-form__input:focus {
+  box-shadow: var(--shadow-input-inset), var(--shadow-input-focus);
+}
+
+.add-quest-form__input::placeholder {
+  color: var(--on-surface-muted);
+}
+
+/* ── Confirm Modal ───────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 28, 24, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal-card {
+  background: var(--surface-container-lowest);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-overlay);
+  padding: var(--space-xl) var(--space-2xl);
+  max-width: 420px;
+  width: 90%;
+}
+
+.modal-card__title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: var(--space-sm);
+}
+
+.modal-card__body {
+  font-family: var(--font-body);
+  color: var(--on-surface-variant);
+  margin-bottom: var(--space-lg);
+  line-height: 1.6;
+}
+
+.modal-card__actions {
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: flex-end;
+}
+
+/* ── Toast container ─────────────────────────────────────── */
+.toast-container {
+  position: fixed;
+  top: 92px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.toast {
+  background: var(--surface-container-lowest);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-floating);
+  border: 1px solid var(--glass-border);
+  padding: var(--space-sm) var(--space-lg);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--on-surface);
+  animation: toast-in 300ms var(--ease-spring);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ── Pomo Overlay ────────────────────────────────────────── */
+/* ── Pomo Overlay — dot-textured backdrop ──────────────────── */
+.pomo-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 48px 24px;
+
+  /* Warm surface base */
+  background: var(--surface);
+  animation: pomo-fade-in 400ms var(--ease-decelerate);
+}
+
+/* Dot grid texture on the real background */
+.pomo-overlay::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(circle, rgba(0, 0, 0, 0.06) 1px, transparent 1px);
+  background-size: 18px 18px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes pomo-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.pomo-overlay__inner {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  max-width: 600px;
+  width: 90%;
+  padding: 48px 24px;
+}
+
+.pomo-overlay__notice {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--error);
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: color-mix(in oklch, var(--error) 6%, var(--surface));
+  border-radius: var(--radius-xl);
+}
+
+.pomo-overlay__notice--success {
+  color: var(--tertiary);
+  background: color-mix(in oklch, var(--tertiary) 6%, var(--surface));
+}
+
+.pomo-overlay__controls {
+  margin-top: var(--space-lg);
+}
+
+/* ── Shared quest context — inside ritual panes ───────────── */
+.ritual-quest-ctx {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(22, 52, 34, 0.06);
+  width: 100%;
+}
+
+.ritual-quest-ctx__name {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 600;
+  font-style: normal;
+  color: var(--on-surface);
+  letter-spacing: -0.005em;
+}
+
+.ritual-quest-ctx__meta {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--on-surface-muted);
+  letter-spacing: 0.04em;
+}
+
+/* ── Pomo Gates ──────────────────────────────────────────── */
+.pomo-gate {
+  margin: var(--space-lg) 0;
+}
+
+.gate__prompt {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  font-style: normal;
+  letter-spacing: 0;
+  color: var(--on-surface);
+  margin-bottom: var(--space-sm);
+}
+
+.gate__hint {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 500;
+  font-style: normal;
+  color: var(--on-surface-muted);
+  margin-bottom: var(--space-lg);
+}
+
+.gate__hint--early {
+  color: var(--hearth);
+}
+
+.gate__input {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  border: none;
+  border-radius: var(--radius-lg);
+  background: var(--surface-container-lowest);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--on-surface);
+  outline: none;
+  margin-bottom: var(--space-md);
+  box-shadow: var(--shadow-input-inset), var(--shadow-input-lift);
+  transition: box-shadow 250ms var(--ease-natural);
+}
+
+.gate__input:focus {
+  box-shadow: var(--shadow-input-inset), var(--shadow-input-focus);
+}
+
+.deed__forge-options {
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ── Shared Ritual Typography ─────────────────────────────── */
+/*   This is not a form. It is a moment of commitment.         */
+/*   Group content into meaning, not just spacing.             */
+/*   The task name is the reason the screen exists.            */
+
+/* ── Identity Zone — the artifact header ──────────────────── */
+.ritual__identity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 20px;
+  width: 100%;
+}
+
+.ritual__task-name {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 600;
+  font-style: normal;
+  letter-spacing: -0.01em;
+  color: var(--on-surface);
+  line-height: 1.15;
+  margin: 0;
+}
+
+.ritual__meta {
+  display: inline-block;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--on-surface-muted);
+  opacity: 0.5;
+  margin: 0;
+}
+
+/* ── Intent Zone — the moment of commitment ───────────────── */
+.ritual__intent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 20px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.ritual__action {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 500;
+  font-style: normal;
+  color: var(--on-surface);
+  opacity: 0.7;
+  line-height: 1.3;
+  margin: 0 0 8px;
+}
+
+.ritual__supporting {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--on-surface-variant);
+  opacity: 0.6;
+  line-height: 1.5;
+  margin: 0 0 20px;
+}
+
+/* ── Action Zone — separate decision from thought ─────────── */
+.ritual__action-zone {
+  width: 100%;
+  padding-top: 24px;
+}
+
+/* ── Charge Ritual — single-surface glass system ──────────── */
+/*   Same pane language as deed-ritual. One glass, no nesting. */
+
+.charge-ritual {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 0;
+}
+
+/* Ambient orbs */
+.charge-ritual__ambient {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.charge-ritual__orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  animation: charge-orb-drift 14s ease-in-out infinite alternate;
+}
+
+.charge-ritual__orb--primary {
+  width: 280px;
+  height: 280px;
+  top: -18%;
+  left: -10%;
+  background: rgba(22, 52, 34, 0.05);
+}
+
+.charge-ritual__orb--secondary {
+  width: 220px;
+  height: 220px;
+  bottom: -12%;
+  right: -8%;
+  background: rgba(122, 158, 126, 0.05);
+  animation-delay: -7s;
+}
+
+@keyframes charge-orb-drift {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+
+  to {
+    transform: translate(14px, -10px) scale(1.05);
+  }
+}
+
+/* The single glass pane */
+.charge-ritual__pane {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 420px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding: 48px 32px;
+
+  border-radius: 12px;
+  text-align: center;
+
+  /* Glass base */
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(18px) saturate(120%);
+  -webkit-backdrop-filter: blur(18px) saturate(120%);
+
+  /* Edge */
+  border: 1px solid rgba(255, 255, 255, 0.18);
+
+  /* Single depth — soft outer glow only */
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.05),
+    0 2px 6px rgba(0, 0, 0, 0.03);
+
+  animation: charge-pane-enter 450ms var(--ease-decelerate) both;
+}
+
+.charge-ritual__pane>* {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes charge-pane-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Typography */
+.charge-ritual__headline {
+  font-family: var(--font-display);
+  font-size: clamp(var(--text-2xl), 4vw, var(--text-3xl));
+  font-weight: 600;
+  font-style: normal;
+  letter-spacing: -0.01em;
+  color: var(--on-surface);
+  line-height: 1.15;
+  margin: 0;
+}
+
+.charge-ritual__sub {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--on-surface-variant);
+  opacity: 0.6;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Form — zones handle internal spacing */
+.charge-ritual__form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  width: 100%;
+}
+
+/* Input — engraved into glass */
+.charge-ritual__input-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.charge-ritual__input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.04);
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 600;
+  font-style: normal;
+  color: var(--primary, #163422);
+  text-align: center;
+  padding: 12px 0;
+  outline: none;
+  transition: border-color 400ms var(--ease-natural),
+    transform 200ms var(--ease-natural);
+}
+
+.charge-ritual__input:focus {
+  border-bottom-color: rgba(22, 52, 34, 0.4);
+  transform: scale(1.01);
+}
+
+.charge-ritual__input::placeholder {
+  color: var(--on-surface-muted);
+  opacity: 0.4;
+}
+
+.charge-ritual__input-line {
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 1px;
+  background: var(--primary);
+  opacity: 0.5;
+  transition: width 500ms var(--ease-decelerate);
+  pointer-events: none;
+}
+
+.charge-ritual__input-wrap--focus .charge-ritual__input-line {
+  width: 100%;
+}
+
+/* Seal — commitment, not just a button */
+.charge-ritual__seal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 14px 32px;
+
+  background: var(--primary);
+  border: none;
+  border-radius: 12px;
+  box-shadow: none;
+  cursor: pointer;
+
+  transition: background 180ms var(--ease-natural),
+    transform 120ms var(--ease-natural);
+}
+
+.charge-ritual__seal:hover {
+  background: var(--primary-container);
+}
+
+.charge-ritual__seal:active {
+  transform: scale(0.975);
+  background: var(--primary);
+}
+
+.charge-ritual__seal-text {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--on-primary);
+}
+
+/* ── Deed Ritual — single-surface glass system ────────────── */
+/*   Everything etched into one pane. No nested cards.         */
+/*   One depth system: backdrop blur + border + soft outer glow */
+/*   8px base grid rhythm throughout.                          */
+
+.deed-ritual {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 0;
+  /* 3 × 8 */
+}
+
+/* Ambient orbs — atmospheric only, behind pane */
+.deed-ritual__ambient {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.deed-ritual__orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  animation: deed-orb-drift 14s ease-in-out infinite alternate;
+}
+
+.deed-ritual__orb--primary {
+  width: 300px;
+  height: 300px;
+  top: -20%;
+  left: -12%;
+  background: rgba(22, 52, 34, 0.05);
+}
+
+.deed-ritual__orb--secondary {
+  width: 240px;
+  height: 240px;
+  bottom: -15%;
+  right: -8%;
+  background: rgba(149, 72, 43, 0.04);
+  animation-delay: -7s;
+}
+
+@keyframes deed-orb-drift {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+
+  to {
+    transform: translate(16px, -12px) scale(1.06);
+  }
+}
+
+/* ── The single glass pane ─────────────────────────────────── */
+.deed-ritual__pane {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 420px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding: 48px 32px;
+
+  border-radius: 12px;
+  text-align: center;
+
+  /* Glass base */
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(18px) saturate(120%);
+  -webkit-backdrop-filter: blur(18px) saturate(120%);
+
+  /* Edge */
+  border: 1px solid rgba(255, 255, 255, 0.18);
+
+  /* Single depth — soft outer glow only */
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.05),
+    0 2px 6px rgba(0, 0, 0, 0.03);
+
+  animation: deed-pane-enter 450ms var(--ease-decelerate) both;
+}
+
+.deed-ritual__pane>* {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes deed-pane-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ── Typography — flush, no competing weights ──────────────── */
+.deed-ritual__headline {
+  font-family: var(--font-display);
+  font-size: clamp(var(--text-2xl), 4vw, var(--text-3xl));
+  font-weight: 600;
+  font-style: normal;
+  letter-spacing: -0.01em;
+  color: var(--on-surface);
+  line-height: 1.15;
+  margin: 0;
+}
+
+.deed-ritual__sub {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--on-surface-variant);
+  opacity: 0.6;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── Epic tag — ribbon pinned to pane top-right ────────────── */
+.deed-ritual__tag {
+  position: absolute;
+  top: -1px;
+  right: 24px;
+  z-index: 3;
+
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px 6px;
+
+  background: var(--hearth);
+  color: #fff;
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 2px 8px rgba(212, 148, 58, 0.25);
+
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.deed-ritual__tag-icon {
+  font-size: 11px;
+}
+
+.deed-ritual__tag-text {
+  position: relative;
+  top: 0.5px;
+}
+
+/* ── Form — zones handle internal spacing ─────────────────── */
+.deed-ritual__form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  width: 100%;
+}
+
+/* ── Input — engraved into glass, not boxed ────────────────── */
+.deed-ritual__input-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.deed-ritual__input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.04);
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 600;
+  font-style: normal;
+  color: var(--primary, #163422);
+  text-align: center;
+  padding: 12px 0;
+  outline: none;
+  transition: border-color 400ms var(--ease-natural),
+    transform 200ms var(--ease-natural);
+}
+
+.deed-ritual__input:focus {
+  border-bottom-color: rgba(22, 52, 34, 0.4);
+  transform: scale(1.01);
+}
+
+.deed-ritual__input::placeholder {
+  color: var(--on-surface-muted);
+  opacity: 0.4;
+}
+
+/* Thin accent line that expands from center on focus */
+.deed-ritual__input-line {
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 1px;
+  background: var(--primary);
+  opacity: 0.5;
+  transition: width 500ms var(--ease-decelerate);
+  pointer-events: none;
+}
+
+.deed-ritual__input-wrap--focus .deed-ritual__input-line {
+  width: 100%;
+}
+
+/* ── Forge segmented control — flush 3-way toggle ──────────── */
+.deed-ritual__forge-seg {
+  display: flex;
+  border: 1px solid rgba(22, 52, 34, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.deed-ritual__seg-opt {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 10px 8px;
+
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  cursor: pointer;
+
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--on-surface-muted);
+
+  transition: background 200ms var(--ease-natural),
+    color 200ms var(--ease-natural);
+}
+
+.deed-ritual__seg-opt:hover {
+  background: rgba(22, 52, 34, 0.04);
+  color: var(--on-surface-variant);
+}
+
+/* Active/selected state — subtle fill, etched into pane */
+.deed-ritual__seg-opt--active {
+  background: rgba(22, 52, 34, 0.06);
+  color: var(--on-surface);
+}
+
+.deed-ritual__seg-opt--active:hover {
+  background: rgba(22, 52, 34, 0.08);
+}
+
+.deed-ritual__seg-icon {
+  font-size: 0.8125rem;
+  line-height: 1;
+}
+
+/* Thin vertical dividers between segments */
+.deed-ritual__seg-div {
+  width: 1px;
+  align-self: stretch;
+  margin: 8px 0;
+  background: rgba(22, 52, 34, 0.06);
+}
+
+/* ── Seal — commitment, not just a button ───────────────── */
+.deed-ritual__seal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 14px 32px;
+
+  background: var(--primary);
+  border: none;
+  border-radius: 12px;
+  box-shadow: none;
+  cursor: pointer;
+
+  transition: background 180ms var(--ease-natural),
+    transform 120ms var(--ease-natural);
+}
+
+.deed-ritual__seal:hover {
+  background: var(--primary-container);
+}
+
+/* Satisfying press: quick scale-down + slight inset feel */
+.deed-ritual__seal:active {
+  transform: scale(0.975);
+  background: var(--primary);
+}
+
+.deed-ritual__seal-text {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--on-primary);
+}
+
+.break-gate__options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  max-width: 300px;
+  margin: 0 auto;
+}
+
+/* ── Timer Display ───────────────────────────────────────── */
+.pomo-timer {
+  margin: var(--space-lg) 0;
+}
+
+.timer__countdown {
+  font-family: var(--font-mono);
+  font-size: var(--text-4xl);
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--on-surface);
+  margin-bottom: var(--space-md);
+}
+
+.timer__bar {
+  width: 100%;
+  height: 6px;
+  background: var(--surface-container-high);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-bottom: var(--space-sm);
+}
+
+.timer__bar-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 1s linear;
+}
+
+.timer__bar-fill--work {
+  background: linear-gradient(90deg, var(--primary), var(--primary-container));
+}
+
+.timer__bar-fill--break {
+  background: var(--tertiary);
+}
+
+.timer__percent {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--on-surface-muted);
+  margin-bottom: var(--space-lg);
+}
+
+.timer__charge {
+  background: var(--surface-container-low);
+  border-radius: var(--radius-xl);
+  padding: var(--space-md) var(--space-lg);
+  margin-bottom: var(--space-md);
+  text-align: left;
+}
+
+.timer__charge-label {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--on-surface-muted);
+  display: block;
+  margin-bottom: var(--space-xs);
+}
+
+.timer__charge-text {
+  font-family: var(--font-display);
+  font-style: normal;
+  font-weight: 500;
+  color: var(--on-surface);
+}
+
+.timer__label {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--on-surface-variant);
+  margin-bottom: var(--space-md);
+}
+
+.timer__journey {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+  font-size: var(--text-lg);
+}
+
+.journey-dot {
+  color: var(--surface-dim);
+}
+
+.journey-dot--done {
+  color: var(--tertiary);
+}
+
+.journey-dot--current {
+  color: var(--secondary);
+}
+
+.journey-dot--broken {
+  color: var(--error);
+}
+
+.timer__actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-md);
+}
+
+/* ── Chrono-Aesthetic Timer ──────────────────────────────── */
+/* Ritual interface — the timer is the sun, everything orbits it.
+   No cards. No boxes. Just spacing, typography, and subtle separators. */
+
+.chrono-timer {
+  position: relative;
+  /* Break out of .app-main max-width constraint */
+  width: 100vw;
+  margin-left: calc(-50vw + 50%);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+/* ─ Header: quest name is the screen identity ─ */
+.chrono-timer__header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.chrono-timer__chapter-label {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--on-surface);
+  opacity: 0.4;
+}
+
+.chrono-timer__chapter-title {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--on-surface);
+  line-height: 1.25;
+  margin-top: 6px;
+}
+
+/* Ambient atmospheric orbs — very subtle */
+.chrono-timer__ambient {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.06;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.chrono-timer__orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(140px);
+}
+
+.chrono-timer__orb--primary {
+  top: -10%;
+  right: -5%;
+  width: 600px;
+  height: 600px;
+  background: var(--tertiary-fixed, #c8deca);
+}
+
+.chrono-timer__orb--secondary {
+  bottom: -10%;
+  left: -5%;
+  width: 450px;
+  height: 450px;
+  background: var(--secondary-container);
+}
+
+/* ─ 3-column ritual grid ─ */
+.chrono-timer__grid {
+  width: 100%;
+  max-width: 1200px;
+  display: grid;
+  grid-template-columns: 260px 1fr 260px;
+  gap: 48px;
+  align-items: center;
+  padding: 0 64px;
+  margin: 0 auto;
+}
+
+/* ─ Left: Flush Progress Rail (anchored to left edge) ─ */
+.chrono-timer__rail {
+  position: relative;
+  padding-left: 32px;
+}
+
+.chrono-timer__label-micro {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--on-surface);
+  opacity: 0.45;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.chrono-timer__label-micro--warm {
+  color: var(--secondary);
+  opacity: 1;
+}
+
+/* Phase / journey progress — flush rail with edge-anchored selection */
+.chrono-timer__phase-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.chrono-timer__phase {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 6px 0;
+  transition: opacity 300ms var(--ease-natural);
+}
+
+.chrono-timer__phase--done {
+  opacity: 0.35;
+}
+
+.chrono-timer__phase--upcoming {
+  opacity: 0.35;
+}
+
+/* Active phase — wide flush highlight anchored to left edge */
+.chrono-timer__phase--active {
+  opacity: 1;
+}
+
+.chrono-timer__phase--active::before {
+  content: "";
+  position: absolute;
+  left: -32px;
+  top: 0;
+  height: 100%;
+  width: 6px;
+  background: var(--primary, #1f5a44);
+  border-radius: 0 4px 4px 0;
+  animation: chrono-rail-pulse 2.4s ease-in-out infinite;
+}
+
+.chrono-timer__phase--active::after {
+  content: "";
+  position: absolute;
+  left: -32px;
+  top: 0;
+  height: 100%;
+  width: 120%;
+  background: linear-gradient(to right, rgba(31, 90, 68, 0.08), transparent);
+  z-index: -1;
+  border-radius: 0 8px 8px 0;
+}
+
+@keyframes chrono-rail-pulse {
+  0% {
+    opacity: 0.6;
+    transform: scaleY(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scaleY(1.15);
+  }
+
+  100% {
+    opacity: 0.6;
+    transform: scaleY(1);
+  }
+}
+
+.chrono-timer__phase--active .chrono-timer__phase-name {
+  font-weight: 600;
+  color: var(--on-surface);
+}
+
+.chrono-timer__phase-name {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--on-surface);
+}
+
+/* ─ Center: Timer Anchor (the sun) ─ */
+.chrono-timer__center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.chrono-timer__ring {
+  position: relative;
+  width: 280px;
+  height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* No background, no glass, no shadow — just the circle */
+}
+
+.chrono-timer__svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.chrono-timer__track {
+  stroke: rgba(22, 52, 34, 0.08);
+}
+
+.chrono-timer__progress {
+  transition: stroke-dashoffset 1s linear;
+}
+
+.chrono-timer__progress--work {
+  stroke: rgba(22, 52, 34, 0.8);
+}
+
+.chrono-timer__progress--break {
+  stroke: var(--tertiary);
+  opacity: 0.7;
+}
+
+.chrono-timer__digits {
+  text-align: center;
+  z-index: 1;
+}
+
+.chrono-timer__time {
+  font-family: var(--font-mono);
+  font-size: 64px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--on-surface);
+  line-height: 1;
+}
+
+.chrono-timer__mana {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--on-surface);
+  opacity: 0.4;
+  margin-top: 12px;
+}
+
+/* ─ Charge inscription — flush text under timer ─ */
+.chrono-timer__charge {
+  margin-top: 28px;
+  text-align: center;
+  cursor: default;
+  padding: 8px 16px;
+  border-radius: 8px;
+  transition: all 350ms var(--ease-natural);
+}
+
+.chrono-timer__charge:hover {
+  background: rgba(149, 72, 43, 0.06);
+}
+
+.chrono-timer__charge-label {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--secondary);
+  opacity: 0.6;
+  display: block;
+  margin-bottom: 4px;
+  transition: opacity 350ms var(--ease-natural);
+}
+
+.chrono-timer__charge:hover .chrono-timer__charge-label {
+  opacity: 1;
+}
+
+.chrono-timer__charge-text {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 500;
+  font-style: italic;
+  line-height: 1.4;
+  color: var(--on-surface);
+  opacity: 0.55;
+  transition: opacity 350ms var(--ease-natural);
+}
+
+.chrono-timer__charge:hover .chrono-timer__charge-text {
+  opacity: 0.85;
+}
+
+/* ─ Right: Stacked Controls (soft panels, not cards) ─ */
+.chrono-timer__actions-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.chrono-timer__interventions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Swiftblade — primary gradient action */
+.chrono-timer__btn-swift {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%);
+  color: var(--on-primary);
+  transition: all 300ms var(--ease-natural);
+}
+
+.chrono-timer__btn-swift:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(22, 52, 34, 0.18);
+}
+
+.chrono-timer__btn-swift:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* Interrupt — soft secondary action */
+.chrono-timer__btn-interrupt {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.04);
+  transition: all 300ms var(--ease-natural);
+}
+
+.chrono-timer__btn-interrupt:hover {
+  background: rgba(0, 0, 0, 0.07);
+}
+
+.chrono-timer__btn-interrupt:hover .chrono-timer__btn-label--ghost,
+.chrono-timer__btn-interrupt:hover .chrono-timer__btn-icon--ghost {
+  color: var(--error);
+}
+
+.chrono-timer__btn-label {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.chrono-timer__btn-label--ghost {
+  color: var(--on-surface-variant);
+}
+
+/* Skip Break — soft tertiary action */
+.chrono-timer__btn-skip {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.04);
+  transition: all 300ms var(--ease-natural);
+}
+
+.chrono-timer__btn-skip:hover {
+  background: rgba(0, 0, 0, 0.07);
+}
+
+.chrono-timer__btn-skip .chrono-timer__btn-label {
+  color: var(--on-surface-variant);
+}
+
+.chrono-timer__btn-skip .chrono-timer__btn-icon {
+  color: var(--on-surface-muted);
+}
+
+.chrono-timer__btn-skip:hover .chrono-timer__btn-label,
+.chrono-timer__btn-skip:hover .chrono-timer__btn-icon {
+  color: var(--primary);
+}
+
+.chrono-timer__btn-icon {
+  font-size: 1.1rem;
+}
+
+.chrono-timer__btn-icon--ghost {
+  color: var(--on-surface-muted);
+  transition: color 200ms var(--ease-natural);
+}
+
+/* Flush horizontal divider between interventions and aura */
+.chrono-timer__divider {
+  border: none;
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.1), transparent);
+  margin: 4px 0;
+}
+
+/* Focus Aura — gold glass card */
+.chrono-timer__aura {
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(255, 248, 225, 0.45);
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  box-shadow:
+    0 0 16px rgba(212, 175, 55, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.chrono-timer__aura-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.chrono-timer__aura-pct {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: #b8960c;
+}
+
+.chrono-timer__aura-bar {
+  display: flex;
+  gap: 5px;
+}
+
+.chrono-timer__aura-seg {
+  height: 5px;
+  flex: 1;
+  border-radius: var(--radius-full);
+  background: var(--surface-dim);
+  opacity: 0.3;
+  transition: all 400ms var(--ease-natural);
+}
+
+.chrono-timer__aura-seg--filled {
+  background: linear-gradient(135deg, #d4af37, #c49b1a);
+  opacity: 1;
+  box-shadow: 0 0 6px rgba(212, 175, 55, 0.35);
+}
+
+/* Session indicator — anchored to bottom center */
+.chrono-timer__session-counter {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-xl);
+  opacity: 0.5;
+}
+
+.chrono-timer__session-dots {
+  display: flex;
+  gap: 10px;
+}
+
+.chrono-timer__sdot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--primary);
+  opacity: 0.15;
+}
+
+.chrono-timer__sdot--active {
+  opacity: 1;
+  box-shadow: 0 0 6px rgba(22, 52, 34, 0.3);
+}
+
+.chrono-timer__sdot--done {
+  opacity: 0.4;
+}
+
+.chrono-timer__session-label {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--on-surface);
+}
+
+/* ─ Mobile: collapse to single column ─ */
+@media (max-width: 768px) {
+  .chrono-timer {
+    width: auto;
+    margin-left: 0;
+    height: auto;
+    min-height: 100vh;
+    padding: var(--space-xl) var(--space-md);
+  }
+
+  .chrono-timer__header {
+    margin-bottom: var(--space-lg);
+  }
+
+  .chrono-timer__chapter-title {
+    font-size: 22px;
+  }
+
+  .chrono-timer__grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-xl);
+    padding: 0;
+  }
+
+  .chrono-timer__rail {
+    order: 2;
+    padding-left: 24px;
+  }
+
+  .chrono-timer__phase--active::before {
+    left: -24px;
+  }
+
+  .chrono-timer__phase--active::after {
+    left: -24px;
+  }
+
+  .chrono-timer__center {
+    order: 1;
+  }
+
+  .chrono-timer__actions-col {
+    order: 3;
+  }
+
+  .chrono-timer__ring {
+    width: 240px;
+    height: 240px;
+  }
+
+  .chrono-timer__time {
+    font-size: 48px;
+  }
+
+  .chrono-timer__charge {
+    max-width: 100%;
+  }
+
+  .chrono-timer__session-counter {
+    position: relative;
+    bottom: auto;
+    left: auto;
+    transform: none;
+    margin-top: var(--space-xl);
+  }
+
+  .chrono-timer__aura {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Glass panel utility (used by charge-ritual, deed-ritual, etc.) */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: var(--glass-shadow);
+}
+
+/* ── Pomo Summary ────────────────────────────────────────── */
+/* Now a ritual surface — same pane language as charge/deed.  */
+
+.summary-ritual {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 100%;
+  padding: 0;
+}
+
+/* Ambient orbs */
+.summary-ritual__ambient {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.summary-ritual__orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  animation: summary-orb-drift 14s ease-in-out infinite alternate;
+}
+
+.summary-ritual__orb--primary {
+  width: 300px;
+  height: 300px;
+  top: -18%;
+  left: -10%;
+  background: rgba(22, 52, 34, 0.05);
+}
+
+.summary-ritual__orb--secondary {
+  width: 240px;
+  height: 240px;
+  bottom: -12%;
+  right: -8%;
+  background: rgba(122, 158, 126, 0.05);
+  animation-delay: -7s;
+}
+
+@keyframes summary-orb-drift {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+
+  to {
+    transform: translate(14px, -10px) scale(1.05);
+  }
+}
+
+/* Session overview: flush with the overlay, not a card. */
+.summary-ritual__pane {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 680px;
+  overflow: hidden;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding: 64px 48px;
+
+  border-radius: var(--radius-xl);
+  text-align: center;
+
+  background: transparent;
+  border: none;
+  box-shadow: none;
+
+  animation: summary-pane-enter 450ms var(--ease-decelerate) both;
+}
+
+.summary-ritual__pane::before {
+  content: "";
+  position: absolute;
+  inset: 16px 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(105deg,
+      transparent 0%,
+      color-mix(in oklch, var(--secondary) 8%, transparent) 34%,
+      color-mix(in oklch, var(--hearth) 14%, transparent) 50%,
+      color-mix(in oklch, var(--secondary) 8%, transparent) 66%,
+      transparent 100%);
+  background-size: 260% 100%;
+  background-position: 160% 0;
+  opacity: 0;
+  transition:
+    opacity 260ms var(--ease-natural),
+    background-position 1200ms var(--ease-decelerate);
+}
+
+.summary-ritual__pane:hover::before {
+  opacity: 1;
+  background-position: -160% 0;
+}
+
+.summary-ritual__pane>* {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes summary-pane-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Journey trail */
+.summary-ritual__journey {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.journey-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  border-radius: var(--radius-sm);
+  color: color-mix(in oklch, var(--secondary) 70%, var(--on-surface-muted));
+  background: color-mix(in oklch, var(--secondary) 7%, transparent);
+  opacity: 0.62;
+  transition:
+    background 220ms var(--ease-natural),
+    opacity 220ms var(--ease-natural);
+}
+
+.journey-glyph:hover {
+  background: color-mix(in oklch, var(--secondary) 11%, transparent);
+  opacity: 0.82;
+}
+
+.journey-glyph--done {
+  color: color-mix(in oklch, var(--secondary) 62%, var(--tertiary));
+}
+
+.journey-glyph--berserker {
+  color: color-mix(in oklch, var(--secondary) 70%, var(--hearth));
+}
+
+.journey-glyph--hollow {
+  color: color-mix(in oklch, var(--secondary) 45%, var(--on-surface-muted));
+  opacity: 0.5;
+}
+
+.journey-glyph--broken {
+  color: color-mix(in oklch, var(--secondary) 72%, var(--error));
+}
+
+.journey-glyph--break {
+  color: color-mix(in oklch, var(--secondary) 54%, var(--tertiary));
+  opacity: 0.5;
+}
+
+.journey-glyph--break-skip {
+  color: color-mix(in oklch, var(--secondary) 45%, var(--on-surface-muted));
+  opacity: 0.42;
+  background: transparent;
+}
+
+/* Seal — same family as charge/deed */
+.summary-ritual__seal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 14px 32px;
+
+  background: var(--primary);
+  border: none;
+  border-radius: 12px;
+  box-shadow: none;
+  cursor: pointer;
+
+  transition: background 180ms var(--ease-natural),
+    transform 120ms var(--ease-natural);
+}
+
+.summary-ritual__seal:hover {
+  background: var(--primary-container);
+}
+
+.summary-ritual__seal:active {
+  transform: scale(0.975);
+  background: var(--primary);
+}
+
+.summary-ritual__seal-text {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--on-primary);
+}
+
+/* ── Receipt ─────────────────────────────────────────────── */
+.receipt-list {
+  text-align: left;
+  margin: var(--space-lg) 0;
+}
+
+.receipt-entry {
+  padding: var(--space-md) var(--space-lg);
+  margin-bottom: var(--space-md);
+  background: var(--surface-container-lowest);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-ambient);
+  border-left: 3px solid var(--tertiary);
+}
+
+.receipt-entry--berserker {
+  border-left-color: var(--hearth);
+}
+
+.receipt-entry--hollow {
+  border-left-color: var(--on-surface-muted);
+  opacity: 0.6;
+}
+
+.receipt-entry__time {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--on-surface-muted);
+  margin-bottom: var(--space-xs);
+}
+
+.receipt-entry__quest {
+  font-family: var(--font-display);
+  font-weight: 700;
+  margin-bottom: var(--space-xs);
+}
+
+.receipt-entry__charge,
+.receipt-entry__deed {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--on-surface-variant);
+}
+
+.receipt-summary {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--on-surface-muted);
+  padding: var(--space-sm);
+  text-align: center;
+}
+
+.receipt-empty {
+  font-family: var(--font-display);
+  font-style: normal;
+  font-weight: 500;
+  color: var(--on-surface-muted);
+  padding: var(--space-xl) 0;
+}
+
+/* ── Chronicle Panel (Bento Grid) ────────────────────────── */
+.chronicle-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* Bento Grid: 12-column on desktop, stacked on mobile */
+.bento-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-lg);
+}
+
+@media (min-width: 768px) {
+  .bento-grid {
+    grid-template-columns: 3fr 2fr;
+    grid-template-rows: 1fr;
+  }
+}
+
+.bento-grid__heatmap {
+  min-width: 0;
+}
+
+.bento-grid__timeline {
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+
+.bento-grid__timeline::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .bento-grid__timeline {
+    max-height: 0;
+    min-height: 100%;
+  }
+}
+
+/* ── Heatmap Card ────────────────────────────────────────── */
+.heatmap-card {
+  background: var(--surface-container-lowest);
+  padding: var(--space-xl);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 24px 48px -12px rgba(28, 28, 24, 0.06);
+}
+
+.heatmap-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: var(--space-lg);
+}
+
+.heatmap-card__overline {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--on-surface-muted);
+  margin-bottom: 2px;
+}
+
+.heatmap-card__title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--on-surface);
+}
+
+.heatmap-card__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-lg);
+  margin-top: var(--space-lg);
+  padding-top: var(--space-md);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--on-surface-variant);
+}
+
+/* ── Heatmap ─────────────────────────────────────────────── */
+.heatmap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.heatmap__month-label {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--on-surface-variant);
+}
+
+.heatmap__day-headers {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--on-surface-muted);
+}
+
+.heatmap__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.heatmap__cell {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm);
+  transition: transform 200ms var(--ease-natural);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.heatmap__cell:hover {
+  transform: scale(1.1);
+}
+
+.heatmap__day-num {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--on-surface-variant);
+  pointer-events: none;
+}
+
+.heatmap__cell--empty {
+  background: var(--surface-dim);
+}
+
+.heatmap__cell--light {
+  background: #adcfb4;
+}
+
+.heatmap__cell--light .heatmap__day-num {
+  color: var(--primary);
+}
+
+.heatmap__cell--medium {
+  background: #466550;
+}
+
+.heatmap__cell--medium .heatmap__day-num,
+.heatmap__cell--heavy .heatmap__day-num {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.heatmap__cell--heavy {
+  background: var(--primary);
+}
+
+.heatmap__cell--outside {
+  background: var(--surface-dim);
+  opacity: 0.35;
+}
+
+.heatmap__cell--today {
+  outline: 2px solid var(--secondary);
+  outline-offset: 1px;
+}
+
+.heatmap__legend {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.heatmap__legend-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--on-surface-muted);
+  margin: 0 2px;
+}
+
+.heatmap__legend .heatmap__cell {
+  width: 12px;
+  height: 12px;
+  aspect-ratio: unset;
+}
+
+/* ── Timeline (vertical dot track) ───────────────────────── */
+.timeline__overline {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--on-surface-muted);
+  margin-bottom: var(--space-md);
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  padding-left: var(--space-lg);
+}
+
+/* Vertical line */
+.timeline::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(194, 200, 192, 0.3);
+}
+
+.tl-entry {
+  position: relative;
+  padding-bottom: var(--space-xl);
+}
+
+.tl-entry__dot {
+  position: absolute;
+  left: calc(-1 * var(--space-lg) + 0px);
+  top: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: var(--secondary);
+  border: 2px solid var(--surface);
+  transition: transform 200ms var(--ease-natural);
+}
+
+.tl-entry:hover .tl-entry__dot {
+  transform: scale(1.25);
+}
+
+.tl-entry--hollow .tl-entry__dot {
+  background: var(--on-surface-muted);
+}
+
+.tl-entry--broken .tl-entry__dot {
+  background: var(--error);
+}
+
+.tl-entry--berserker .tl-entry__dot {
+  background: var(--primary-container);
+}
+
+.tl-entry__meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.tl-entry__time {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--on-surface-muted);
+}
+
+.tl-entry__reason {
+  font-family: var(--font-body);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--error);
+  opacity: 0.8;
+}
+
+.tl-entry__tag {
+  font-family: var(--font-body);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  padding: 2px 8px;
+  border-radius: var(--radius-md);
+}
+
+.tl-entry__tag--berserker {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.tl-entry__tag--hollow {
+  background: var(--surface-container-high);
+  color: var(--on-surface-muted);
+}
+
+.tl-entry__tag--broken {
+  background: var(--error-dim);
+  color: var(--error);
+}
+
+.tl-entry__tag--normal {
+  background: var(--surface-container-high);
+  color: var(--on-surface);
+}
+
+.tl-entry__quest {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--primary);
+  line-height: 1.3;
+}
+
+.tl-entry__chips {
+  display: flex;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.tl-entry__chip {
+  font-family: var(--font-body);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: var(--radius-md);
+}
+
+.tl-entry__chip--charge {
+  color: var(--secondary);
+  background: rgba(252, 154, 119, 0.15);
+}
+
+.tl-entry__chip--deed {
+  color: var(--primary);
+  background: rgba(22, 52, 34, 0.08);
+}
+
+.tl-entry--hollow {
+  opacity: 0.5;
+}
+
+.tl-entry--broken {
+  opacity: 0.65;
+}
+
+.chronicle-empty {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-style: normal;
+  font-weight: 500;
+  color: var(--on-surface-muted);
+  padding: var(--space-sm) 0;
+}
+
+/* ── Trophy / Valor Panel ────────────────────────────────── */
+.trophy-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+.trophy-panel:empty::after {
+  content: 'Complete pomos to earn trophies';
+  display: block;
+  text-align: center;
+  padding: var(--space-xl) var(--space-md);
+  color: var(--on-surface-muted);
+  font-family: var(--font-display);
+  font-style: normal;
+  font-weight: 500;
+  font-size: var(--text-sm);
+}
+
+/* ── Valor Summary Bar ───────────────────────────────────── */
+.valor-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-lg);
+  background: var(--surface-container-lowest);
+  padding: var(--space-lg) var(--space-xl);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.02);
+}
+
+.valor-summary__counts {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xl);
+}
+
+.valor-summary__stat {
+  text-align: center;
+}
+
+.valor-summary__stat--locked {
+  opacity: 0.4;
+}
+
+.valor-summary__label {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--on-surface-muted);
+  margin-bottom: 2px;
+}
+
+.valor-summary__value {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 900;
+  color: var(--on-surface);
+}
+
+.valor-summary__value--gold {
+  color: #d4af37;
+}
+
+.valor-summary__value--silver {
+  color: #a8a8a8;
+}
+
+.valor-summary__value--bronze {
+  color: var(--secondary);
+}
+
+.valor-summary__best {
+  flex: 1;
+  min-width: 200px;
+}
+
+.valor-summary__best-label {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--secondary);
+  margin-bottom: 2px;
+}
+
+.valor-summary__best-value {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.valor-summary__best-date {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--on-surface-muted);
+  margin-left: var(--space-sm);
+}
+
+/* ── Valor Header ────────────────────────────────────────── */
+.valor-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-lg);
+}
+
+.valor-header__counts {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.valor-pip {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  backdrop-filter: blur(8px);
+  border: 1px solid transparent;
+}
+
+.valor-pip--gold {
+  background: rgba(212, 175, 55, 0.12);
+  color: #d4af37;
+  border-color: rgba(212, 175, 55, 0.25);
+}
+
+.valor-pip--silver {
+  background: rgba(168, 168, 168, 0.12);
+  color: #a8a8a8;
+  border-color: rgba(168, 168, 168, 0.25);
+}
+
+.valor-pip--bronze {
+  background: rgba(var(--secondary-rgb, 140, 100, 60), 0.12);
+  color: var(--secondary);
+  border-color: rgba(var(--secondary-rgb, 140, 100, 60), 0.25);
+}
+
+.valor-pip--locked {
+  background: rgba(128, 128, 128, 0.08);
+  color: var(--on-surface-muted);
+  border-color: rgba(128, 128, 128, 0.15);
+  opacity: 0.6;
+}
+
+/* ── Valor Section Title ─────────────────────────────────── */
+.valor-title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--primary);
+}
+
+/* ── Valor Grid (3 columns on desktop) ───────────────────── */
+.valor-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-lg);
+}
+
+@media (min-width: 768px) {
+  .valor-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .valor-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ── Valor Card ──────────────────────────────────────────── */
+.valor-card {
+  position: relative;
+  background: var(--surface-container-lowest);
+  border-radius: var(--radius-xl);
+  padding: var(--space-lg);
+  box-shadow: 0 20px 40px -8px rgba(0, 0, 0, 0.04);
+  border-left: 4px solid transparent;
+  transition: transform 300ms var(--ease-natural),
+    box-shadow 300ms var(--ease-natural);
+  overflow: hidden;
+}
+
+.valor-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 24px 48px -8px rgba(0, 0, 0, 0.07);
+}
+
+/* Tier-specific left border */
+.valor-card--gold {
+  border-left-color: #d4af37;
+}
+
+.valor-card--silver {
+  border-left-color: #a8a8a8;
+}
+
+.valor-card--bronze {
+  border-left-color: var(--secondary);
+}
+
+.valor-card--locked {
+  border-left-color: var(--outline-variant);
+  opacity: 0.6;
+}
+
+.valor-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-md);
+}
+
+.valor-card__icon {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  font-size: var(--text-xl);
+}
+
+.valor-card__icon--gold {
+  background: rgba(212, 175, 55, 0.1);
+}
+
+.valor-card__icon--silver {
+  background: rgba(168, 168, 168, 0.1);
+}
+
+.valor-card__icon--bronze {
+  background: rgba(149, 72, 43, 0.1);
+}
+
+.valor-card__icon--locked {
+  background: rgba(114, 121, 114, 0.08);
+}
+
+.valor-card__chip {
+  font-family: var(--font-body);
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: var(--radius-md);
+}
+
+.valor-card__chip--gold {
+  background: #d4af37;
+  color: #ffffff;
+}
+
+.valor-card__chip--silver {
+  background: var(--surface-container-high);
+  color: var(--on-surface);
+}
+
+.valor-card__chip--bronze {
+  background: var(--secondary);
+  color: var(--on-secondary);
+}
+
+.valor-card__chip--locked {
+  background: var(--on-surface-muted);
+  color: var(--surface-container-lowest);
+}
+
+.valor-card__name {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--primary);
+  margin: 0 0 var(--space-xs);
+}
+
+.valor-card--locked .valor-card__name {
+  color: var(--on-surface-muted);
+}
+
+.valor-card__desc {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--on-surface-variant);
+  margin: 0 0 var(--space-md);
+  line-height: 1.5;
+}
+
+.valor-card--locked .valor-card__desc {
+  font-style: italic;
+}
+
+.valor-card__progress {
+  margin-top: auto;
+}
+
+.valor-card__bar {
+  height: 6px;
+  background: var(--surface-container-high);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-bottom: var(--space-xs);
+}
+
+.valor-card__bar-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 500ms var(--ease-decelerate);
+}
+
+.valor-card__bar-fill--gold {
+  background: #d4af37;
+}
+
+.valor-card__bar-fill--silver {
+  background: #a8a8a8;
+}
+
+.valor-card__bar-fill--bronze {
+  background: var(--secondary);
+}
+
+.valor-card__bar-fill--locked {
+  background: var(--on-surface-muted);
+}
+
+.valor-card__label {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: right;
+  color: var(--on-surface-muted);
+}
+
+/* ── Dashboard Modal (glassmorphism) ─────────────────────── */
+.dashboard-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(28, 28, 24, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.dashboard-overlay__inner {
+  background: var(--surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-overlay);
+  padding: var(--space-xl) var(--space-2xl);
+  max-width: 720px;
+  width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-lg);
+}
+
+.dashboard-header__title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.dashboard-section-title {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--on-surface-muted);
+  margin: var(--space-lg) 0 var(--space-sm);
+}
+
+.dashboard-section-title:first-of-type {
+  margin-top: 0;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-sm);
+}
+
+.metric-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--surface-container-lowest);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-ambient);
+  transition: box-shadow 250ms var(--ease-natural);
+}
+
+.metric-card:hover {
+  box-shadow: var(--shadow-lifted);
+}
+
+.metric-card--positive {
+  background: color-mix(in oklch, var(--tertiary-dim) 10%, var(--surface-container-lowest));
+}
+
+.metric-card--negative {
+  background: color-mix(in oklch, var(--error-dim) 8%, var(--surface-container-lowest));
+}
+
+.metric-card--neutral {
+  /* default surface-container-lowest is fine */
+}
+
+.metric-card__icon {
+  font-size: var(--text-xl);
+  flex-shrink: 0;
+}
+
+.metric-card__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.metric-card__name {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--on-surface-muted);
+}
+
+.metric-card__value {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--on-surface);
+}
+
+.metric-card__context {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--on-surface-muted);
+}
+
+.metric-card__delta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.metric-card__arrow {
+  font-size: var(--text-lg);
+}
+
+.metric-card__delta-text {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--on-surface-muted);
+  text-align: right;
+}
+
+.dashboard-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-xl);
+}
+
+/* ── Responsive: tablet ──────────────────────────────────── */
+@media (max-width: 1023px) and (min-width: 768px) {
+  .board {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .heatmap__grid {
+    overflow-x: auto;
+  }
+
+  .dashboard-overlay__inner {
+    max-width: 90vw;
+  }
+}
+
+/* ── Responsive: mobile ──────────────────────────────────── */
+@media (max-width: 767px) {
+  .app-header {
+    padding: var(--space-md) var(--space-sm);
+  }
+
+  .app-header__title {
+    font-size: var(--text-2xl);
+  }
+
+  .app-main {
+    padding: var(--space-md);
+    gap: var(--space-md);
+  }
+
+  .board {
+    grid-template-columns: 1fr;
+  }
+
+  .tab-bar {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .tab-bar__label {
+    display: none;
+  }
+
+  .tab-bar__tab {
+    padding: 8px 14px;
+  }
+
+  .tab-bar__separator {
+    display: none;
+  }
+
+  .tab-bar__tab--ghost {
+    display: none;
+  }
+
+  .add-quest-form {
+    flex-direction: column;
+  }
+
+  .add-quest-form__input {
+    width: 100%;
+  }
+
+  .segment {
+    font-size: 11px;
+    padding: 5px 8px;
+  }
+
+  .stats-bar {
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    justify-content: center;
+  }
+
+  .bento-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .valor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .valor-card {
+    padding: var(--space-md);
+  }
+
+  .ledger-valor {
+    padding: var(--space-lg);
+  }
+
+  .dashboard-overlay__inner {
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 100vh;
+    border-radius: 0;
+    padding: var(--space-md);
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pomo-overlay {
+    padding: 32px 16px;
+  }
+
+  .pomo-overlay__inner {
+    padding: 0;
+    max-width: 100vw;
+  }
+
+  .timer__countdown {
+    font-size: var(--text-3xl);
+  }
+
+  .pomo-gate__input {
+    font-size: var(--text-base);
+  }
+
+  /* Charge ritual mobile */
+  .charge-ritual__pane {
+    padding: 32px 16px;
+    max-width: 100%;
+  }
+
+  /* Deed ritual mobile */
+  .deed-ritual__pane {
+    padding: 32px 16px;
+    max-width: 100%;
+  }
+
+  .deed-ritual__tag {
+    right: 16px;
+  }
+
+  .deed-ritual__seg-opt {
+    padding: 10px 4px;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+  }
+}
+
+/* ── Interrupt Reason Screen ──────────────────────────────── */
+.interrupt-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: 2rem 0;
+}
+
+.interrupt-screen__header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.interrupt-screen__quest {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.75rem;
+  color: var(--on-surface);
+  letter-spacing: -0.01em;
+  margin-bottom: 1.5rem;
+}
+
+.interrupt-screen__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.25rem;
+  color: var(--on-surface-variant);
+  letter-spacing: 0;
+  margin-bottom: 0.5rem;
+}
+
+.interrupt-screen__sub {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: var(--on-surface-muted);
+  line-height: 1.6;
+}
+
+.interrupt-screen__reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 100%;
+  max-width: 480px;
+}
+
+.interrupt-reason {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 1rem 1.25rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--on-surface);
+  cursor: pointer;
+  text-align: left;
+  transition: background 220ms var(--ease-natural);
+}
+
+.interrupt-reason:hover {
+  background: color-mix(in oklch, var(--primary) 8%, transparent);
+}
+
+.interrupt-reason[value="distracted"]:hover {
+  background: color-mix(in oklch, var(--tertiary) 12%, transparent);
+}
+
+.interrupt-reason[value="blocked"]:hover {
+  background: color-mix(in oklch, var(--secondary) 10%, transparent);
+}
+
+.interrupt-reason[value="emergency"]:hover {
+  background: color-mix(in oklch, var(--error) 10%, transparent);
+}
+
+.interrupt-reason[value="personal"]:hover {
+  background: color-mix(in oklch, var(--primary) 8%, transparent);
+}
+
+.interrupt-reason__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.interrupt-reason__label {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--on-surface);
+}
+
+.interrupt-reason__hint {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 0.75rem;
+  color: var(--on-surface-muted);
+  line-height: 1.4;
+}
+
+/* ── Deed Screen ─────────────────────────────────────────── */
+.deed-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: 2rem 0;
+}
+
+.deed-screen__header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.deed-screen__badge {
+  display: inline-block;
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--secondary);
+  margin-bottom: 1rem;
+}
+
+.deed-screen__quest {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.75rem;
+  color: var(--on-surface);
+  letter-spacing: -0.01em;
+  margin-bottom: 0.5rem;
+}
+
+.deed-screen__streak {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--secondary);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 1.5rem;
+}
+
+.deed-screen__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.25rem;
+  color: var(--on-surface-variant);
+  letter-spacing: 0;
+  margin-bottom: 0.5rem;
+}
+
+.deed-screen__sub {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: var(--on-surface-muted);
+  line-height: 1.6;
+}
+
+.deed-screen__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+  max-width: 480px;
+}
+
+/* Input — engraved underline, no box */
+.deed-screen__input-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.deed-screen__input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+  font-family: var(--font-mono);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--on-surface);
+  text-align: center;
+  padding: 12px 0;
+  outline: none;
+  transition: border-color 400ms var(--ease-natural);
+}
+
+.deed-screen__input:focus {
+  border-bottom-color: rgba(22, 52, 34, 0.4);
+}
+
+.deed-screen__input::placeholder {
+  color: var(--on-surface-muted);
+  opacity: 0.4;
+  font-weight: 500;
+  font-style: italic;
+}
+
+.deed-screen__input-line {
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 1px;
+  background: var(--primary);
+  opacity: 0.5;
+  transition: width 500ms var(--ease-decelerate);
+  pointer-events: none;
+}
+
+.deed-screen__input-wrap--focus .deed-screen__input-line {
+  width: 100%;
+}
+
+/* Forge options — interrupt-reason button pattern */
+.deed-screen__forge {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 100%;
+}
+
+.deed-forge-opt {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 1rem 1.25rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--on-surface);
+  cursor: pointer;
+  text-align: left;
+  transition: background 220ms var(--ease-natural);
+}
+
+.deed-forge-opt:hover {
+  background: color-mix(in oklch, var(--primary) 8%, transparent);
+}
+
+.deed-forge-opt[data-forge="hollow"]:hover {
+  background: color-mix(in oklch, var(--on-surface) 6%, transparent);
+}
+
+.deed-forge-opt[data-forge="berserker"]:hover {
+  background: color-mix(in oklch, var(--secondary) 10%, transparent);
+}
+
+.deed-forge-opt--active {
+  background: color-mix(in oklch, var(--primary) 7%, transparent);
+}
+
+.deed-forge-opt[data-forge="hollow"].deed-forge-opt--active {
+  background: color-mix(in oklch, var(--on-surface) 5%, transparent);
+}
+
+.deed-forge-opt[data-forge="berserker"].deed-forge-opt--active {
+  background: color-mix(in oklch, var(--secondary) 8%, transparent);
+}
+
+.deed-forge-opt__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.deed-forge-opt__label {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--on-surface);
+}
+
+.deed-forge-opt__hint {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 0.75rem;
+  color: var(--on-surface-muted);
+  line-height: 1.4;
+}
+
+.deed-screen__action {
+  margin-top: 0.5rem;
+}
+
+.deed-screen__seal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 14px 32px;
+  background: var(--primary);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--on-primary);
+  transition: background 180ms var(--ease-natural),
+    transform 120ms var(--ease-natural);
+}
+
+.deed-screen__seal:hover {
+  background: var(--primary-container);
+}
+
+.deed-screen__seal:active {
+  transform: scale(0.975);
+  background: var(--primary);
+}
