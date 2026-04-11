@@ -32,4 +32,60 @@
     </article>
     {% endfor %}
   </div>
+
+  <!-- ── War Room ──────────────────────────────────────────────────────── -->
+  <div class="war-room" id="war-room">
+
+    <div class="war-room__header">
+      <h2 class="war-room__title">⚔ War Room</h2>
+      <p class="war-room__desc">Your productivity at a glance</p>
+    </div>
+
+    <!-- Quest Stats -->
+    <h3 class="war-room__section-title">Quest Stats</h3>
+    <div class="war-room__grid">
+      {% for chart in quest_charts %}
+      <div class="war-room__card">
+        <div class="war-room__card-header">
+          <span class="war-room__card-icon">{{ chart.icon }}</span>
+          <div class="war-room__card-meta">
+            <span class="war-room__card-name">{{ chart.name }}</span>
+            <span class="war-room__card-sub">{{ chart.sub }}</span>
+          </div>
+        </div>
+        <div class="war-room__chart-wrap{% if chart.gauge %} war-room__chart-wrap--gauge{% endif %}">
+          <canvas id="chart-{{ chart.id }}"
+                  data-chart='{{ chart.config | tojson }}'></canvas>
+          {% if chart.gauge %}
+          <span class="war-room__gauge-label">{{ chart._center }}</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Focus Stats -->
+    <h3 class="war-room__section-title">Focus Stats</h3>
+    <div class="war-room__grid">
+      {% for chart in focus_charts %}
+      <div class="war-room__card">
+        <div class="war-room__card-header">
+          <span class="war-room__card-icon">{{ chart.icon }}</span>
+          <div class="war-room__card-meta">
+            <span class="war-room__card-name">{{ chart.name }}</span>
+            <span class="war-room__card-sub">{{ chart.sub }}</span>
+          </div>
+        </div>
+        <div class="war-room__chart-wrap{% if chart.gauge %} war-room__chart-wrap--gauge{% endif %}">
+          <canvas id="chart-{{ chart.id }}"
+                  data-chart='{{ chart.config | tojson }}'></canvas>
+          {% if chart.gauge %}
+          <span class="war-room__gauge-label">{{ chart._center }}</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+  </div><!-- /war-room -->
 </div>

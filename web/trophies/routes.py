@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 
+from core.metrics import compute_war_room
 from core.trophy_compute import compute_trophies
 from web.deps import get_quest_repo, get_pomo_repo, get_trophy_repo
 
@@ -48,10 +49,14 @@ async def trophies(
         else:
             t["progress_pct"] = 0
 
+    war_room = compute_war_room(quests, sessions)
+
     response = _render(request, "trophies/panel.html", {
         "trophies": result["trophies"],
         "summary": result["summary"],
         "best_day": result["best_day"],
+        "quest_charts": war_room["quest_charts"],
+        "focus_charts": war_room["focus_charts"],
     })
 
     if new_records:

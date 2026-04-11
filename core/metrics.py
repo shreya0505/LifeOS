@@ -4,6 +4,8 @@ Both compute_metrics (quest-based) and compute_pomo_metrics (pomo-based)
 accept data as parameters — no internal I/O.
 """
 
+from __future__ import annotations
+
 from datetime import datetime, timezone, timedelta
 
 from core.config import POMO_CONFIG
@@ -302,3 +304,321 @@ def compute_pomo_metrics(sessions: list[dict]) -> list[dict]:
             "color": classify_delta(br_d, "up"),
         },
     ]
+
+
+# ── War Room ────────────────────────────────────────────────────────────────
+# Consistent grains — all metrics of the same grain use the same N.
+WEEK_N    = 6   # all week-grain charts
+DAY_D     = 14  # all day-grain charts
+SESSION_M = 10  # all session-grain charts
+
+# Colour tokens (mirror tokens.css)
+_C_GREEN  = "#163422"
+_C_TERRA  = "#95482b"
+_C_SAGE   = "#7a9e7e"
+_C_AMBER  = "#d4943a"
+_C_EMBER  = "#b5493a"
+_C_MUTED  = "#74796c"
+_C_GRID   = "rgba(194,200,192,0.3)"
+_C_FILL_G = "rgba(22,52,34,0.08)"
+_C_FILL_E = "rgba(181,73,58,0.08)"
+_C_EMPTY  = "rgba(194,200,192,0.35)"
+
+
+def _base_opts(index_axis: str | None = None) -> dict:
+    opts: dict = {
+        "responsive": True,
+        "maintainAspectRatio": False,
+        "plugins": {
+            "legend": {"display": False},
+            "tooltip": {"enabled": True},
+        },
+        "scales": {
+            "x": {
+                "grid": {"color": _C_GRID},
+                "ticks": {"color": _C_MUTED, "font": {"size": 11}},
+                "border": {"display": False},
+            },
+            "y": {
+                "grid": {"color": _C_GRID},
+                "ticks": {"color": _C_MUTED, "font": {"size": 11}},
+                "border": {"display": False},
+                "beginAtZero": True,
+            },
+        },
+    }
+    if index_axis:
+        opts["indexAxis"] = index_axis
+    return opts
+
+
+def _week_ranges(now: datetime, n: int) -> list[tuple[datetime, datetime]]:
+    """Last n rolling 7-day windows, oldest first."""
+    return [
+        (now - timedelta(weeks=n - i), now - timedelta(weeks=n - i - 1))
+        for i in range(n)
+    ]
+
+
+def _week_labels(n: int) -> list[str]:
+    labels = []
+    for i in range(n):
+        ago = n - 1 - i
+        if ago == 0:
+            labels.append("This wk")
+        elif ago == 1:
+            labels.append("1w ago")
+        else:
+            labels.append(f"{ago}w ago")
+    return labels
+
+
+def _trend_line(values: list) -> list:
+    """3-point centred moving average for trend overlay."""
+    out = []
+    for i in range(len(values)):
+        window = [x for x in values[max(0, i - 1):i + 2] if x is not None]
+        out.append(round(sum(window) / len(window), 2) if window else None)
+    return out
+
+
+def compute_war_room(quests: list[dict], sessions: list[dict]) -> dict:
+    """Chart configs for the War Room section (below Hall of Valor)."""
+    now      = datetime.now(timezone.utc)
+    wranges  = _week_ranges(now, WEEK_N)
+    wlabels  = _week_labels(WEEK_N)
+
+    day_dates  = [(now - timedelta(days=DAY_D - 1 - i)).date() for i in range(DAY_D)]
+    day_labels = [d.strftime("%-d %b") for d in day_dates]
+
+    done_qs = [q for q in quests if q["status"] == "done" and q.get("completed_at")]
+
+    # ── Quest Chart 1: Weekly Throughput (bar + trend line) ──────────────────
+    throughput = [
+        sum(1 for q in done_qs if ws <= parse_dt(q["completed_at"]) < we)
+        for ws, we in wranges
+    ]
+    qc1 = {
+        "type": "bar",
+        "data": {
+            "labels": wlabels,
+            "datasets": [
+                {
+                    "type": "bar", "label": "Completed", "data": throughput,
+                    "backgroundColor": _C_TERRA, "borderRadius": 4, "order": 2,
+                },
+                {
+                    "type": "line", "label": "Trend", "data": _trend_line(throughput),
+                    "borderColor": _C_GREEN, "borderWidth": 2,
+                    "pointRadius": 3, "pointBackgroundColor": _C_GREEN,
+                    "fill": False, "tension": 0.4, "order": 1,
+                },
+            ],
+        },
+        "options": _base_opts(),
+    }
+
+    # ── Quest Chart 2: Added vs Completed (grouped bar) ──────────────────────
+    added = [
+        sum(1 for q in quests if ws <= parse_dt(q["created_at"]) < we)
+        for ws, we in wranges
+    ]
+    qc2 = {
+        "type": "bar",
+        "data": {
+            "labels": wlabels,
+            "datasets": [
+                {"label": "Added",     "data": added,      "backgroundColor": _C_AMBER, "borderRadius": 4},
+                {"label": "Completed", "data": throughput, "backgroundColor": _C_SAGE,  "borderRadius": 4},
+            ],
+        },
+        "options": _base_opts(),
+    }
+
+    # ── Quest Chart 3: Backlog Age (histogram, snapshot) ─────────────────────
+    open_qs = [q for q in quests if q["status"] in ("log", "active", "blocked")]
+    buckets: list[int] = [0, 0, 0, 0, 0]
+    for q in open_qs:
+        age = (now - parse_dt(q["created_at"])).days
+        if   age <= 3:  buckets[0] += 1
+        elif age <= 7:  buckets[1] += 1
+        elif age <= 14: buckets[2] += 1
+        elif age <= 28: buckets[3] += 1
+        else:           buckets[4] += 1
+
+    qc3 = {
+        "type": "bar",
+        "data": {
+            "labels": ["0–3d", "4–7d", "1–2w", "2–4w", ">4w"],
+            "datasets": [{
+                "label": "Open quests",
+                "data": buckets,
+                "backgroundColor": [_C_SAGE, _C_AMBER, _C_TERRA, _C_EMBER, "#7a1a12"],
+                "borderRadius": 4,
+            }],
+        },
+        "options": _base_opts(),
+    }
+
+    # ── All completed work segments ───────────────────────────────────────────
+    work_segs = [
+        seg for s in sessions
+        for seg in s.get("segments", [])
+        if seg["type"] == "work"
+    ]
+
+    # ── Focus Chart 1: Daily Focus Time (bar, DAY_D days) ────────────────────
+    daily_h = [
+        round(sum(
+            segment_duration(sg) for sg in work_segs
+            if sg.get("completed")
+            and to_local_date(sg.get("started_at", "")) == d.isoformat()
+        ) / 3600, 2)
+        for d in day_dates
+    ]
+    fc1 = {
+        "type": "bar",
+        "data": {
+            "labels": day_labels,
+            "datasets": [{
+                "label": "Hours", "data": daily_h,
+                "backgroundColor": _C_GREEN, "borderRadius": 4,
+            }],
+        },
+        "options": _base_opts(),
+    }
+
+    # ── Focus Chart 2: Weekly Focus Trend (area line, WEEK_N weeks) ──────────
+    weekly_h = []
+    for ws, we in wranges:
+        ws_d, we_d = ws.date().isoformat(), we.date().isoformat()
+        secs = sum(
+            segment_duration(sg) for sg in work_segs
+            if sg.get("completed")
+            and ws_d <= to_local_date(sg.get("started_at", "")) < we_d
+        )
+        weekly_h.append(round(secs / 3600, 2))
+
+    fc2 = {
+        "type": "line",
+        "data": {
+            "labels": wlabels,
+            "datasets": [{
+                "label": "Hours", "data": weekly_h,
+                "borderColor": _C_GREEN, "backgroundColor": _C_FILL_G,
+                "fill": True, "tension": 0.4,
+                "pointRadius": 4, "pointBackgroundColor": _C_GREEN, "borderWidth": 2,
+            }],
+        },
+        "options": _base_opts(),
+    }
+
+    # ── Session-grain (last SESSION_M done sessions) ──────────────────────────
+    done_sess = [s for s in sessions if s.get("status") in ("completed", "stopped")]
+    last_m = done_sess[-SESSION_M:]
+    prev_m = done_sess[-(SESSION_M * 2):-SESSION_M]
+
+    def _avg_p(sl: list) -> float:
+        return round(sum(s.get("actual_pomos", 0) for s in sl) / len(sl), 1) if sl else 0.0
+
+    # ── Focus Chart 3: Session Depth (horizontal bar, SESSION_M sessions) ────
+    opts_fc3 = _base_opts(index_axis="y")
+    opts_fc3["scales"]["x"]["ticks"]["stepSize"] = 1  # type: ignore[index]
+
+    fc3 = {
+        "type": "bar",
+        "data": {
+            "labels": [f"Prev {SESSION_M}", f"Last {SESSION_M}"],
+            "datasets": [{
+                "label": "Avg pomos",
+                "data": [_avg_p(prev_m), _avg_p(last_m)],
+                "backgroundColor": [_C_EMPTY, _C_GREEN],
+                "borderRadius": 4,
+            }],
+        },
+        "options": opts_fc3,
+    }
+
+    # ── Focus Chart 4: Pomo Completion Rate (half-doughnut gauge) ────────────
+    last_m_work = [
+        sg for s in last_m for sg in s.get("segments", []) if sg["type"] == "work"
+    ]
+    cr = (
+        round(sum(1 for sg in last_m_work if sg.get("completed")) / len(last_m_work) * 100)
+        if last_m_work else 0
+    )
+    fc4 = {
+        "type": "doughnut",
+        "data": {
+            "labels": ["Completed", "Abandoned"],
+            "datasets": [{
+                "data": [cr, 100 - cr],
+                "backgroundColor": [_C_SAGE, _C_EMPTY],
+                "borderWidth": 0,
+            }],
+        },
+        "options": {
+            "rotation": -90,
+            "circumference": 180,
+            "cutout": "72%",
+            "responsive": True,
+            "maintainAspectRatio": False,
+            "plugins": {
+                "legend": {"display": False},
+                "tooltip": {"enabled": False},
+            },
+        },
+        "_center": f"{cr}%",
+    }
+
+    # ── Focus Chart 5: Interruption Rate Trend (line, WEEK_N weeks) ──────────
+    ir_weekly: list = []
+    for ws, we in wranges:
+        ws_d, we_d = ws.date().isoformat(), we.date().isoformat()
+        segs = [
+            sg for sg in work_segs
+            if ws_d <= to_local_date(sg.get("started_at", "")) < we_d
+        ]
+        ir_weekly.append(
+            round(sum(sg.get("interruptions", 0) for sg in segs) / len(segs), 2)
+            if segs else None
+        )
+
+    fc5 = {
+        "type": "line",
+        "data": {
+            "labels": wlabels,
+            "datasets": [{
+                "label": "Avg interruptions", "data": ir_weekly,
+                "borderColor": _C_EMBER, "backgroundColor": _C_FILL_E,
+                "fill": True, "tension": 0.4,
+                "pointRadius": 4, "pointBackgroundColor": _C_EMBER, "borderWidth": 2,
+                "spanGaps": True,
+            }],
+        },
+        "options": _base_opts(),
+    }
+
+    return {
+        "quest_charts": [
+            {"id": "weekly-throughput",  "icon": "⚔",  "name": "Weekly Throughput",
+             "sub": f"{WEEK_N} weeks",        "config": qc1},
+            {"id": "added-vs-completed", "icon": "📜", "name": "Added vs Completed",
+             "sub": f"{WEEK_N} weeks",        "config": qc2},
+            {"id": "backlog-age",        "icon": "⏳", "name": "Backlog Age",
+             "sub": "open quests · now",      "config": qc3},
+        ],
+        "focus_charts": [
+            {"id": "daily-focus",       "icon": "🔥", "name": "Daily Focus Time",
+             "sub": f"{DAY_D} days",          "config": fc1},
+            {"id": "weekly-focus",      "icon": "📈", "name": "Weekly Focus Trend",
+             "sub": f"{WEEK_N} weeks",        "config": fc2},
+            {"id": "session-depth",     "icon": "🔨", "name": "Session Depth",
+             "sub": f"{SESSION_M} sessions",  "config": fc3},
+            {"id": "completion-rate",   "icon": "✅", "name": "Pomo Completion Rate",
+             "sub": f"{SESSION_M} sessions",  "config": fc4, "gauge": True,
+             "_center": f"{cr}%"},
+            {"id": "interruption-rate", "icon": "👹", "name": "Interruption Rate",
+             "sub": f"{WEEK_N} weeks",        "config": fc5},
+        ],
+    }

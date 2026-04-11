@@ -4283,3 +4283,116 @@ body::before {
   vertical-align: text-bottom;
   stroke: currentColor;
 }
+
+/* ── War Room ──────────────────────────────────────────────────────────────── */
+
+.war-room {
+  margin-top: var(--space-3xl);
+  padding-top: var(--space-2xl);
+  border-top: 1px solid var(--outline-variant);
+}
+
+.war-room__header {
+  margin-bottom: var(--space-xl);
+}
+
+.war-room__title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--primary);
+  margin: 0 0 var(--space-xs);
+}
+
+.war-room__desc {
+  font-size: var(--text-sm);
+  color: var(--on-surface-muted);
+  margin: 0;
+}
+
+.war-room__section-title {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--on-surface-variant);
+  margin: 0 0 var(--space-md);
+  letter-spacing: 0.01em;
+}
+
+.war-room__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-lg);
+  margin-bottom: var(--space-2xl);
+}
+
+/* Chart card */
+.war-room__card {
+  background: var(--surface-container-lowest);
+  border-radius: var(--radius-xl);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-ambient);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.war-room__card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.war-room__card-icon {
+  font-size: var(--text-xl);
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.war-room__card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.war-room__card-name {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--on-surface);
+  line-height: 1.3;
+}
+
+.war-room__card-sub {
+  font-size: var(--text-xs);
+  color: var(--on-surface-muted);
+}
+
+/* Chart canvas wrapper */
+.war-room__chart-wrap {
+  position: relative;
+  height: 200px;
+}
+
+/* Gauge (half-doughnut) wrapper — shorter height */
+.war-room__chart-wrap--gauge {
+  height: 130px;
+}
+
+.war-room__chart-wrap canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Gauge centre label */
+.war-room__gauge-label {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  color: var(--on-surface);
+  pointer-events: none;
+  line-height: 1;
+}
