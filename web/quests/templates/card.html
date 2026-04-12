@@ -1,9 +1,26 @@
 {% from 'components/icons.html' import icon %}
-<article class="quest-card{% if active_pomo_quest_id and quest.id == active_pomo_quest_id %} quest-card--pomo-active{% endif %}" data-status="{{ quest.status }}" data-id="{{ quest.id }}" data-animate-in>
+<article
+  class="quest-card{% if active_pomo_quest_id and quest.id == active_pomo_quest_id %} quest-card--pomo-active{% endif %}{% if quest.frog %} quest-card--frog{% endif %}"
+  data-status="{{ quest.status }}" data-id="{{ quest.id }}" data-animate-in>
   <div class="quest-card__header">
     <div class="quest-card__left">
       {% if quest.frog %}
-      <span class="quest-card__frog">{{ icon('target', 'icon') }}</span>
+      <span class="quest-card__frog" x-data="{ show: false, posTop: 0, posLeft: 0 }"
+        @mouseenter="show = true; const r = $el.getBoundingClientRect(); posTop = r.bottom + 10; posLeft = r.left + r.width / 2"
+        @mouseleave="show = false">
+        {{ icon('biohazard', 'icon') }}
+        <template x-teleport="body">
+          <span class="frog-tooltip" x-show="show" x-transition:enter="frog-tip-enter"
+            x-transition:enter-start="frog-tip-from" x-transition:enter-end="frog-tip-to"
+            x-transition:leave="frog-tip-leave" x-transition:leave-start="frog-tip-to"
+            x-transition:leave-end="frog-tip-from" :style="{ top: posTop + 'px', left: posLeft + 'px' }" aria-hidden="true">
+            <span class="frog-tooltip__hazard">☣</span>
+            Eat the frog first.<br>
+            Or think about it all day<br>and eat it anyway.<br>
+            <span style="display: block; margin-top: 4px; opacity: 0.7; font-style: italic;">Your choice.</span>
+          </span>
+        </template>
+      </span>
       {% endif %}
       <h3 class="quest-card__title">{{ quest.title }}</h3>
     </div>
@@ -20,29 +37,34 @@
     <button class="segment" title="Block quest" hx-patch="/quests/{{ quest.id }}/status" hx-vals='{"status": "blocked"}'
       hx-target="#quest-board" hx-swap="innerHTML">{{ icon('shield', 'icon') }}</button>
     <button class="segment" title="Mark as frog" hx-patch="/quests/{{ quest.id }}/frog" hx-target="#quest-board"
-      hx-swap="innerHTML">{{ icon('target', 'icon') }}</button>
-    <button class="segment segment--danger" title="Delete" hx-delete="/quests/{{ quest.id }}"
-      hx-target="#quest-board" hx-swap="innerHTML">{{ icon('trash-2', 'icon') }}</button>
+      hx-swap="innerHTML">{{ icon('biohazard', 'icon') }}</button>
+    <button class="segment segment--danger" title="Abandon" hx-post="/quests/{{ quest.id }}/abandon"
+      hx-target="#quest-board" hx-swap="innerHTML">{{ icon('skull', 'icon') }}</button>
     {% elif quest.status == "active" %}
     {% set is_pomo_this = active_pomo_quest_id and quest.id == active_pomo_quest_id %}
     {% set is_pomo_other = active_pomo_quest_id and quest.id != active_pomo_quest_id %}
     <button class="segment segment--active{% if is_pomo_other %} segment--pomo-disabled{% endif %}" title="Start pomo"
-      {% if not is_pomo_other %}hx-post="/pomos/start" hx-vals='{"quest_id": "{{ quest.id }}"}' hx-target="body" hx-swap="beforeend"{% else %}disabled{% endif %}>{{ icon('timer', 'icon') }}</button>
-    <button class="segment{% if is_pomo_this %} segment--pomo-disabled{% endif %}" title="Mark done"
-      {% if is_pomo_this %}disabled{% else %}hx-patch="/quests/{{ quest.id }}/status" hx-vals='{"status": "done"}' hx-target="#quest-board" hx-swap="innerHTML"{% endif %}>{{ icon('check-circle', 'icon') }}</button>
-    <button class="segment{% if is_pomo_this %} segment--pomo-disabled{% endif %}" title="Block quest"
-      {% if is_pomo_this %}disabled{% else %}hx-patch="/quests/{{ quest.id }}/status" hx-vals='{"status": "blocked"}' hx-target="#quest-board" hx-swap="innerHTML"{% endif %}>{{ icon('shield', 'icon') }}</button>
-    <button class="segment{% if is_pomo_this %} segment--pomo-disabled{% endif %}" title="Mark as frog"
-      {% if is_pomo_this %}disabled{% else %}hx-patch="/quests/{{ quest.id }}/frog" hx-target="#quest-board" hx-swap="innerHTML"{% endif %}>{{ icon('target', 'icon') }}</button>
-    <button class="segment segment--danger{% if is_pomo_this %} segment--pomo-disabled{% endif %}" title="Delete"
-      {% if is_pomo_this %}disabled{% else %}hx-delete="/quests/{{ quest.id }}" hx-target="#quest-board" hx-swap="innerHTML"{% endif %}>{{ icon('trash-2', 'icon') }}</button>
+      {% if not is_pomo_other %}hx-post="/pomos/start" hx-vals='{"quest_id": "{{ quest.id }}"}' hx-target="body"
+      hx-swap="beforeend" {% else %}disabled{% endif %}>{{ icon('timer', 'icon') }}</button>
+    <button class="segment{% if is_pomo_this %} segment--pomo-disabled{% endif %}" title="Mark done" {% if is_pomo_this
+      %}disabled{% else %}hx-patch="/quests/{{ quest.id }}/status" hx-vals='{"status": "done"}' hx-target="#quest-board"
+      hx-swap="innerHTML" {% endif %}>{{ icon('check-circle', 'icon') }}</button>
+    <button class="segment{% if is_pomo_this %} segment--pomo-disabled{% endif %}" title="Block quest" {% if
+      is_pomo_this %}disabled{% else %}hx-patch="/quests/{{ quest.id }}/status" hx-vals='{"status": "blocked"}'
+      hx-target="#quest-board" hx-swap="innerHTML" {% endif %}>{{ icon('shield', 'icon') }}</button>
+    <button class="segment{% if is_pomo_this %} segment--pomo-disabled{% endif %}" title="Mark as frog" {% if
+      is_pomo_this %}disabled{% else %}hx-patch="/quests/{{ quest.id }}/frog" hx-target="#quest-board"
+      hx-swap="innerHTML" {% endif %}>{{ icon('biohazard', 'icon') }}</button>
+    <button class="segment segment--danger{% if is_pomo_this %} segment--pomo-disabled{% endif %}" title="Abandon" {% if
+      is_pomo_this %}disabled{% else %}hx-post="/quests/{{ quest.id }}/abandon" hx-target="#quest-board"
+      hx-swap="innerHTML" {% endif %}>{{ icon('skull', 'icon') }}</button>
     {% elif quest.status == "blocked" %}
     <button class="segment" title="Unblock quest" hx-patch="/quests/{{ quest.id }}/status"
       hx-vals='{"status": "active"}' hx-target="#quest-board" hx-swap="innerHTML">{{ icon('flame', 'icon') }}</button>
     <button class="segment" title="Mark as frog" hx-patch="/quests/{{ quest.id }}/frog" hx-target="#quest-board"
-      hx-swap="innerHTML">{{ icon('target', 'icon') }}</button>
-    <button class="segment segment--danger" title="Delete" hx-delete="/quests/{{ quest.id }}"
-      hx-target="#quest-board" hx-swap="innerHTML">{{ icon('trash-2', 'icon') }}</button>
+      hx-swap="innerHTML">{{ icon('biohazard', 'icon') }}</button>
+    <button class="segment segment--danger" title="Abandon" hx-post="/quests/{{ quest.id }}/abandon"
+      hx-target="#quest-board" hx-swap="innerHTML">{{ icon('skull', 'icon') }}</button>
     {% elif quest.status == "done" %}
     {% endif %}
   </div>
