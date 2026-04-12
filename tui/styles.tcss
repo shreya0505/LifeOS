@@ -50,7 +50,7 @@ StatusPane.active-pane {
 /* ── Chronicle Panel (center) ────────────────────────────────── */
 
 #chronicle {
-    width: 2fr;
+    width: 1.5fr;
     border: round #555577;
     border-title-color: #bf40ff;
 }
@@ -66,7 +66,7 @@ StatusPane.active-pane {
 /* ── Trophy Panel (right) ────────────────────────────────────── */
 
 #trophy {
-    width: 1fr;
+    width: 1.5fr;
     border: round #555577;
     border-title-color: #bf40ff;
 }

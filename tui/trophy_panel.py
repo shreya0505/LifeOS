@@ -10,6 +10,7 @@ from textual.containers import ScrollableContainer
 from textual.widget import Widget
 from textual.widgets import Static
 
+from datetime import datetime
 from pathlib import Path
 from core.trophy_compute import compute_trophies
 from core.storage.json_backend import JsonPomoRepo, JsonQuestRepo, JsonTrophyPRRepo
@@ -53,6 +54,20 @@ def _spaced(name: str) -> str:
         else:
             result.append(ch)
     return " ".join(result)
+
+
+def _format_date(date_str: str) -> str:
+    """Format YYYY-MM-DD to '4th April'."""
+    try:
+        dt = datetime.strptime(date_str, "%Y-%m-%d")
+        day = dt.day
+        if 11 <= (day % 100) <= 13:
+            suffix = 'th'
+        else:
+            suffix = ['th', 'st', 'nd', 'rd', 'th'][min(day % 10, 4)]
+        return f"{day}{suffix} {dt.strftime('%B')}"
+    except Exception:
+        return date_str[5:]
 
 
 def _progress_bar(progress: float, target: float, tier: str, width: int = 24) -> Text:
@@ -104,9 +119,6 @@ class TrophyPanel(Widget):
             return
 
         parts: list = []
-        parts.append(Text.from_markup(
-            "\n  [dim]── TODAY'S TROPHIES ────────────────────────[/dim]\n"
-        ))
 
         # Single table for all trophies — consistent column widths
         tbl = Table(box=None, show_header=False, padding=(0, 1), expand=False)
@@ -121,7 +133,7 @@ class TrophyPanel(Widget):
 
             # Row 1: icon | spaced name | tier badge
             tbl.add_row(
-                Text(t["icon"]),
+                Text(t.get("tui_icon", t.get("icon", ""))),
                 Text.from_markup(f"[{color}]{_spaced(t['name'])}[/{color}]"),
                 Text.from_markup(badge),
             )
@@ -146,8 +158,8 @@ class TrophyPanel(Widget):
 
             tbl.add_row(
                 Text(""),
-                Text.from_markup(f"[{color}]{t['progress_label']}[/{color}]"),
-                Text.from_markup(pr_display),
+                Text.from_markup(f"[{color}]{t['progress_label']}[/{color}] [dim]|[/dim] {pr_display}"),
+                Text(""),
             )
 
             # Spacer row
@@ -156,16 +168,12 @@ class TrophyPanel(Widget):
         parts.append(tbl)
 
         # ── Summary footer ────────────────────────────────────────────────
-        parts.append(Text.from_markup(
-            "  [dim]────────────────────────────────────────────[/dim]"
-        ))
-
         gold = summary["gold"]
         silver = summary["silver"]
         bronze = summary["bronze"]
         locked = summary["locked"]
 
-        summary_tbl = Table(box=None, show_header=False, padding=(0, 1), expand=False)
+        summary_tbl = Table(title="────────────────────────────────────────────", title_justify="left", title_style="dim", box=None, show_header=False, padding=(0, 1), expand=False)
         summary_tbl.add_column(min_width=6)
         summary_tbl.add_column()
 
@@ -185,10 +193,11 @@ class TrophyPanel(Widget):
         )
 
         if best_day.get("count", 0) > 0:
+            formatted_date = _format_date(best_day['date'])
             summary_tbl.add_row(
                 Text.from_markup("[dim]Best[/dim]"),
                 Text.from_markup(
-                    f"[dim]{best_day['count']} trophies · {best_day['date'][5:]}[/dim]"
+                    f"[dim]{best_day['count']} trophies · {formatted_date}[/dim]"
                 ),
             )
 

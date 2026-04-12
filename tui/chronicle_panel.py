@@ -5,6 +5,7 @@ from collections import defaultdict
 from core.utils import today_local, to_local_date, fmt_compact, segment_duration
 from core.storage.json_backend import JsonPomoRepo, JsonQuestRepo
 
+from rich.align import Align
 from rich.console import Group
 from rich.markup import escape
 from rich.table import Table
@@ -288,7 +289,7 @@ class ChroniclePanel(Widget):
             return
 
         parts: list = []
-        sep = "  [dim]─────────────────────────────────────────────────[/dim]"
+        sep = "[dim]─────────────────────────────────────────────────[/dim]"
         self._render_hero(parts, d)
         parts.append(Text.from_markup(sep))
         parts.append(Text(""))
@@ -301,7 +302,7 @@ class ChroniclePanel(Widget):
         self._render_berserker_log(parts, d)
         parts.append(Text(""))
         self._render_records(parts, d)
-        self._update_renderable(Group(*parts))
+        self._update_renderable(Align.center(Group(*parts)))
 
     def _update_renderable(self, content) -> None:
         try:
@@ -310,13 +311,13 @@ class ChroniclePanel(Widget):
             pass
 
     def _render_empty(self) -> None:
-        self._update_renderable(Text.from_markup(
+        self._update_renderable(Align.center(Text.from_markup(
             "\n\n\n"
-            "  [dim]Your chronicle awaits.[/dim]\n\n"
-            "  [dim]Complete your first pomodoro to begin[/dim]\n"
-            "  [dim]forging your legend.[/dim]\n\n"
-            "  [dim]Select a quest  →  press [bold]t[/bold] to start 🍅[/dim]"
-        ))
+            "[dim]Your chronicle awaits.[/dim]\n\n"
+            "[dim]Complete your first pomodoro to begin[/dim]\n"
+            "[dim]forging your legend.[/dim]\n\n"
+            "[dim]Select a quest  →  press [bold]t[/bold] to start 🍅[/dim]"
+        )))
 
     # ── Hero number ───────────────────────────────────────────────────────
 
@@ -324,8 +325,8 @@ class ChroniclePanel(Widget):
         n = d["today_pomos"]
         color = "bold green" if n > 0 else "dim"
         parts.append(Text.from_markup(
-            f"\n  [{color}]            🍅  {n}[/{color}]\n"
-            f"  [dim]        pomos forged today[/dim]\n"
+            f"\n[{color}]🍅  {n}[/{color}]\n"
+            f"[dim]pomos forged today[/dim]\n"
         ))
 
     # ── Four metrics row ──────────────────────────────────────────────────
@@ -377,7 +378,7 @@ class ChroniclePanel(Widget):
 
     def _render_week(self, parts: list, d: dict) -> None:
         parts.append(Text.from_markup(
-            "  [dim]── THIS WEEK ─────────────────────────────────[/dim]\n"
+            "[dim]── THIS WEEK ─────────────────────────────────[/dim]\n"
         ))
 
         today_date = today_local()
@@ -415,7 +416,7 @@ class ChroniclePanel(Widget):
         wk_quality = d["quality_cur"]
         qstr = f"{wk_quality:.0f}%" if wk_quality is not None else "—"
         parts.append(Text.from_markup(
-            f"\n  [dim]{wt} 🍅  ·  {wq} 🏆 conquered  ·  {qstr} clean[/dim]\n"
+            f"\n[dim]{wt} 🍅  ·  {wq} 🏆 conquered  ·  {qstr} clean[/dim]\n"
         ))
 
         # Focus / Rest bars
@@ -464,7 +465,7 @@ class ChroniclePanel(Widget):
             return
 
         parts.append(Text.from_markup(
-            "  [dim]── TODAY'S DEEDS ─────────────────────────────[/dim]\n"
+            "[dim]── TODAY'S DEEDS ─────────────────────────────[/dim]\n"
         ))
 
         deed_tbl = Table(box=None, show_header=False, padding=(0, 1), expand=False)
@@ -532,7 +533,7 @@ class ChroniclePanel(Widget):
             return
 
         parts.append(Text.from_markup(
-            "  [dim]── ⚡ FORGE LOG ──────────────────────────────[/dim]\n"
+            "[dim]── ⚡ FORGE LOG ──────────────────────────────[/dim]\n"
         ))
 
         log_tbl = Table(box=None, show_header=False, padding=(0, 1), expand=False)
@@ -562,7 +563,7 @@ class ChroniclePanel(Widget):
             return
 
         parts.append(Text.from_markup(
-            "  [dim]── 🏆 HALL OF RECORDS ───────────────────────[/dim]\n"
+            "[dim]── 🏆 HALL OF RECORDS ───────────────────────[/dim]\n"
         ))
 
         rec_tbl = Table(box=None, show_header=False, padding=(0, 1), expand=False)
