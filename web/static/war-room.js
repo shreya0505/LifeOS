@@ -23,6 +23,39 @@
     Chart.defaults.plugins.tooltip.boxHeight        = 8;
   }
 
+  // Inject Chart.js animation config (functions can't be JSON-serialised server-side)
+  function applyAnimation(config) {
+    config.options = config.options || {};
+    var type = config.type;
+
+    // Base animation — all chart types
+    config.options.animation = Object.assign(config.options.animation || {}, {
+      duration: 700,
+      easing: 'easeOutQuart',
+    });
+
+    if (type === 'bar') {
+      // Stagger bars left-to-right; datasets animate together per index
+      config.options.animation.delay = function (ctx) {
+        return ctx.type === 'data' ? ctx.dataIndex * 55 : 0;
+      };
+    }
+
+    if (type === 'line') {
+      // Stagger points along the line
+      config.options.animation.delay = function (ctx) {
+        return ctx.type === 'data' ? ctx.dataIndex * 35 : 0;
+      };
+    }
+
+    if (type === 'doughnut') {
+      config.options.animation.animateRotate = true;
+      config.options.animation.animateScale  = false;
+    }
+
+    return config;
+  }
+
   function initWarRoomCharts() {
     if (!window.Chart) return;
     applyGlobalDefaults();
@@ -44,6 +77,7 @@
       // Strip private underscore keys before passing to Chart.js
       delete config._center;
 
+      applyAnimation(config);
       new Chart(canvas, config);
     });
   }

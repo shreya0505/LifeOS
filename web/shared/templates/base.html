@@ -115,8 +115,7 @@
 
       // Close overlays on Escape
       if (e.key === 'Escape') {
-        const overlay = document.getElementById('dashboard-panel')
-          || document.getElementById('pomo-panel')
+        const overlay = document.getElementById('pomo-panel')
           || document.querySelector('.pomo-overlay');
         if (overlay) { overlay.remove(); return; }
         const confirm = document.getElementById('confirm-slot');
@@ -131,14 +130,6 @@
           const input = document.querySelector('.add-quest-form__input');
           if (input) input.focus();
         }, 50);
-      }
-
-      // d — open dashboard
-      if (e.key === 'd' && !e.ctrlKey && !e.metaKey) {
-        const existing = document.getElementById('dashboard-panel');
-        if (!existing) {
-          htmx.ajax('GET', '/dashboard', { target: 'body', swap: 'beforeend' });
-        }
       }
 
       // r — open receipt

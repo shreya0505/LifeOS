@@ -1,48 +1,124 @@
 {% from 'components/icons.html' import icon %}
-<div class="pomo-gate break-gate">
-  <h3 class="gate__prompt">Your forge cools. Choose your rest.</h3>
+<div class="chrono-timer">
 
-  {% if actual_pomos %}
-    <p class="gate__hint">{{ icon('timer', 'icon') }} {{ actual_pomos }} pomo{{ "s" if actual_pomos != 1 else "" }} forged
-    {% if streak > 1 %} · {{ icon('flame', 'icon') }} streak × {{ streak }}{% endif %}
-    </p>
-  {% endif %}
-
-  <div class="break-gate__options">
-    <button class="btn btn--sage"
-            hx-post="/pomos/break"
-            hx-vals='{"choice": "short"}'
-            hx-target="#pomo-panel"
-            hx-swap="outerHTML">
-      ☕ Short ({{ config.short_break_secs // 60 }}m)
-    </button>
-    <button class="btn btn--sage"
-            hx-post="/pomos/break"
-            hx-vals='{"choice": "extended"}'
-            hx-target="#pomo-panel"
-            hx-swap="outerHTML">
-      ☕ Extended ({{ config.extended_break_secs // 60 }}m)
-    </button>
-    <button class="btn btn--sage"
-            hx-post="/pomos/break"
-            hx-vals='{"choice": "long"}'
-            hx-target="#pomo-panel"
-            hx-swap="outerHTML">
-      {{ icon('moon', 'icon') }} Long ({{ config.long_break_secs // 60 }}m)
-    </button>
-    <button class="btn btn--ghost"
-            hx-post="/pomos/break"
-            hx-vals='{"choice": "skip"}'
-            hx-target="#pomo-panel"
-            hx-swap="outerHTML">
-      ⏩ Skip Break
-    </button>
-    <button class="btn btn--ghost"
-            hx-post="/pomos/break"
-            hx-vals='{"choice": "end"}'
-            hx-target="#pomo-panel"
-            hx-swap="outerHTML">
-      ✕ End Session
-    </button>
+  <!-- Ambient atmospheric orbs -->
+  <div class="chrono-timer__ambient" aria-hidden="true">
+    <div class="chrono-timer__orb chrono-timer__orb--primary"></div>
+    <div class="chrono-timer__orb chrono-timer__orb--secondary"></div>
   </div>
+
+  <!-- Header -->
+  <div class="chrono-timer__header">
+    <span class="chrono-timer__chapter-label">Forge Cools</span>
+    <h2 class="chrono-timer__chapter-title">Choose Your Rest</h2>
+  </div>
+
+  <!-- 3-column ritual grid -->
+  <div class="chrono-timer__grid">
+
+    <!-- ─── Left: Stats Rail ─── -->
+    <div class="chrono-timer__rail">
+      <div class="chrono-timer__phase-list">
+        <div class="chrono-timer__phase chrono-timer__phase--active">
+          <span class="chrono-timer__phase-name">
+            {{ icon('timer', 'icon') }}
+            {% if actual_pomos %}
+              {{ actual_pomos }} pomo{{ "s" if actual_pomos != 1 else "" }} forged
+            {% else %}
+              Session complete
+            {% endif %}
+          </span>
+        </div>
+        {% if streak > 1 %}
+        <div class="chrono-timer__phase chrono-timer__phase--upcoming">
+          <span class="chrono-timer__phase-name">
+            {{ icon('flame', 'icon') }} Streak &times; {{ streak }}
+          </span>
+        </div>
+        {% endif %}
+        <div class="chrono-timer__phase chrono-timer__phase--upcoming">
+          <span class="chrono-timer__phase-name">Rest phase</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Center: CTA Buttons ─── -->
+    <div class="chrono-timer__center">
+      <div class="chrono-timer__actions-col" style="width: 100%; max-width: 320px;">
+        <div class="chrono-timer__interventions">
+          <span class="chrono-timer__label-micro">Choose rest</span>
+
+          <button class="chrono-timer__btn-swift"
+                  hx-post="/pomos/break"
+                  hx-vals='{"choice": "short"}'
+                  hx-target="#pomo-panel"
+                  hx-swap="outerHTML">
+            <span class="chrono-timer__btn-label">Short ({{ config.short_break_secs // 60 }}m)</span>
+            <span class="chrono-timer__btn-icon">☕</span>
+          </button>
+
+          <button class="chrono-timer__btn-swift"
+                  hx-post="/pomos/break"
+                  hx-vals='{"choice": "extended"}'
+                  hx-target="#pomo-panel"
+                  hx-swap="outerHTML">
+            <span class="chrono-timer__btn-label">Extended ({{ config.extended_break_secs // 60 }}m)</span>
+            <span class="chrono-timer__btn-icon">☕</span>
+          </button>
+
+          <button class="chrono-timer__btn-swift"
+                  hx-post="/pomos/break"
+                  hx-vals='{"choice": "long"}'
+                  hx-target="#pomo-panel"
+                  hx-swap="outerHTML">
+            <span class="chrono-timer__btn-label">Long ({{ config.long_break_secs // 60 }}m)</span>
+            <span class="chrono-timer__btn-icon">{{ icon('moon', 'icon') }}</span>
+          </button>
+        </div>
+
+        <hr class="chrono-timer__divider">
+
+        <div class="chrono-timer__interventions">
+          <span class="chrono-timer__label-micro">Or continue</span>
+
+          <button class="chrono-timer__btn-interrupt"
+                  hx-post="/pomos/break"
+                  hx-vals='{"choice": "skip"}'
+                  hx-target="#pomo-panel"
+                  hx-swap="outerHTML">
+            <span class="chrono-timer__btn-label chrono-timer__btn-label--ghost">Skip Break</span>
+            <span class="chrono-timer__btn-icon chrono-timer__btn-icon--ghost">⏩</span>
+          </button>
+
+          <button class="chrono-timer__btn-interrupt"
+                  hx-post="/pomos/break"
+                  hx-vals='{"choice": "end"}'
+                  hx-target="#pomo-panel"
+                  hx-swap="outerHTML">
+            <span class="chrono-timer__btn-label chrono-timer__btn-label--ghost">End Session</span>
+            <span class="chrono-timer__btn-icon chrono-timer__btn-icon--ghost">✕</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Right: Charge + Deed Recap ─── -->
+    <div class="chrono-timer__actions-col">
+      {% if last_charge %}
+      <div class="chrono-timer__charge">
+        <span class="chrono-timer__charge-label">Your Charge</span>
+        <p class="chrono-timer__charge-text">"{{ last_charge }}"</p>
+      </div>
+      {% endif %}
+
+      {% if last_deed %}
+      <div class="chrono-timer__charge" style="margin-top: 20px;">
+        <span class="chrono-timer__charge-label">Your Deed</span>
+        <p class="chrono-timer__charge-text">"{{ last_deed }}"</p>
+      </div>
+      {% endif %}
+    </div>
+
+  </div>
+
 </div>

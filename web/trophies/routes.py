@@ -17,7 +17,11 @@ def _render(request: Request, name: str, context: dict):
     return templates.TemplateResponse(request, name, context)
 
 
-
+def _compute(sessions, quests, prs):
+    result, updated_prs = compute_trophies(sessions, quests, prs)
+    for t in result["trophies"]:
+        t["progress_pct"] = min(int(t["progress"] / t["target"] * 100), 100) if t["target"] > 0 else 0
+    return result, updated_prs
 
 
 @router.get("/trophies", response_class=HTMLResponse)
@@ -30,24 +34,12 @@ async def trophies(
     sessions = await pomo_repo.load_all()
     quests = await quest_repo.load_all()
     prs = await trophy_repo.load_prs()
-    old_prs = dict(prs)  # snapshot before compute
+    old_prs = dict(prs)
 
-    result, updated_prs = compute_trophies(sessions, quests, prs)
+    result, updated_prs = _compute(sessions, quests, prs)
     await trophy_repo.save_prs(updated_prs)
 
-    # Detect newly earned/improved personal records
-    new_records = any(
-        updated_prs.get(k) != old_prs.get(k)
-        for k in updated_prs
-    )
-
-    # Add tier icons for template
-    for t in result["trophies"]:
-        # Compute progress percentage for bar
-        if t["target"] > 0:
-            t["progress_pct"] = min(int(t["progress"] / t["target"] * 100), 100)
-        else:
-            t["progress_pct"] = 0
+    new_records = any(updated_prs.get(k) != old_prs.get(k) for k in updated_prs)
 
     war_room = compute_war_room(quests, sessions)
 
@@ -62,3 +54,22 @@ async def trophies(
     if new_records:
         response.headers["HX-Trigger"] = "trophy-earned"
     return response
+
+
+@router.get("/trophies/strip", response_class=HTMLResponse)
+async def trophies_strip(
+    request: Request,
+    quest_repo=Depends(get_quest_repo),
+    pomo_repo=Depends(get_pomo_repo),
+    trophy_repo=Depends(get_trophy_repo),
+):
+    sessions = await pomo_repo.load_all()
+    quests = await quest_repo.load_all()
+    prs = await trophy_repo.load_prs()
+
+    result, updated_prs = _compute(sessions, quests, prs)
+    await trophy_repo.save_prs(updated_prs)
+
+    return _render(request, "trophies/strip.html", {
+        "trophies": result["trophies"],
+    })

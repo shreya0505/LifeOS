@@ -71,7 +71,7 @@ async def test_chronicle_with_pomo(client):
     assert r.status_code == 200
     assert "Fix the bug" in r.text
     assert "Bug fixed" in r.text
-    assert "1 today" in r.text
+    assert "tl-entry" in r.text
 
 
 @pytest.mark.asyncio
@@ -103,16 +103,16 @@ async def test_trophies_with_pomo(client):
     r = await client.get("/trophies")
     assert r.status_code == 200
     assert "valor-card" in r.text
-    # Scribe should have at least bronze (1 documented pomo)
-    assert "Scribe" in r.text
+    # Forge Master should have at least bronze (1 pomo)
+    assert "Forge Master" in r.text
 
 
 @pytest.mark.asyncio
 async def test_trophies_shows_all_seven(client):
     r = await client.get("/trophies")
     assert r.status_code == 200
-    for name in ["Frog Slayer", "Swamp Clearer", "Forge Master",
-                 "Untouchable", "Quest Closer", "Scribe", "Ironclad"]:
+    for name in ["Frog Slayer", "Forge Master", "Dawn Forge",
+                 "Berserker", "Ghost Mode", "Deep Siege", "Sabbath", "Zero Debt"]:
         assert name in r.text
 
 
@@ -129,7 +129,7 @@ async def test_trophies_frog_slayer_unlocks(client):
     assert r.status_code == 200
     # Should have at least a bronze frog slayer
     assert "Frog Slayer" in r.text
-    assert "Mastered" in r.text or "Earned" in r.text or "Legacy" in r.text
+    assert "Bronze" in r.text or "Earned" in r.text
 
 
 # ── Dashboard ────────────────────────────────────────────────────────────

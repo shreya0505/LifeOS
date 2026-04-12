@@ -1,6 +1,64 @@
 {% from 'components/icons.html' import icon %}
 <div class="board">
   {% for col in columns %}
+
+  {% if col.status == "done" %}
+  <!-- Done column: collapsed by default, expand on click, state in localStorage -->
+  <div class="column column--done" id="col-done" data-animate-in
+       x-data="{ expanded: localStorage.getItem('done-expanded') === 'true' }">
+
+    <div class="column__header column__header--clickable"
+         @click="expanded = !expanded; localStorage.setItem('done-expanded', expanded)">
+      <h2 class="column__title">{{ icon(col.icon, 'icon') }} {{ col.label }}</h2>
+      <div class="column__header-end">
+        <span class="column__count">{{ col.quests | length }}</span>
+        <span class="column__chevron">
+          <span x-show="!expanded">{{ icon('chevron-down', 'icon') }}</span>
+          <span x-show="expanded">{{ icon('chevron-up', 'icon') }}</span>
+        </span>
+      </div>
+    </div>
+
+    <div class="column__body" id="col-body-done" x-show="expanded" x-collapse>
+      {% if col.quests %}
+        {% for quest in col.quests %}
+          {% set quest_stale = not quest.done_today %}
+          <article class="quest-card{% if quest_stale %} quest-card--stale{% endif %}"
+                   data-status="{{ quest.status }}" data-id="{{ quest.id }}" data-animate-in>
+            <div class="quest-card__header">
+              <div class="quest-card__left">
+                {% if quest.frog %}<span class="quest-card__frog">{{ icon('target', 'icon') }}</span>{% endif %}
+                <h3 class="quest-card__title">{{ quest.title }}</h3>
+              </div>
+              <span class="quest-card__meta">
+                {% if quest.elapsed %}{{ quest.elapsed }}{% endif %}
+                {% if quest.pomo_count %} · {{ icon('timer', 'icon') }}{{ quest.pomo_count }}{% endif %}
+              </span>
+            </div>
+            <!-- No actions for done quests -->
+          </article>
+        {% endfor %}
+      {% else %}
+        <p class="column__empty">{{ col.empty_text }}</p>
+      {% endif %}
+    </div>
+
+    <!-- Collapsed summary: today's wins vs older -->
+    <div class="column__collapsed-summary" x-show="!expanded">
+      {% set done_today_count = col.quests | selectattr("done_today") | list | length %}
+      {% set stale_count = col.quests | length - done_today_count %}
+      {% if done_today_count > 0 %}
+      <span class="column__done-today">{{ done_today_count }} today</span>
+      {% endif %}
+      {% if stale_count > 0 %}
+      <span class="column__done-stale">+ {{ stale_count }} carried</span>
+      {% endif %}
+    </div>
+
+  </div>
+
+  {% else %}
+  <!-- Normal column -->
   <div class="column" id="col-{{ col.status }}" data-animate-in>
     <div class="column__header">
       <h2 class="column__title">{{ icon(col.icon, 'icon') }} {{ col.label }}</h2>
@@ -16,5 +74,7 @@
       {% endif %}
     </div>
   </div>
+  {% endif %}
+
   {% endfor %}
 </div>

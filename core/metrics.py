@@ -150,20 +150,7 @@ def compute_pomo_metrics(sessions: list[dict]) -> list[dict]:
     cr_prev = _rate(prev_20)
     cr_d    = (cr_cur - cr_prev) if None not in (cr_cur, cr_prev) else None
 
-    # ── 3. Plan Accuracy: % of last 10 sessions where actual <= target ────────
-    def _plan_acc(sess_list):
-        if not sess_list:
-            return None
-        return round(
-            sum(1 for s in sess_list if s.get("actual_pomos", 0) <= s.get("target_pomos", 0))
-            / len(sess_list) * 100
-        )
-
-    pa_cur  = _plan_acc(sessions[-10:])
-    pa_prev = _plan_acc(sessions[-20:-10])
-    pa_d    = (pa_cur - pa_prev) if None not in (pa_cur, pa_prev) else None
-
-    # ── 4. Longest Focus Streak ───────────────────────────────────────────────
+    # ── 3. Longest Focus Streak ───────────────────────────────────────────────
     streak = max_streak = 0
     for seg in all_work_segs:
         if seg.get("completed"):
@@ -172,7 +159,7 @@ def compute_pomo_metrics(sessions: list[dict]) -> list[dict]:
         else:
             streak = 0
 
-    # ── 5. Interruption Rate: avg interruptions per work segment ─────────────
+    # ── 4. Interruption Rate: avg interruptions per work segment ─────────────
     def _avg_interruptions(segs):
         if not segs:
             return None
@@ -189,7 +176,7 @@ def compute_pomo_metrics(sessions: list[dict]) -> list[dict]:
     else:
         ir_delta = f"{ir_d:+.2f}/heat vs prev 20"
 
-    # ── 6. Break Compliance ───────────────────────────────────────────────────
+    # ── 5. Break Compliance ───────────────────────────────────────────────────
     done_sessions = [s for s in sessions if s.get("status") in ("completed", "stopped")]
 
     def _break_compliance(sess_list):
@@ -256,14 +243,6 @@ def compute_pomo_metrics(sessions: list[dict]) -> list[dict]:
             "color": classify_delta(cr_d, "up"),
         },
         {
-            "icon": "🔮", "name": "Oracle's Aim",
-            "value": f"{pa_cur}%" if pa_cur is not None else "—",
-            "context": "last 10 sessions",
-            "delta": fmt_delta_count(pa_d, "vs prev 10", unit="%") if pa_d is not None else "not enough data",
-            "arrow": delta_arrow(pa_d),
-            "color": classify_delta(pa_d, "up"),
-        },
-        {
             "icon": "⛓", "name": "Flame Chain",
             "value": f"{max_streak} heats",
             "context": "longest unbroken streak",
@@ -322,6 +301,8 @@ _C_MUTED  = "#74796c"
 _C_GRID   = "rgba(194,200,192,0.3)"
 _C_FILL_G = "rgba(22,52,34,0.08)"
 _C_FILL_E = "rgba(181,73,58,0.08)"
+_C_FILL_A = "rgba(212,148,58,0.10)"
+_C_FILL_S = "rgba(122,158,126,0.10)"
 _C_EMPTY  = "rgba(194,200,192,0.35)"
 
 
@@ -575,14 +556,21 @@ def compute_war_room(quests: list[dict], sessions: list[dict]) -> dict:
     ir_weekly: list = []
     for ws, we in wranges:
         ws_d, we_d = ws.date().isoformat(), we.date().isoformat()
+        had_sessions = any(
+            ws_d <= to_local_date(s.get("started_at", "")) < we_d
+            for s in sessions
+        )
         segs = [
             sg for sg in work_segs
             if ws_d <= to_local_date(sg.get("started_at", "")) < we_d
         ]
-        ir_weekly.append(
-            round(sum(sg.get("interruptions", 0) for sg in segs) / len(segs), 2)
-            if segs else None
-        )
+        if had_sessions:
+            ir_weekly.append(
+                round(sum(sg.get("interruptions", 0) for sg in segs) / len(segs), 2)
+                if segs else 0
+            )
+        else:
+            ir_weekly.append(None)
 
     fc5 = {
         "type": "line",
@@ -599,26 +587,153 @@ def compute_war_room(quests: list[dict], sessions: list[dict]) -> dict:
         "options": _base_opts(),
     }
 
+    # ── Focus Chart 6: Berserker Rate Trend (line, WEEK_N weeks) ─────────────
+    berserker_weekly: list = []
+    for ws, we in wranges:
+        ws_d, we_d = ws.date().isoformat(), we.date().isoformat()
+        had_sessions = any(
+            ws_d <= to_local_date(s.get("started_at", "")) < we_d
+            for s in sessions
+        )
+        completed_segs = [
+            sg for sg in work_segs
+            if sg.get("completed")
+            and ws_d <= to_local_date(sg.get("started_at", "")) < we_d
+        ]
+        if had_sessions:
+            berserker_weekly.append(
+                round(sum(1 for sg in completed_segs if sg.get("forge_type") == "berserker")
+                      / len(completed_segs) * 100, 1)
+                if completed_segs else 0
+            )
+        else:
+            berserker_weekly.append(None)
+
+    fc6 = {
+        "type": "line",
+        "data": {
+            "labels": wlabels,
+            "datasets": [{
+                "label": "Berserker %", "data": berserker_weekly,
+                "borderColor": _C_AMBER, "backgroundColor": _C_FILL_A,
+                "fill": True, "tension": 0.4,
+                "pointRadius": 4, "pointBackgroundColor": _C_AMBER, "borderWidth": 2,
+                "spanGaps": True,
+            }],
+        },
+        "options": _base_opts(),
+    }
+
+    # ── Focus Chart 7: Break Compliance Trend (line, WEEK_N weeks) ───────────
+    break_compliance_weekly: list = []
+    for ws, we in wranges:
+        ws_d, we_d = ws.date().isoformat(), we.date().isoformat()
+        week_sessions = [
+            s for s in sessions
+            if s.get("status") in ("completed", "stopped")
+            and ws_d <= to_local_date(s.get("started_at", "")) < we_d
+        ]
+        scheduled = taken = 0
+        for s in week_sessions:
+            segs = s.get("segments", [])
+            for i, seg in enumerate(segs):
+                if seg["type"] == "work" and seg.get("completed"):
+                    scheduled += 1
+                    if i + 1 < len(segs) and segs[i + 1]["type"] in ("short_break", "long_break"):
+                        taken += 1
+        if week_sessions:
+            break_compliance_weekly.append(round(taken / scheduled * 100) if scheduled else 0)
+        else:
+            break_compliance_weekly.append(None)
+
+    fc7 = {
+        "type": "line",
+        "data": {
+            "labels": wlabels,
+            "datasets": [{
+                "label": "Break compliance %", "data": break_compliance_weekly,
+                "borderColor": _C_SAGE, "backgroundColor": _C_FILL_S,
+                "fill": True, "tension": 0.4,
+                "pointRadius": 4, "pointBackgroundColor": _C_SAGE, "borderWidth": 2,
+                "spanGaps": True,
+            }],
+        },
+        "options": _base_opts(),
+    }
+
     return {
         "quest_charts": [
-            {"id": "weekly-throughput",  "icon": "sword",       "name": "Weekly Throughput",
-             "sub": f"{WEEK_N} weeks",        "config": qc1},
-            {"id": "added-vs-completed", "icon": "scroll",      "name": "Added vs Completed",
-             "sub": f"{WEEK_N} weeks",        "config": qc2},
-            {"id": "backlog-age",        "icon": "hourglass",   "name": "Backlog Age",
-             "sub": "open quests · now",      "config": qc3},
+            {
+                "id": "weekly-throughput", "icon": "sword", "name": "Throughput",
+                "sub": f"{WEEK_N} weeks",
+                "desc": "Completed per week + trend line.",
+                "tip": "Falling bars + growing backlog = execution gap.",
+                "config": qc1,
+            },
+            {
+                "id": "added-vs-completed", "icon": "scroll", "name": "Intake vs Output",
+                "sub": f"{WEEK_N} weeks",
+                "desc": "Added (amber) vs completed (sage) weekly.",
+                "tip": "Amber above sage = backlog growing.",
+                "config": qc2,
+            },
+            {
+                "id": "backlog-age", "icon": "hourglass", "name": "Backlog Age",
+                "sub": "snapshot",
+                "desc": "Age distribution of open quests.",
+                "tip": "Past 2 weeks? Kill or timebox.",
+                "config": qc3,
+            },
         ],
         "focus_charts": [
-            {"id": "daily-focus",       "icon": "flame",        "name": "Daily Focus Time",
-             "sub": f"{DAY_D} days",          "config": fc1},
-            {"id": "weekly-focus",      "icon": "trending-up",  "name": "Weekly Focus Trend",
-             "sub": f"{WEEK_N} weeks",        "config": fc2},
-            {"id": "session-depth",     "icon": "hammer",       "name": "Session Depth",
-             "sub": f"{SESSION_M} sessions",  "config": fc3},
-            {"id": "completion-rate",   "icon": "check-circle", "name": "Pomo Completion Rate",
-             "sub": f"{SESSION_M} sessions",  "config": fc4, "gauge": True,
-             "_center": f"{cr}%"},
-            {"id": "interruption-rate", "icon": "triangle-alert", "name": "Interruption Rate",
-             "sub": f"{WEEK_N} weeks",        "config": fc5},
+            {
+                "id": "daily-focus", "icon": "flame", "name": "Daily Focus",
+                "sub": f"{DAY_D} days",
+                "desc": "Deep-work hours per day.",
+                "tip": "Consistency > volume.",
+                "config": fc1,
+            },
+            {
+                "id": "weekly-focus", "icon": "trending-up", "name": "Weekly Trend",
+                "sub": f"{WEEK_N} weeks",
+                "desc": "Total focus hours per week. Slope > absolute.",
+                "tip": "Rising = compounding. Flat = plateau.",
+                "config": fc2,
+            },
+            {
+                "id": "session-depth", "icon": "hammer", "name": "Session Depth",
+                "sub": f"{SESSION_M} sessions",
+                "desc": f"Avg pomos: prev {SESSION_M} vs last {SESSION_M}.",
+                "tip": "Deeper sessions = less ramp-up cost.",
+                "config": fc3,
+            },
+            {
+                "id": "completion-rate", "icon": "check-circle", "name": "Completion Rate",
+                "sub": f"last {SESSION_M} sessions",
+                "desc": "% of started pomos fully completed.",
+                "tip": "Below 80% = too many interruptions.",
+                "config": fc4, "gauge": True, "_center": f"{cr}%",
+            },
+            {
+                "id": "interruption-rate", "icon": "triangle-alert", "name": "Interruptions",
+                "sub": f"{WEEK_N} weeks",
+                "desc": "Avg interruptions per work segment.",
+                "tip": "Any value > 0 costs recovery time.",
+                "config": fc5,
+            },
+            {
+                "id": "berserker-rate", "icon": "zap", "name": "Berserker Rate",
+                "sub": f"{WEEK_N} weeks",
+                "desc": "% of pomos that pushed past the timer.",
+                "tip": "10\u201330% healthy. Higher = timer too short.",
+                "config": fc6,
+            },
+            {
+                "id": "break-compliance", "icon": "moon", "name": "Break Compliance",
+                "sub": f"{WEEK_N} weeks",
+                "desc": "% of pomos followed by a break.",
+                "tip": "90%+ sustains output across the day.",
+                "config": fc7,
+            },
         ],
     }

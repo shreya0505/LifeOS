@@ -1,0 +1,14 @@
+{% from 'components/icons.html' import icon %}
+<div class="trophy-strip" id="trophy-strip-inner">
+  {% for t in trophies %}
+  {% set earned = t.tier in ('gold', 'silver', 'bronze', 'earned') %}
+  <div class="trophy-badge trophy-badge--{{ t.tier }} trophy-badge--color-{{ t.color }}">
+    <span class="trophy-badge__icon">{{ icon(t.icon, 'icon') }}</span>
+    {% if earned %}<span class="trophy-badge__glow" aria-hidden="true"></span>{% endif %}
+    <div class="trophy-hint trophy-hint--{{ 'earned' if earned else 'locked' }}">
+      <span class="trophy-hint__name">{{ t.name }}</span>
+      <span class="trophy-hint__status">{{ t.progress_label }}</span>
+    </div>
+  </div>
+  {% endfor %}
+</div>

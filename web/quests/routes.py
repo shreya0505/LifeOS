@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
 from core.config import VALID_SOURCES
-from core.utils import fantasy_date, format_duration, get_elapsed, today_local
+from core.utils import fantasy_date, format_duration, get_elapsed, today_local, to_local_date
 from core.pomo_queries import get_all_pomo_counts_today
 from web.deps import get_quest_repo, get_pomo_repo
 from web.pomos.engine import get_engine as _get_pomo_engine
@@ -36,12 +36,16 @@ async def _build_board_context(quest_repo, pomo_repo) -> list[dict]:
     sessions = await pomo_repo.load_all()
     pomo_counts = get_all_pomo_counts_today(sessions)
 
+    today_str = today_local().isoformat()
     by_status: dict[str, list[dict]] = {c["status"]: [] for c in _COLUMNS}
     for q in quests:
         enriched = dict(q)
         elapsed = get_elapsed(q)
         enriched["elapsed"] = format_duration(elapsed).lstrip("⏱ ") if elapsed and elapsed > 0 else None
         enriched["pomo_count"] = pomo_counts.get(q["id"], 0) or None
+        enriched["done_today"] = (
+            q["status"] == "done" and to_local_date(q.get("completed_at", "")) == today_str
+        )
         status = q["status"]
         if status in by_status:
             by_status[status].append(enriched)

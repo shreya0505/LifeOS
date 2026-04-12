@@ -43,6 +43,12 @@
   <!-- ── Tab: Board (Kanban) ───────────────────────────────── -->
   <section class="tab-panel" x-show="tab === 'board'" x-transition:enter="tab-enter"
     x-transition:enter-start="tab-enter-from" x-transition:enter-end="tab-enter-to">
+    <!-- Trophy strip — daily unlock badges, always visible on board -->
+    <div id="trophy-strip"
+         hx-get="/trophies/strip"
+         hx-trigger="load, pomo-complete from:body, pomo-stopped from:body, quest-changed from:body"
+         hx-swap="innerHTML">
+    </div>
     <div id="quest-board"
       hx-get="/quests"
       hx-trigger="pomo-started from:body, pomo-stopped from:body"

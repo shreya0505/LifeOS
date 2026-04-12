@@ -111,6 +111,8 @@ async def submit_deed(
         "actual_pomos": event.actual_pomos,
         "streak": event.streak,
         "quest_title": engine.session["quest_title"],
+        "last_deed": deed.strip(),
+        "last_charge": engine.charge,
         "config": POMO_CONFIG,
     })
 

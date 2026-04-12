@@ -44,8 +44,6 @@
     <button class="segment segment--danger" title="Delete" hx-delete="/quests/{{ quest.id }}"
       hx-target="#quest-board" hx-swap="innerHTML">{{ icon('trash-2', 'icon') }}</button>
     {% elif quest.status == "done" %}
-    <button class="segment segment--danger" title="Delete" hx-delete="/quests/{{ quest.id }}"
-      hx-target="#quest-board" hx-swap="innerHTML">{{ icon('trash-2', 'icon') }}</button>
     {% endif %}
   </div>
 </article>

@@ -388,20 +388,28 @@ class SqliteTrophyPRRepo:
         return prs
 
     async def save_prs(self, prs: dict) -> None:
-        await self._db.execute("DELETE FROM trophy_records")
+        import json
+        known_ids = tuple(prs.keys())
+        rows = []
         for tid, data in prs.items():
             if tid.startswith("_"):
-                # Meta entries like _best_day — store as JSON in detail
-                import json
-                await self._db.execute(
-                    "INSERT INTO trophy_records (trophy_id, best, date, detail) "
-                    "VALUES (?, ?, ?, ?)",
-                    (tid, "", data.get("date", ""), json.dumps(data)),
-                )
+                rows.append((tid, "", data.get("date", ""), json.dumps(data)))
             else:
-                await self._db.execute(
-                    "INSERT INTO trophy_records (trophy_id, best, date, detail) "
-                    "VALUES (?, ?, ?, ?)",
-                    (tid, str(data["best"]), data["date"], data.get("detail")),
-                )
+                rows.append((tid, str(data["best"]), data["date"], data.get("detail")))
+        # Upsert known entries, then prune any stale IDs (e.g. from old trophy set).
+        # Using INSERT OR REPLACE avoids UNIQUE constraint races on the shared connection.
+        if rows:
+            await self._db.executemany(
+                "INSERT OR REPLACE INTO trophy_records (trophy_id, best, date, detail) "
+                "VALUES (?, ?, ?, ?)",
+                rows,
+            )
+        if known_ids:
+            placeholders = ",".join("?" * len(known_ids))
+            await self._db.execute(
+                f"DELETE FROM trophy_records WHERE trophy_id NOT IN ({placeholders})",
+                known_ids,
+            )
+        else:
+            await self._db.execute("DELETE FROM trophy_records")
         await self._db.commit()
