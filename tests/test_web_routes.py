@@ -51,8 +51,8 @@ async def test_quest_lifecycle(client):
     assert r.status_code == 200
     assert f'data-status="done"' in r.text
 
-    # Delete
-    r = await client.delete(f"/quests/{qid}")
+    # Abandon
+    r = await client.post(f"/quests/{qid}/abandon")
     assert r.status_code == 200
     assert "Auth refactor" not in r.text
 
@@ -102,19 +102,18 @@ async def test_toggle_frog(client):
 
     r = await client.patch(f"/quests/{qid}/frog")
     assert r.status_code == 200
-    # Frog emoji should appear on the card
-    assert "🐸" in r.text
+    # Frog icon should appear on the card
+    assert "quest-card__frog" in r.text
 
 
 @pytest.mark.asyncio
-async def test_confirm_delete_modal(client):
-    r = await client.post("/quests", data={"title": "Delete me"})
+async def test_abandon_quest(client):
+    r = await client.post("/quests", data={"title": "Abandon me"})
     qid = re.search(r'data-id="([^"]+)"', r.text).group(1)
 
-    r = await client.get(f"/quests/{qid}/confirm-delete")
+    r = await client.post(f"/quests/{qid}/abandon")
     assert r.status_code == 200
-    assert "Delete me" in r.text
-    assert "Destroy" in r.text
+    assert "Abandon me" not in r.text
 
 
 @pytest.mark.asyncio

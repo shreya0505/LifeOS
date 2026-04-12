@@ -306,12 +306,12 @@ _C_FILL_S = "rgba(122,158,126,0.10)"
 _C_EMPTY  = "rgba(194,200,192,0.35)"
 
 
-def _base_opts(index_axis: str | None = None) -> dict:
+def _base_opts(index_axis: str | None = None, stacked: bool = False) -> dict:
     opts: dict = {
         "responsive": True,
         "maintainAspectRatio": False,
         "plugins": {
-            "legend": {"display": False},
+            "legend": {"display": stacked},
             "tooltip": {"enabled": True},
         },
         "scales": {
@@ -319,12 +319,14 @@ def _base_opts(index_axis: str | None = None) -> dict:
                 "grid": {"color": _C_GRID},
                 "ticks": {"color": _C_MUTED, "font": {"size": 11}},
                 "border": {"display": False},
+                "stacked": stacked,
             },
             "y": {
                 "grid": {"color": _C_GRID},
                 "ticks": {"color": _C_MUTED, "font": {"size": 11}},
                 "border": {"display": False},
                 "beginAtZero": True,
+                "stacked": stacked,
             },
         },
     }
@@ -439,6 +441,24 @@ def compute_war_room(quests: list[dict], sessions: list[dict]) -> dict:
             }],
         },
         "options": _base_opts(),
+    }
+
+    # ── Quest Chart 4: Abandon Rate (stacked bar, WEEK_N weeks) ──────────────
+    abandoned_qs = [q for q in quests if q["status"] == "abandoned" and q.get("abandoned_at")]
+    abandoned_weekly = [
+        sum(1 for q in abandoned_qs if ws <= parse_dt(q["abandoned_at"]) < we)
+        for ws, we in wranges
+    ]
+    qc4 = {
+        "type": "bar",
+        "data": {
+            "labels": wlabels,
+            "datasets": [
+                {"label": "Completed",  "data": throughput,       "backgroundColor": _C_SAGE,  "borderRadius": 4},
+                {"label": "Abandoned",  "data": abandoned_weekly, "backgroundColor": _C_EMBER, "borderRadius": 4},
+            ],
+        },
+        "options": _base_opts(stacked=True),
     }
 
     # ── All completed work segments ───────────────────────────────────────────
@@ -683,6 +703,13 @@ def compute_war_room(quests: list[dict], sessions: list[dict]) -> dict:
                 "desc": "Age distribution of open quests.",
                 "tip": "Past 2 weeks? Kill or timebox.",
                 "config": qc3,
+            },
+            {
+                "id": "abandon-rate", "icon": "skull", "name": "Abandon Rate",
+                "sub": f"{WEEK_N} weeks",
+                "desc": "Completed (sage) vs abandoned (ember) per week.",
+                "tip": "Rising abandons = scope or prioritisation problem.",
+                "config": qc4,
             },
         ],
         "focus_charts": [

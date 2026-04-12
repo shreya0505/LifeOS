@@ -63,12 +63,24 @@ def get_elapsed(quest: dict) -> float | None:
 
 
 def format_duration(seconds: float | int | None) -> str:
-    """Format seconds with ⏱ prefix (for stats bars and quest display)."""
+    """Format seconds with ⏱ prefix — scales from minutes to weeks."""
     if not seconds or seconds < 0:
         return "—"
     seconds = int(seconds)
-    h = seconds // 3600
+    w = seconds // 604800
+    d = (seconds % 604800) // 86400
+    h = (seconds % 86400) // 3600
     m = (seconds % 3600) // 60
+    if w > 0:
+        parts = [f"{w}w"]
+        if d:
+            parts.append(f"{d}d")
+        return f"⏱ {' '.join(parts)}"
+    if d > 0:
+        parts = [f"{d}d"]
+        if h:
+            parts.append(f"{h}h")
+        return f"⏱ {' '.join(parts)}"
     if h > 0 and m > 0:
         return f"⏱ {h}h {m}m"
     elif h > 0:
@@ -83,7 +95,14 @@ def fmt_compact(secs: float | None) -> str:
     if secs is None:
         return "—"
     s = int(abs(secs))
-    h, m = s // 3600, (s % 3600) // 60
+    w = s // 604800
+    d = (s % 604800) // 86400
+    h = (s % 86400) // 3600
+    m = (s % 3600) // 60
+    if w:
+        return f"{w}w {d}d" if d else f"{w}w"
+    if d:
+        return f"{d}d {h}h" if h else f"{d}d"
     if h and m:
         return f"{h}h {m}m"
     if h:

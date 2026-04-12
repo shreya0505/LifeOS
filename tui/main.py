@@ -600,9 +600,9 @@ class QuestLogApp(App):
 
         def on_confirm(confirmed: bool) -> None:
             if confirmed:
-                _quest_repo.delete(quest["id"])
+                _quest_repo.abandon(quest["id"])
                 self._refresh_all()
-                self.notify(f"[red]🗑 Erased:[/red] {quest['title']}", timeout=2)
+                self.notify(f"[red]💀 Abandoned:[/red] {quest['title']}", timeout=2)
 
         self.push_screen(ConfirmModal(quest["title"]), callback=on_confirm)
 

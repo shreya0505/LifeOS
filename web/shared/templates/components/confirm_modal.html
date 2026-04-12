@@ -4,7 +4,7 @@
      x-show="open"
      @keydown.escape.window="document.getElementById('confirm-modal')?.remove()">
   <div class="modal-card" @click.stop>
-    <h3 class="modal-card__title">{{ icon('trash-2', 'icon') }} Erase from the Chronicles?</h3>
+    <h3 class="modal-card__title">{{ icon('skull', 'icon') }} Abandon this quest?</h3>
     <p class="modal-card__body">"{{ quest_title }}"</p>
     <div class="modal-card__actions">
       <button class="btn btn--ghost"
@@ -12,11 +12,11 @@
         Cancel
       </button>
       <button class="btn btn--ember"
-              hx-delete="/quests/{{ quest_id }}"
+              hx-post="/quests/{{ quest_id }}/abandon"
               hx-target="#quest-board"
               hx-swap="innerHTML"
               onclick="document.getElementById('confirm-modal').remove()">
-        Yes, Destroy It
+        Yes, Abandon It
       </button>
     </div>
   </div>

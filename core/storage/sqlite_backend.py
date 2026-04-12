@@ -20,7 +20,7 @@ class SqliteQuestRepo:
 
     async def load_all(self) -> list[dict]:
         cursor = await self._db.execute(
-            "SELECT id, title, status, frog, created_at, started_at, completed_at "
+            "SELECT id, title, status, frog, created_at, started_at, completed_at, abandoned_at "
             "FROM quests ORDER BY created_at"
         )
         rows = await cursor.fetchall()
@@ -33,6 +33,7 @@ class SqliteQuestRepo:
                 "created_at": r[4],
                 "started_at": r[5],
                 "completed_at": r[6],
+                "abandoned_at": r[7],
             }
             for r in rows
         ]
@@ -91,7 +92,7 @@ class SqliteQuestRepo:
             "completed_at": completed_at,
         }
 
-    async def delete(self, quest_id: str) -> dict | None:
+    async def abandon(self, quest_id: str) -> dict | None:
         cursor = await self._db.execute(
             "SELECT id, title, status, frog, created_at, started_at, completed_at "
             "FROM quests WHERE id = ?",
@@ -100,24 +101,21 @@ class SqliteQuestRepo:
         row = await cursor.fetchone()
         if row is None:
             return None
-        # Remove child records first to satisfy FK constraints
-        session_cursor = await self._db.execute(
-            "SELECT id FROM pomo_sessions WHERE quest_id = ?", (quest_id,)
+        now = datetime.now(timezone.utc).isoformat()
+        await self._db.execute(
+            "UPDATE quests SET status = 'abandoned', abandoned_at = ? WHERE id = ?",
+            (now, quest_id),
         )
-        session_ids = [r[0] for r in await session_cursor.fetchall()]
-        for sid in session_ids:
-            await self._db.execute("DELETE FROM pomo_segments WHERE session_id = ?", (sid,))
-        await self._db.execute("DELETE FROM pomo_sessions WHERE quest_id = ?", (quest_id,))
-        await self._db.execute("DELETE FROM quests WHERE id = ?", (quest_id,))
         await self._db.commit()
         return {
             "id": row[0],
             "title": row[1],
-            "status": row[2],
+            "status": "abandoned",
             "frog": bool(row[3]),
             "created_at": row[4],
             "started_at": row[5],
             "completed_at": row[6],
+            "abandoned_at": now,
         }
 
     async def toggle_frog(self, quest_id: str) -> dict | None:

@@ -58,13 +58,15 @@ class JsonQuestRepo:
                 return quest
         return None
 
-    def delete(self, quest_id: str) -> dict | None:
+    def abandon(self, quest_id: str) -> dict | None:
         quests = self._load()
-        match = next((q for q in quests if q["id"] == quest_id), None)
-        if not match:
-            return None
-        self._save([q for q in quests if q["id"] != quest_id])
-        return match
+        for quest in quests:
+            if quest["id"] == quest_id:
+                quest["status"] = "abandoned"
+                quest["abandoned_at"] = datetime.now(timezone.utc).isoformat()
+                self._save(quests)
+                return quest
+        return None
 
     def toggle_frog(self, quest_id: str) -> dict | None:
         quests = self._load()

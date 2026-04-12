@@ -50,20 +50,23 @@ async def test_quest_update_nonexistent(db):
 
 
 @pytest.mark.asyncio
-async def test_quest_delete(db):
+async def test_quest_abandon(db):
     repo = SqliteQuestRepo(db)
     quest = await repo.add("Temporary quest")
-    deleted = await repo.delete(quest["id"])
-    assert deleted["title"] == "Temporary quest"
+    abandoned = await repo.abandon(quest["id"])
+    assert abandoned["title"] == "Temporary quest"
+    assert abandoned["status"] == "abandoned"
+    assert abandoned["abandoned_at"] is not None
 
     all_quests = await repo.load_all()
-    assert len(all_quests) == 0
+    assert len(all_quests) == 1
+    assert all_quests[0]["status"] == "abandoned"
 
 
 @pytest.mark.asyncio
-async def test_quest_delete_nonexistent(db):
+async def test_quest_abandon_nonexistent(db):
     repo = SqliteQuestRepo(db)
-    result = await repo.delete("nonexistent")
+    result = await repo.abandon("nonexistent")
     assert result is None
 
 

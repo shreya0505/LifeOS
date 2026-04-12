@@ -21,8 +21,8 @@ POMO_CONFIG = {
 # ── Quest state machine ─────────────────────────────────────────────────────
 # Maps each transition verb to the set of statuses it may originate from.
 VALID_SOURCES: dict[str, set[str]] = {
-    "start":  {"log", "blocked"},
-    "block":  {"log", "active"},
-    "done":   {"active", "blocked"},
-    "delete": {"log", "active", "blocked", "done"},
+    "start":   {"log", "blocked"},
+    "block":   {"log", "active"},
+    "done":    {"active", "blocked"},
+    "abandon": {"log", "active", "blocked"},
 }

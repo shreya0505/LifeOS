@@ -38,7 +38,7 @@ async def _build_board_context(quest_repo, pomo_repo) -> list[dict]:
 
     today_str = today_local().isoformat()
     by_status: dict[str, list[dict]] = {c["status"]: [] for c in _COLUMNS}
-    for q in quests:
+    for q in (q for q in quests if q["status"] != "abandoned"):
         enriched = dict(q)
         elapsed = get_elapsed(q)
         enriched["elapsed"] = format_duration(elapsed).lstrip("⏱ ") if elapsed and elapsed > 0 else None
@@ -57,7 +57,7 @@ async def _build_board_context(quest_repo, pomo_repo) -> list[dict]:
 
 
 async def _quest_counts(quest_repo) -> dict:
-    quests = await quest_repo.load_all()
+    quests = [q for q in await quest_repo.load_all() if q["status"] != "abandoned"]
     total = len(quests)
     active = sum(1 for q in quests if q["status"] == "active")
     done = sum(1 for q in quests if q["status"] == "done")
@@ -127,7 +127,7 @@ async def update_status(request: Request,
                         pomo_repo=Depends(get_pomo_repo)):
     # Validate transition
     valid_sources = VALID_SOURCES.get(
-        {"active": "start", "blocked": "block", "done": "done"}.get(status, ""),
+        {"active": "start", "blocked": "block", "done": "done", "abandoned": "abandon"}.get(status, ""),
         set(),
     )
     quests = await quest_repo.load_all()
@@ -158,17 +158,17 @@ async def toggle_frog(request: Request,
     return _render(request, "board.html", {"columns": columns, "active_pomo_quest_id": _active_pomo_quest_id()})
 
 
-# ── Delete quest ─────────────────────────────────────────────────────────
+# ── Abandon quest ────────────────────────────────────────────────────────
 
-@router.delete("/quests/{quest_id}", response_class=HTMLResponse)
-async def delete_quest(request: Request,
-                       quest_id: str,
-                       quest_repo=Depends(get_quest_repo),
-                       pomo_repo=Depends(get_pomo_repo)):
-    await quest_repo.delete(quest_id)
+@router.post("/quests/{quest_id}/abandon", response_class=HTMLResponse)
+async def abandon_quest(request: Request,
+                        quest_id: str,
+                        quest_repo=Depends(get_quest_repo),
+                        pomo_repo=Depends(get_pomo_repo)):
+    await quest_repo.abandon(quest_id)
     columns = await _build_board_context(quest_repo, pomo_repo)
     response = _render(request, "board.html", {"columns": columns, "active_pomo_quest_id": _active_pomo_quest_id()})
-    response.headers["HX-Trigger"] = "quest-deleted"
+    response.headers["HX-Trigger"] = "quest-abandoned"
     return response
 
 
