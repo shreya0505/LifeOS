@@ -3,10 +3,9 @@ set -euo pipefail
 
 # clear_data.sh — Safely reset QuestLog TUI user data (JSON stores)
 #
-# This script clears all user data (quests, pomodoros, trophies) and
-# reinitializes the app to a fresh state.
+# Clears quests, pomodoros, trophies. Backs up first, then optionally
+# deletes all backups.
 
-# Always operate from project root regardless of where script is invoked
 cd "$(dirname "$0")/.."
 
 TUI_DATA="data/tui"
@@ -50,7 +49,24 @@ echo '[]' > "$TUI_DATA/pomodoros.json"
 echo '{}' > "$TUI_DATA/trophies.json"
 
 echo ""
-echo "Data cleared successfully."
+echo "Data cleared. Backups saved to: $BACKUP_DIR/"
+
+# Offer backup deletion
 echo ""
-echo "Backups saved to: $BACKUP_DIR/"
+EXISTING_BACKUPS=( "$BACKUP_DIR"/quests.json.backup.* "$BACKUP_DIR"/pomodoros.json.backup.* "$BACKUP_DIR"/trophies.json.backup.* 2>/dev/null ) || true
+BACKUP_COUNT=0
+for f in "${EXISTING_BACKUPS[@]}"; do [[ -f "$f" ]] && (( BACKUP_COUNT++ )) || true; done
+
+if [[ $BACKUP_COUNT -gt 0 ]]; then
+    echo "Found $BACKUP_COUNT JSON backup file(s) in $BACKUP_DIR/"
+    read -p "Delete all JSON backups? (yes/no): " del_backups
+    if [[ "$del_backups" == "yes" ]]; then
+        rm -f "$BACKUP_DIR"/quests.json.backup.* "$BACKUP_DIR"/pomodoros.json.backup.* "$BACKUP_DIR"/trophies.json.backup.*
+        echo "Backups deleted."
+    else
+        echo "Backups kept."
+    fi
+fi
+
+echo ""
 echo "Ready to start fresh — run: python3 -m tui"

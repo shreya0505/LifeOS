@@ -52,7 +52,15 @@ The `data/tui/` directory is created automatically on first run. Gitignored by d
 ./scripts/clear_data.sh
 ```
 
-Prompts for confirmation, creates timestamped backups in `data/backups/`, then resets to empty state.
+Prompts for confirmation, creates timestamped backups in `data/backups/`, resets to empty state, then optionally deletes all JSON backups.
+
+### Restore Data
+
+```bash
+./scripts/restore_data.sh
+```
+
+Lists available backup sets (by timestamp). Pick one — the current data is backed up before overwriting.
 
 ---
 
@@ -95,7 +103,15 @@ Schema migrations run automatically on startup from `migrations/*.sql`.
 ./scripts/clear_sql_data.sh
 ```
 
-Backs up the DB to `data/backups/`, then deletes all rows (schema intact).
+Backs up the DB to `data/backups/`, deletes all rows (schema intact), then optionally deletes all DB backups.
+
+### Restore Data
+
+```bash
+./scripts/restore_sql_data.sh
+```
+
+Lists available DB backups. Pick one — the current DB is backed up before overwriting. Restart the web app after restoring.
 
 ---
 
@@ -295,8 +311,10 @@ LifeOS/
 ├── migrations/         ← SQL schema migrations (auto-applied)
 ├── tests/              ← pytest suite
 ├── scripts/            ← Operational scripts
-│   ├── clear_data.sh   ← Reset TUI JSON stores
-│   └── clear_sql_data.sh ← Reset SQLite data
+│   ├── clear_data.sh        ← Reset TUI JSON stores (backup + optional backup deletion)
+│   ├── clear_sql_data.sh    ← Reset SQLite data (backup + optional backup deletion)
+│   ├── restore_data.sh      ← Restore TUI JSON from a backup set
+│   └── restore_sql_data.sh  ← Restore SQLite DB from a backup
 ├── data/
 │   ├── tui/            ← TUI JSON stores (gitignored, auto-created)
 │   │   ├── quests.json

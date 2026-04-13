@@ -2,9 +2,9 @@
 set -euo pipefail
 
 # clear_sql_data.sh — Reset SQLite user data (quests, pomos, trophies)
-# Keeps schema and migrations intact.
+# Keeps schema and migrations intact. Backs up first, then optionally
+# deletes all backups.
 
-# Always operate from project root regardless of where script is invoked
 cd "$(dirname "$0")/.."
 
 BACKUP_DIR="data/backups"
@@ -34,7 +34,8 @@ if [[ "$confirm" != "yes" ]]; then
   exit 0
 fi
 
-BACKUP="$BACKUP_DIR/questlog.db.backup.$(date +%Y%m%d-%H%M%S)"
+TS="$(date +%Y%m%d-%H%M%S)"
+BACKUP="$BACKUP_DIR/questlog.db.backup.$TS"
 cp "$DB" "$BACKUP"
 echo ""
 echo "Backup saved: $BACKUP"
@@ -53,4 +54,23 @@ db.close()
 PYEOF
 
 echo "Data cleared. Schema and migrations intact."
+
+# Offer backup deletion
+echo ""
+EXISTING_BACKUPS=( "$BACKUP_DIR"/questlog.db.backup.* 2>/dev/null ) || true
+BACKUP_COUNT=0
+for f in "${EXISTING_BACKUPS[@]}"; do [[ -f "$f" ]] && (( BACKUP_COUNT++ )) || true; done
+
+if [[ $BACKUP_COUNT -gt 0 ]]; then
+    echo "Found $BACKUP_COUNT DB backup(s) in $BACKUP_DIR/"
+    read -p "Delete all DB backups? (yes/no): " del_backups
+    if [[ "$del_backups" == "yes" ]]; then
+        rm -f "$BACKUP_DIR"/questlog.db.backup.*
+        echo "Backups deleted."
+    else
+        echo "Backups kept."
+    fi
+fi
+
+echo ""
 echo "Restart the app to start fresh."
