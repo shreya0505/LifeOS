@@ -38,13 +38,16 @@ async def _generate_ticks():
                 yield {"event": "stopped", "data": "{}"}
                 return
 
-            # Timer expired — end the segment
-            event = engine.end_segment(completed=True)
+            # Timer expired — signal the client; /timer-done handles segment completion
+            # (keeping end_segment out of SSE avoids a race where /timer-done fires
+            #  after SSE has already ended the segment and finds is_timing=False)
+            seg_type = engine.seg_type or "work"
+            next_gate = "deed" if seg_type == "work" else "charge"
             yield {
                 "event": "segment-complete",
                 "data": json.dumps({
-                    "next_gate": event.next_gate,
-                    "seg_type": event.seg_type,
+                    "next_gate": next_gate,
+                    "seg_type": seg_type,
                 }),
             }
             return

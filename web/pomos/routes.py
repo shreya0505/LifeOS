@@ -258,21 +258,26 @@ async def timer_done(request: Request):
     if engine.remaining() > 1:
         return HTMLResponse("Timer still running.", status_code=400)
 
+    seg_type = engine.seg_type  # capture before end_segment clears it
     event = engine.end_segment(completed=True)
 
     if event.next_gate == "deed":
-        return _render(request, "pomo/panel.html", {
+        response = _render(request, "pomo/panel.html", {
             "engine": engine,
             "mode": "deed",
             "quest_title": engine.session["quest_title"],
         })
+        response.headers["HX-Trigger"] = "pomo-work-done"
+        return response
 
     # Break finished → back to charge
-    return _render(request, "pomo/panel.html", {
+    response = _render(request, "pomo/panel.html", {
         "engine": engine,
         "mode": "charge",
         "quest_title": engine.session["quest_title"],
     })
+    response.headers["HX-Trigger"] = "pomo-break-done"
+    return response
 
 
 # ── Stop session ─────────────────────────────────────────────────────────

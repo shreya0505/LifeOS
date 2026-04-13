@@ -78,6 +78,31 @@
       }, duration);
     }
 
+    // ── Browser notification helpers ────────────────────────
+    function requestNotificationPermission() {
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+
+    function sendBrowserNotification(title, body) {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(title, { body: body, icon: '/static/assets/logo.png' });
+      }
+    }
+
+    // Called by the timer component when a segment ends.
+    // segType: 'work' | 'short_break' | 'extended_break' | 'long_break'
+    function notifyTimerEnd(segType) {
+      if (segType === 'work') {
+        showToast(`{{ icon('timer', 'icon') }} Pomodoro forged! Log your deed.`);
+        sendBrowserNotification('QuestLog — Work Session Complete', 'Pomodoro forged! Time to log your deed.');
+      } else {
+        showToast(`{{ icon('zap', 'icon') }} Break over! Return to your quest.`);
+        sendBrowserNotification('QuestLog — Break Complete', 'Break over. Return to your quest.');
+      }
+    }
+
     // Note: HTMX animation hooks are in animations.js
     // ── Toast triggers from HX-Trigger response headers ────
     document.body.addEventListener('quest-done', function () {
@@ -88,6 +113,9 @@
     });
     document.body.addEventListener('quest-abandoned', function () {
       showToast(`{{ icon('skull', 'icon') }} Quest abandoned`);
+    });
+    document.body.addEventListener('pomo-started', function () {
+      requestNotificationPermission();
     });
     document.body.addEventListener('pomo-complete', function () {
       showToast(`{{ icon('timer', 'icon') }} Pomodoro complete!`);

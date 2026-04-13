@@ -1,5 +1,5 @@
 <!-- Ritual Interface — the timer is the sun, everything orbits it -->
-<div class="chrono-timer" x-data="pomodoroTimer({{ duration }}, '{{ started_at }}')" x-init="start()">
+<div class="chrono-timer" x-data="pomodoroTimer({{ duration }}, '{{ started_at }}', '{{ seg_type }}')" x-init="start()">
 
   <!-- Ambient atmospheric orbs -->
   <div class="chrono-timer__ambient" aria-hidden="true">
@@ -106,21 +106,18 @@
 
 </div>
 
-<!-- SSE listener for server-authoritative timer -->
-<div hx-ext="sse" sse-connect="/pomos/tick" sse-swap="segment-complete" hx-target="#pomo-panel" hx-swap="outerHTML">
-  <template>
-    <div hx-post="/pomos/timer-done" hx-target="#pomo-panel" hx-swap="outerHTML" hx-trigger="load"></div>
-  </template>
-</div>
+<!-- SSE: server-authoritative tick stream (backup segment-complete trigger) -->
+<div id="sse-ticker" hx-ext="sse" sse-connect="/pomos/tick"></div>
 
 <script>
-  function pomodoroTimer(totalSecs, startedAtISO) {
+  function pomodoroTimer(totalSecs, startedAtISO, segType) {
     return {
       remaining: totalSecs,
       total: totalSecs,
       display: '',
       percent: 100,
       interval: null,
+      done: false,
       start() {
         const started = new Date(startedAtISO).getTime();
         const update = () => {
@@ -130,6 +127,13 @@
           const m = Math.floor(this.remaining / 60);
           const s = Math.floor(this.remaining % 60);
           this.display = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+
+          if (this.remaining <= 0 && !this.done) {
+            this.done = true;
+            clearInterval(this.interval);
+            if (typeof notifyTimerEnd === 'function') notifyTimerEnd(segType);
+            htmx.ajax('POST', '/pomos/timer-done', { target: '#pomo-panel', swap: 'outerHTML' });
+          }
         };
         update();
         this.interval = setInterval(update, 1000);
@@ -139,4 +143,18 @@
       }
     };
   }
+
+  // SSE backup: if the server signals segment-complete before Alpine fires
+  // (e.g. tab was backgrounded and timers were throttled), trigger transition.
+  // /timer-done has idempotency guards so double-firing is safe.
+  (function () {
+    const ticker = document.getElementById('sse-ticker');
+    if (!ticker) return;
+    ticker.addEventListener('htmx:sseMessage', function (e) {
+      const name = (e.detail && (e.detail.name || e.detail.type)) || '';
+      if (name === 'segment-complete') {
+        htmx.ajax('POST', '/pomos/timer-done', { target: '#pomo-panel', swap: 'outerHTML' });
+      }
+    });
+  })();
 </script>
