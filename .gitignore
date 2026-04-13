@@ -1,13 +1,26 @@
+# Python
 .venv/
 __pycache__/
 *.pyc
+.pytest_cache/
+
+# IDE
 .github
-# persistent data stores
+
+# ── Runtime data (TUI — JSON stores, root-level by design) ──────────────────
 quests.json
 pomodoros.json
 trophies.json
-*.backup.*
+
+# ── Runtime data (Web — SQLite) ──────────────────────────────────────────────
 *.db
 *.db-shm
 *.db-wal
 *.db-journal
+
+# ── Backups ──────────────────────────────────────────────────────────────────
+data/backups/
+!data/backups/.gitkeep
+
+# ── Environment ──────────────────────────────────────────────────────────────
+.env

@@ -4,7 +4,11 @@ set -euo pipefail
 # clear_sql_data.sh — Reset SQLite user data (quests, pomos, trophies)
 # Keeps schema and migrations intact.
 
-cd "$(dirname "$0")"
+# Always operate from project root regardless of where script is invoked
+cd "$(dirname "$0")/.."
+
+BACKUP_DIR="data/backups"
+mkdir -p "$BACKUP_DIR"
 
 DB="${QUESTLOG_DB:-./questlog.db}"
 
@@ -30,7 +34,7 @@ if [[ "$confirm" != "yes" ]]; then
   exit 0
 fi
 
-BACKUP="${DB}.backup.$(date +%Y%m%d-%H%M%S)"
+BACKUP="$BACKUP_DIR/questlog.db.backup.$(date +%Y%m%d-%H%M%S)"
 cp "$DB" "$BACKUP"
 echo ""
 echo "Backup saved: $BACKUP"

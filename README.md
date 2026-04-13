@@ -1,115 +1,88 @@
-# LifeOS (QuestLog) ⚔️🍅
+# LifeOS (QuestLog)
 
 **A productivity companion featuring an active quest board and pomodoro timer with RPG theming and trophy gamification.**
 
-LifeOS provides two distinct interfaces built on a shared core logic layer:
-1. **Terminal User Interface (TUI):** A focused, keyboard-driven experience.
-2. **Web Interface:** A sleek, interactive browser-based dashboard.
+Two interfaces. One shared core:
+1. **TUI** — keyboard-driven terminal app, JSON file storage
+2. **Web** — browser dashboard, SQLite + HTMX + Alpine.js
 
 ---
 
-## ✨ Features
+## Quick Start
 
-- **RPG-Themed Quest Board:** Manage tasks as "quests" to conquer. Prioritize dreaded tasks by marking them as "Frogs" (🐸).
-- **Advanced Pomodoro Timer:** Go into "The Fray" with Pomodoros, logging your "Charge" (intent) and "Deed" (outcome). Track "Hollow" (💀) and "Berserker" (⚡) flows.
-- **Gamification & Trophies:** Earn trophies in the "Hall of Valor" for eating frogs early, deep focus, and consistent logging. Features tiers (🥉, 🥈, 🥇) and personal records.
-- **Detailed Analytics (Adventure's Chronicle):** View daily/weekly stats, focus heatmaps, and interruption analysis.
-- **Dual Interfaces:** Seamlessly switch between the terminal and web frontend depending on your workflow.
+```bash
+# TUI
+python3 -m venv .venv && source .venv/bin/activate
+pip install textual rich
+python3 -m tui
+
+# Web (local)
+pip install fastapi "uvicorn[standard]" jinja2 aiosqlite sse-starlette httpx
+uvicorn web.app:app --reload
+# → http://127.0.0.1:8000
+
+# Web (Docker)
+docker compose up --build
+# → http://localhost:8000
+```
 
 ---
 
-## 🛠️ Tech Stack
+## Features
+
+- **Quest Board** — RPG-themed task manager. Mark dreaded tasks as Frogs (`🐸`).
+- **Pomodoro Timer** — Charge (intent) → Work → Deed (outcome) loop. Tracks Hollow (`💀`) and Berserker (`⚡`) forges.
+- **Trophy System** — Hall of Valor with daily trophies (Bronze/Silver/Gold tiers) and personal records.
+- **Analytics** — Adventure's Chronicle: daily/weekly stats, heatmaps, interruption analysis.
+
+---
+
+## Documentation
+
+| Doc | Purpose |
+|---|---|
+| [`docs/GUIDE.md`](docs/GUIDE.md) | Full setup and usage guide (TUI, Web, Docker) |
+| [`docs/DESIGN.md`](docs/DESIGN.md) | Visual identity, code style, architecture reference |
+| [`docs/INSTRUCTIONS.md`](docs/INSTRUCTIONS.md) | In-depth RPG mechanics, keybindings, workflow tips |
+
+---
+
+## Project Structure
+
+```
+core/          ← shared business logic + storage backends
+tui/           ← Textual TUI app
+web/           ← FastAPI + HTMX + Alpine.js web app
+migrations/    ← SQL schema (auto-applied on startup)
+tests/         ← pytest suite
+scripts/       ← data reset scripts
+docs/          ← design docs, user guide, specs
+data/backups/  ← timestamped data backups
+```
+
+---
+
+## Maintenance
+
+```bash
+# Reset TUI data (JSON stores)
+./scripts/clear_data.sh
+
+# Reset Web data (SQLite, keeps schema)
+./scripts/clear_sql_data.sh
+```
+
+Both scripts create timestamped backups in `data/backups/` before clearing.
+
+---
+
+## Tech Stack
 
 - **Core:** Python 3.10+
-- **Terminal UI:** Textual, Rich (File-based JSON storage)
-- **Web App:** FastAPI, Jinja2, HTMX, Alpine.js, SSE (Async SQLite storage)
-- **Containerization:** Docker & Docker Compose
+- **TUI:** Textual, Rich
+- **Web:** FastAPI, Jinja2, HTMX, Alpine.js, SSE, aiosqlite
+- **Docker:** Docker Compose
 
 ---
 
-## 🚀 Quick Start
-
-### 1. Prerequisites
-Ensure you have **Python 3.10+** installed, or use **Docker**.
-
-### 2. Local Setup
-```bash
-# Enter project directory
-cd LifeOS
-
-# Create and activate a virtual environment
-python3 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install dependencies
-pip install textual rich fastapi uvicorn[standard] jinja2 aiosqlite sse-starlette httpx
-```
-
-### 3. Run the App
-
-You can choose to run the app via the TUI, Web App, or use Docker.
-
-#### Option A: Terminal UI (TUI)
-```bash
-python3 -m tui
-```
-*Note: Uses localized JSON file storage.*
-
-#### Option B: Web Application
-```bash
-uvicorn web.app:app --reload
-```
-Access the web app at `http://127.0.0.1:8000`.
-*Note: Uses async SQLite storage.*
-
-#### Option C: Docker (Web App)
-For a containerized setup, simply run:
-```bash
-docker compose up --build
-```
-Access the app at `http://localhost:8000`.
-
----
-
-## 🧹 Maintenance
-
-To clear all data and start fresh (this creates backups first):
-```bash
-./clear_data.sh
-```
-
----
-
-## 🏗️ Architecture
-
-QuestLog shares a common `core` across both frontends.
-- `core/`: Shared business logic, storage interfaces (`Protocols`), state machines, and metrics computation.
-- `tui/`: Textual application reading/writing to local JSON files (`json_backend.py`).
-- `web/`: FastAPI application utilizing HTMX, Alpine.js, and Server-Sent Events (SSE) backed by a SQLite database (`sqlite_backend.py`).
-
----
-
-## 🧪 Testing
-
-Testing requires additional dependencies:
-```bash
-pip install pytest pytest-asyncio httpx aiosqlite
-
-# Run all tests
-pytest
-
-# Run tests with verbose output
-pytest -v
-```
-Tests are executed against a temporary in-memory SQLite database setup via pytest fixtures.
-
----
-
-## 📖 Instructions & Manuals
-
-- For an in-depth guide on the Pomodoro flow, Quest Lifecycle, RPG mechanics, and keyboard shortcuts, please read [`INSTRUCTIONS.md`](./INSTRUCTIONS.md).
-- For contribution guidelines and deeper architectural details, check [`CLAUDE.md`](./CLAUDE.md).
-
----
-
-*May your quests be many and your focus unbreakable. ⚔️*
+*May your quests be many and your focus unbreakable.*

@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# clear_data.sh — Safely reset QuestLog user data
+# clear_data.sh — Safely reset QuestLog TUI user data (JSON stores)
 #
 # This script clears all user data (quests, pomodoros, trophies) and
 # reinitializes the app to a fresh state.
 
-cd "$(dirname "$0")"
+# Always operate from project root regardless of where script is invoked
+cd "$(dirname "$0")/.."
 
-echo "🗑️  QuestLog Data Reset"
+BACKUP_DIR="data/backups"
+mkdir -p "$BACKUP_DIR"
+
+echo "QuestLog Data Reset"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "This will permanently delete:"
@@ -26,15 +30,17 @@ fi
 echo ""
 echo "Clearing data..."
 
-# Backup before clearing (just in case)
+TS="$(date +%Y%m%d-%H%M%S)"
+
+# Backup before clearing
 if [[ -f quests.json ]]; then
-    cp quests.json "quests.json.backup.$(date +%Y%m%d-%H%M%S)" 2>/dev/null || true
+    cp quests.json "$BACKUP_DIR/quests.json.backup.$TS" 2>/dev/null || true
 fi
 if [[ -f pomodoros.json ]]; then
-    cp pomodoros.json "pomodoros.json.backup.$(date +%Y%m%d-%H%M%S)" 2>/dev/null || true
+    cp pomodoros.json "$BACKUP_DIR/pomodoros.json.backup.$TS" 2>/dev/null || true
 fi
 if [[ -f trophies.json ]]; then
-    cp trophies.json "trophies.json.backup.$(date +%Y%m%d-%H%M%S)" 2>/dev/null || true
+    cp trophies.json "$BACKUP_DIR/trophies.json.backup.$TS" 2>/dev/null || true
 fi
 
 # Reset to empty state
@@ -43,7 +49,7 @@ echo '[]' > pomodoros.json
 echo '{}' > trophies.json
 
 echo ""
-echo "✅ Data cleared successfully."
+echo "Data cleared successfully."
 echo ""
-echo "Backup files created with timestamp (if data existed)."
-echo "Ready to start fresh — run: python3 main.py"
+echo "Backups saved to: $BACKUP_DIR/"
+echo "Ready to start fresh — run: python3 -m tui"
