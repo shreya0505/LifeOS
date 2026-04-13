@@ -10,7 +10,7 @@ cd "$(dirname "$0")/.."
 BACKUP_DIR="data/backups"
 mkdir -p "$BACKUP_DIR"
 
-DB="${QUESTLOG_DB:-./questlog.db}"
+DB="${QUESTLOG_DB:-./data/web/questlog.db}"
 
 if [[ ! -f "$DB" ]]; then
   echo "No database found at $DB — nothing to clear."

@@ -20,7 +20,7 @@ from core.utils import format_duration
 from core.storage.json_backend import JsonPomoRepo
 from pathlib import Path
 
-_pomo_repo = JsonPomoRepo(Path(__file__).parent.parent / "pomodoros.json")
+_pomo_repo = JsonPomoRepo(Path(__file__).parent.parent / "data" / "tui" / "pomodoros.json")
 
 
 class PomodoroPanel(Screen):

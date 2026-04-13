@@ -19,7 +19,7 @@ from core.utils import fantasy_date
 from core.storage.json_backend import JsonPomoRepo, JsonQuestRepo
 from pathlib import Path
 
-_DATA_DIR = Path(__file__).parent.parent
+_DATA_DIR = Path(__file__).parent.parent / "data" / "tui"
 _pomo_repo = JsonPomoRepo(_DATA_DIR / "pomodoros.json")
 _quest_repo = JsonQuestRepo(_DATA_DIR / "quests.json")
 

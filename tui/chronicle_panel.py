@@ -16,7 +16,7 @@ from textual.widget import Widget
 from textual.widgets import Static
 
 from pathlib import Path
-_DATA_DIR = Path(__file__).parent.parent
+_DATA_DIR = Path(__file__).parent.parent / "data" / "tui"
 _pomo_repo = JsonPomoRepo(_DATA_DIR / "pomodoros.json")
 _quest_repo = JsonQuestRepo(_DATA_DIR / "quests.json")
 

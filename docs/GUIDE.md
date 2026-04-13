@@ -36,15 +36,15 @@ python3 -m tui
 
 ### Data
 
-TUI stores all data in the project root:
+TUI stores all data in `data/tui/`:
 
 | File | Contents |
 |---|---|
-| `quests.json` | All quests and their state |
-| `pomodoros.json` | All pomo sessions and segments |
-| `trophies.json` | Personal records for trophies |
+| `data/tui/quests.json` | All quests and their state |
+| `data/tui/pomodoros.json` | All pomo sessions and segments |
+| `data/tui/trophies.json` | Personal records for trophies |
 
-These files are created automatically on first run. Gitignored by default.
+The `data/tui/` directory is created automatically on first run. Gitignored by default.
 
 ### Reset Data
 
@@ -81,10 +81,10 @@ Open: `http://127.0.0.1:8000`
 
 ### Database
 
-SQLite database at `./questlog.db` by default. Override with env var:
+SQLite database at `data/web/questlog.db` by default. The directory is created automatically. Override path with env var:
 
 ```bash
-QUESTLOG_DB=./data/questlog.db uvicorn web.app:app --reload
+QUESTLOG_DB=/custom/path/questlog.db uvicorn web.app:app --reload
 ```
 
 Schema migrations run automatically on startup from `migrations/*.sql`.
@@ -298,6 +298,12 @@ LifeOS/
 │   ├── clear_data.sh   ← Reset TUI JSON stores
 │   └── clear_sql_data.sh ← Reset SQLite data
 ├── data/
+│   ├── tui/            ← TUI JSON stores (gitignored, auto-created)
+│   │   ├── quests.json
+│   │   ├── pomodoros.json
+│   │   └── trophies.json
+│   ├── web/            ← SQLite DB (gitignored, auto-created)
+│   │   └── questlog.db
 │   └── backups/        ← Timestamped backups (gitignored)
 ├── docs/               ← Design docs, specs, this guide
 │   ├── DESIGN.md       ← Visual identity + architecture reference
@@ -305,11 +311,7 @@ LifeOS/
 │   ├── INSTRUCTIONS.md ← In-depth RPG mechanics and keybindings
 │   └── specs/          ← Feature PRDs and specs
 ├── docker-compose.yml
-├── Dockerfile
-├── questlog.db         ← SQLite DB (local dev, gitignored)
-├── quests.json         ← TUI quest store (gitignored)
-├── pomodoros.json      ← TUI pomo store (gitignored)
-└── trophies.json       ← TUI trophy PRs (gitignored)
+└── Dockerfile
 ```
 
 ---

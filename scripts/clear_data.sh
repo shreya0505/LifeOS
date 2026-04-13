@@ -9,8 +9,9 @@ set -euo pipefail
 # Always operate from project root regardless of where script is invoked
 cd "$(dirname "$0")/.."
 
+TUI_DATA="data/tui"
 BACKUP_DIR="data/backups"
-mkdir -p "$BACKUP_DIR"
+mkdir -p "$TUI_DATA" "$BACKUP_DIR"
 
 echo "QuestLog Data Reset"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -33,20 +34,20 @@ echo "Clearing data..."
 TS="$(date +%Y%m%d-%H%M%S)"
 
 # Backup before clearing
-if [[ -f quests.json ]]; then
-    cp quests.json "$BACKUP_DIR/quests.json.backup.$TS" 2>/dev/null || true
+if [[ -f "$TUI_DATA/quests.json" ]]; then
+    cp "$TUI_DATA/quests.json" "$BACKUP_DIR/quests.json.backup.$TS" 2>/dev/null || true
 fi
-if [[ -f pomodoros.json ]]; then
-    cp pomodoros.json "$BACKUP_DIR/pomodoros.json.backup.$TS" 2>/dev/null || true
+if [[ -f "$TUI_DATA/pomodoros.json" ]]; then
+    cp "$TUI_DATA/pomodoros.json" "$BACKUP_DIR/pomodoros.json.backup.$TS" 2>/dev/null || true
 fi
-if [[ -f trophies.json ]]; then
-    cp trophies.json "$BACKUP_DIR/trophies.json.backup.$TS" 2>/dev/null || true
+if [[ -f "$TUI_DATA/trophies.json" ]]; then
+    cp "$TUI_DATA/trophies.json" "$BACKUP_DIR/trophies.json.backup.$TS" 2>/dev/null || true
 fi
 
 # Reset to empty state
-echo '[]' > quests.json
-echo '[]' > pomodoros.json
-echo '{}' > trophies.json
+echo '[]' > "$TUI_DATA/quests.json"
+echo '[]' > "$TUI_DATA/pomodoros.json"
+echo '{}' > "$TUI_DATA/trophies.json"
 
 echo ""
 echo "Data cleared successfully."

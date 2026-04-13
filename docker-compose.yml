@@ -6,7 +6,7 @@ services:
     volumes:
       - questlog-data:/app/data
     environment:
-      - QUESTLOG_DB=/app/data/questlog.db
+      - QUESTLOG_DB=/app/data/web/questlog.db
     restart: unless-stopped
 
 volumes:

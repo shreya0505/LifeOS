@@ -31,7 +31,8 @@ from tui.quest_panel import RosterPanel
 from tui.chronicle_panel import ChroniclePanel
 from tui.trophy_panel import TrophyPanel
 
-_DATA_DIR = Path(__file__).parent.parent
+_DATA_DIR = Path(__file__).parent.parent / "data" / "tui"
+_DATA_DIR.mkdir(parents=True, exist_ok=True)
 _quest_repo = JsonQuestRepo(_DATA_DIR / "quests.json")
 _pomo_repo = JsonPomoRepo(_DATA_DIR / "pomodoros.json")
 

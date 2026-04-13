@@ -7,12 +7,11 @@ __pycache__/
 # IDE
 .github
 
-# ── Runtime data (TUI — JSON stores, root-level by design) ──────────────────
-quests.json
-pomodoros.json
-trophies.json
+# ── Runtime data (TUI — JSON stores) ─────────────────────────────────────────
+data/tui/
 
 # ── Runtime data (Web — SQLite) ──────────────────────────────────────────────
+data/web/
 *.db
 *.db-shm
 *.db-wal
@@ -21,6 +20,7 @@ trophies.json
 # ── Backups ──────────────────────────────────────────────────────────────────
 data/backups/
 !data/backups/.gitkeep
+!data/.gitkeep
 
 # ── Environment ──────────────────────────────────────────────────────────────
 .env

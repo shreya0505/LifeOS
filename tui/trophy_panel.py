@@ -15,7 +15,7 @@ from pathlib import Path
 from core.trophy_compute import compute_trophies
 from core.storage.json_backend import JsonPomoRepo, JsonQuestRepo, JsonTrophyPRRepo
 
-_DATA_DIR = Path(__file__).parent.parent
+_DATA_DIR = Path(__file__).parent.parent / "data" / "tui"
 _pomo_repo = JsonPomoRepo(_DATA_DIR / "pomodoros.json")
 _quest_repo = JsonQuestRepo(_DATA_DIR / "quests.json")
 _trophy_pr_repo = JsonTrophyPRRepo(_DATA_DIR / "trophies.json")

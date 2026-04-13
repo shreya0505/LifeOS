@@ -8,9 +8,10 @@ from pathlib import Path
 import aiosqlite
 
 _MIGRATIONS_DIR = Path(__file__).parent.parent / "migrations"
-_DEFAULT_DB = Path(__file__).parent.parent / "questlog.db"
+_DEFAULT_DB = Path(__file__).parent.parent / "data" / "web" / "questlog.db"
 
 DB_PATH = Path(os.environ.get("QUESTLOG_DB", str(_DEFAULT_DB)))
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
 async def get_db() -> aiosqlite.Connection:
