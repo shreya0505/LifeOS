@@ -16,7 +16,7 @@
   <!-- 3-column ritual grid -->
   <div class="chrono-timer__grid">
 
-    <!-- ─── Left: Flush Progress Rail ─── -->
+    <!-- ─── Left: Progress Rail + Session Tasklist ─── -->
     <div class="chrono-timer__rail">
       <div class="chrono-timer__phase-list">
         {% for phase in phases %}
@@ -25,6 +25,54 @@
           <span class="chrono-timer__phase-name">{{ phase.label }}</span>
         </div>
         {% endfor %}
+      </div>
+
+      <!-- Session Tasklist — below phases, vertical separation -->
+      <div class="chrono-timer__tasklist" x-data="taskChecklist()">
+        <div class="chrono-timer__tasklist-header">
+          <span class="chrono-timer__label-micro">Tasks</span>
+          <button @click="addTask()" class="chrono-timer__tasklist-add" title="Add task" aria-label="Add task">＋</button>
+        </div>
+
+        <div class="chrono-timer__tasklist-items">
+          <template x-for="(task, i) in tasks" :key="task.id">
+            <div class="chrono-timer__task" :class="{ 'chrono-timer__task--done': task.done }">
+              <button @click="toggle(i)" class="chrono-timer__task-check" :class="{ 'chrono-timer__task-check--checked': task.done }" :aria-label="task.done ? 'Mark incomplete' : 'Mark complete'">
+                <svg x-show="task.done" viewBox="0 0 10 8" fill="none" aria-hidden="true"><path d="M1 4l3 3 5-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+
+              <span
+                x-show="!task.editing"
+                @dblclick="startEdit(task, $event)"
+                class="chrono-timer__task-text"
+                :class="{ 'chrono-timer__task-text--done': task.done }"
+                x-text="task.text"
+                title="Double-click to edit">
+              </span>
+
+              <input
+                x-show="task.editing"
+                class="chrono-timer__task-input"
+                x-model="task.text"
+                @keydown.enter="finishEdit(task)"
+                @keydown.escape="cancelEdit(task, i)"
+                @blur="finishEdit(task)">
+
+              <button @click="removeTask(i)" class="chrono-timer__task-delete" title="Remove" aria-label="Remove task">✕</button>
+            </div>
+          </template>
+
+          <div class="chrono-timer__tasklist-new" x-show="adding" x-cloak>
+            <input
+              class="chrono-timer__task-input chrono-timer__task-input--new"
+              x-ref="newInput"
+              x-model="newText"
+              placeholder="Add a task…"
+              @keydown.enter="confirmAdd()"
+              @keydown.escape="cancelAdd()"
+              @blur="confirmAdd()">
+          </div>
+        </div>
       </div>
     </div>
 
@@ -140,6 +188,70 @@
       },
       destroy() {
         if (this.interval) clearInterval(this.interval);
+      }
+    };
+  }
+
+  function taskChecklist() {
+    return {
+      tasks: [],
+      adding: false,
+      newText: '',
+      _nextId: 1,
+
+      addTask() {
+        this.adding = true;
+        this.newText = '';
+        this.$nextTick(() => requestAnimationFrame(() => this.$refs.newInput?.focus()));
+      },
+
+      confirmAdd() {
+        const text = this.newText.trim();
+        if (text) {
+          this.tasks.push({ id: this._nextId++, text, done: false, editing: false, _prev: '' });
+        }
+        this.adding = false;
+        this.newText = '';
+      },
+
+      cancelAdd() {
+        this.adding = false;
+        this.newText = '';
+      },
+
+      toggle(i) {
+        this.tasks[i].done = !this.tasks[i].done;
+      },
+
+      startEdit(task, event) {
+        task._prev = task.text;
+        task.editing = true;
+        this.$nextTick(() => {
+          event.target.closest('.chrono-timer__task')?.querySelector('.chrono-timer__task-input')?.focus();
+        });
+      },
+
+      finishEdit(task) {
+        if (!task.text.trim()) task.text = task._prev || '';
+        if (!task.text.trim()) {
+          const i = this.tasks.indexOf(task);
+          if (i !== -1) this.tasks.splice(i, 1);
+          return;
+        }
+        task.editing = false;
+      },
+
+      cancelEdit(task, i) {
+        task.text = task._prev || '';
+        if (!task.text) {
+          this.tasks.splice(i, 1);
+        } else {
+          task.editing = false;
+        }
+      },
+
+      removeTask(i) {
+        this.tasks.splice(i, 1);
       }
     };
   }

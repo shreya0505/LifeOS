@@ -2709,6 +2709,169 @@ body::before {
   box-shadow: 0 0 6px rgba(212, 175, 55, 0.35);
 }
 
+/* ── Session Tasklist (inside left rail, below phases) ─── */
+.chrono-timer__tasklist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-top: var(--space-2xl);
+  padding-top: var(--space-lg);
+  border-top: 1px solid rgba(22, 52, 34, 0.1);
+}
+
+.chrono-timer__tasklist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-xs);
+}
+
+
+.chrono-timer__tasklist-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(22, 52, 34, 0.2);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--on-surface-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 150ms var(--ease-natural);
+  padding: 0;
+}
+
+.chrono-timer__tasklist-add:hover {
+  background: rgba(22, 52, 34, 0.06);
+  color: var(--on-surface);
+  border-color: rgba(22, 52, 34, 0.35);
+}
+
+.chrono-timer__tasklist-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chrono-timer__task {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 4px;
+  border-radius: var(--radius-md);
+  transition: background 120ms var(--ease-natural);
+}
+
+.chrono-timer__task:hover {
+  background: rgba(22, 52, 34, 0.04);
+}
+
+.chrono-timer__task:hover .chrono-timer__task-delete {
+  opacity: 1;
+}
+
+.chrono-timer__task-check {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid rgba(22, 52, 34, 0.3);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 150ms var(--ease-natural);
+  color: var(--surface);
+}
+
+.chrono-timer__task-check:hover {
+  border-color: var(--primary);
+  background: rgba(22, 52, 34, 0.06);
+}
+
+.chrono-timer__task-check--checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.chrono-timer__task-check svg {
+  width: 10px;
+  height: 8px;
+  display: block;
+}
+
+.chrono-timer__task-text {
+  flex: 1;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--on-surface);
+  line-height: 1.5;
+  cursor: default;
+  min-width: 0;
+  overflow-wrap: break-word;
+  text-align: left;
+}
+
+.chrono-timer__task-text--done {
+  text-decoration: line-through;
+  color: var(--on-surface-muted);
+}
+
+.chrono-timer__task-input {
+  flex: 1;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--on-surface);
+  background: rgba(22, 52, 34, 0.06);
+  border: 1px solid rgba(22, 52, 34, 0.2);
+  border-radius: var(--radius-md);
+  padding: 2px 6px;
+  outline: none;
+  width: 100%;
+  min-width: 0;
+}
+
+.chrono-timer__task-input:focus {
+  border-color: var(--primary);
+  background: rgba(22, 52, 34, 0.04);
+  box-shadow: 0 0 0 2px rgba(22, 52, 34, 0.1);
+}
+
+.chrono-timer__task-input--new {
+  width: 100%;
+  padding: 4px 8px;
+  margin-top: 4px;
+}
+
+.chrono-timer__task-delete {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--on-surface-muted);
+  font-size: 9px;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  padding: 0;
+  opacity: 0;
+  transition: all 120ms var(--ease-natural);
+}
+
+.chrono-timer__task-delete:hover {
+  background: rgba(180, 60, 40, 0.1);
+  color: #b43c28;
+}
+
+
 /* Session indicator — anchored to bottom center */
 .chrono-timer__session-counter {
   position: absolute;
