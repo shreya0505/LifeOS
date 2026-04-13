@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # First-time setup
 python3 -m venv .venv
 source .venv/bin/activate
-pip install textual rich fastapi uvicorn[standard] jinja2 aiosqlite sse-starlette httpx
+pip install textual rich fastapi uvicorn[standard] jinja2 aiosqlite sse-starlette httpx python-multipart
 
 # Run TUI
 python3 -m tui

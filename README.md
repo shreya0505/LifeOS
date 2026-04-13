@@ -17,7 +17,7 @@ pip install textual rich
 python3 -m tui
 
 # Web (local)
-pip install fastapi "uvicorn[standard]" jinja2 aiosqlite sse-starlette httpx
+pip install fastapi "uvicorn[standard]" jinja2 aiosqlite sse-starlette httpx python-multipart
 uvicorn web.app:app --reload
 # → http://127.0.0.1:8000
 
