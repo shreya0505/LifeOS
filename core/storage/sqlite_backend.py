@@ -6,6 +6,7 @@ work identically against either storage layer.
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime, timezone
 
@@ -20,7 +21,7 @@ class SqliteQuestRepo:
 
     async def load_all(self) -> list[dict]:
         cursor = await self._db.execute(
-            "SELECT id, title, status, frog, created_at, started_at, completed_at, abandoned_at "
+            "SELECT id, title, status, frog, created_at, started_at, completed_at, abandoned_at, checklist "
             "FROM quests ORDER BY created_at"
         )
         rows = await cursor.fetchall()
@@ -34,6 +35,7 @@ class SqliteQuestRepo:
                 "started_at": r[5],
                 "completed_at": r[6],
                 "abandoned_at": r[7],
+                "checklist": json.loads(r[8] or "[]"),
             }
             for r in rows
         ]
@@ -55,6 +57,7 @@ class SqliteQuestRepo:
             "created_at": now,
             "started_at": None,
             "completed_at": None,
+            "checklist": [],
         }
 
     async def update_status(self, quest_id: str, status: str) -> dict | None:
@@ -141,6 +144,32 @@ class SqliteQuestRepo:
             "created_at": row[4],
             "started_at": row[5],
             "completed_at": row[6],
+        }
+
+    async def update_checklist(self, quest_id: str, checklist: list[dict]) -> dict | None:
+        cursor = await self._db.execute(
+            "SELECT id, title, status, frog, created_at, started_at, completed_at, abandoned_at "
+            "FROM quests WHERE id = ?",
+            (quest_id,),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        await self._db.execute(
+            "UPDATE quests SET checklist = ? WHERE id = ?",
+            (json.dumps(checklist), quest_id),
+        )
+        await self._db.commit()
+        return {
+            "id": row[0],
+            "title": row[1],
+            "status": row[2],
+            "frog": bool(row[3]),
+            "created_at": row[4],
+            "started_at": row[5],
+            "completed_at": row[6],
+            "abandoned_at": row[7],
+            "checklist": checklist,
         }
 
 

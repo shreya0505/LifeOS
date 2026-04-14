@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
@@ -170,6 +172,90 @@ async def abandon_quest(request: Request,
     response = _render(request, "board.html", {"columns": columns, "active_pomo_quest_id": _active_pomo_quest_id()})
     response.headers["HX-Trigger"] = "quest-abandoned"
     return response
+
+
+# ── Checklist (partial, used from pomo charge/deed screens) ─────────────
+
+def _render_checklist(request, quest_id: str, checklist: list[dict]):
+    response = _render(request, "checklist_panel.html", {
+        "quest_id": quest_id,
+        "checklist": checklist,
+    })
+    # Never cache — state mutates via PATCH/POST/DELETE
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@router.get("/quests/{quest_id}/checklist", response_class=HTMLResponse)
+async def get_checklist(request: Request, quest_id: str, quest_repo=Depends(get_quest_repo)):
+    quests = await quest_repo.load_all()
+    quest = next((q for q in quests if q["id"] == quest_id), None)
+    if quest is None:
+        return HTMLResponse("", status_code=404)
+    return _render_checklist(request, quest_id, quest.get("checklist", []))
+
+
+@router.post("/quests/{quest_id}/checklist", response_class=HTMLResponse)
+async def add_checklist_item(
+    request: Request,
+    quest_id: str,
+    text: str = Form(...),
+    quest_repo=Depends(get_quest_repo),
+):
+    text = text.strip()
+    if not text:
+        quests = await quest_repo.load_all()
+        quest = next((q for q in quests if q["id"] == quest_id), None)
+        checklist = quest.get("checklist", []) if quest else []
+        return _render_checklist(request, quest_id, checklist)
+
+    quests = await quest_repo.load_all()
+    quest = next((q for q in quests if q["id"] == quest_id), None)
+    if quest is None:
+        return HTMLResponse("", status_code=404)
+
+    checklist = list(quest.get("checklist", []))
+    checklist.append({"id": uuid.uuid4().hex[:8], "text": text, "done": False})
+    await quest_repo.update_checklist(quest_id, checklist)
+    return _render_checklist(request, quest_id, checklist)
+
+
+@router.patch("/quests/{quest_id}/checklist/{item_id}/toggle", response_class=HTMLResponse)
+async def toggle_checklist_item(
+    request: Request,
+    quest_id: str,
+    item_id: str,
+    quest_repo=Depends(get_quest_repo),
+):
+    quests = await quest_repo.load_all()
+    quest = next((q for q in quests if q["id"] == quest_id), None)
+    if quest is None:
+        return HTMLResponse("", status_code=404)
+
+    checklist = list(quest.get("checklist", []))
+    for item in checklist:
+        if item["id"] == item_id:
+            item["done"] = not item["done"]
+            break
+    await quest_repo.update_checklist(quest_id, checklist)
+    return _render_checklist(request, quest_id, checklist)
+
+
+@router.delete("/quests/{quest_id}/checklist/{item_id}", response_class=HTMLResponse)
+async def delete_checklist_item(
+    request: Request,
+    quest_id: str,
+    item_id: str,
+    quest_repo=Depends(get_quest_repo),
+):
+    quests = await quest_repo.load_all()
+    quest = next((q for q in quests if q["id"] == quest_id), None)
+    if quest is None:
+        return HTMLResponse("", status_code=404)
+
+    checklist = [i for i in quest.get("checklist", []) if i["id"] != item_id]
+    await quest_repo.update_checklist(quest_id, checklist)
+    return _render_checklist(request, quest_id, checklist)
 
 
 # ── Stats bar (HTMX polling) ────────────────────────────────────────────

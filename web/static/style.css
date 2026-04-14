@@ -2709,6 +2709,24 @@ body::before {
   box-shadow: 0 0 6px rgba(212, 175, 55, 0.35);
 }
 
+/* ── Quest Checklist scope (reuses .chrono-timer__task* classes) ─── */
+.quest-checklist {
+  max-width: 520px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+}
+
+.quest-checklist .chrono-timer__tasklist-items {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.quest-checklist__add-form {
+  display: flex;
+  margin-top: 4px;
+}
+
 /* ── Session Tasklist (inside left rail, below phases) ─── */
 .chrono-timer__tasklist {
   display: flex;

@@ -1,0 +1,42 @@
+<div id="quest-checklist-{{ quest_id }}" class="chrono-timer__tasklist quest-checklist">
+  <div class="chrono-timer__tasklist-header">
+    <span class="chrono-timer__label-micro">Tasks</span>
+  </div>
+
+  <div class="chrono-timer__tasklist-items">
+    {% for item in checklist %}
+    <div class="chrono-timer__task{% if item.done %} chrono-timer__task--done{% endif %}">
+      <button class="chrono-timer__task-check{% if item.done %} chrono-timer__task-check--checked{% endif %}"
+              hx-patch="/quests/{{ quest_id }}/checklist/{{ item.id }}/toggle"
+              hx-target="#quest-checklist-{{ quest_id }}"
+              hx-swap="outerHTML"
+              aria-label="{{ 'Mark incomplete' if item.done else 'Mark complete' }}">
+        {% if item.done %}
+        <svg viewBox="0 0 10 8" fill="none" aria-hidden="true">
+          <path d="M1 4l3 3 5-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        {% endif %}
+      </button>
+      <span class="chrono-timer__task-text{% if item.done %} chrono-timer__task-text--done{% endif %}">{{ item.text }}</span>
+      <button class="chrono-timer__task-delete"
+              hx-delete="/quests/{{ quest_id }}/checklist/{{ item.id }}"
+              hx-target="#quest-checklist-{{ quest_id }}"
+              hx-swap="outerHTML"
+              title="Remove"
+              aria-label="Remove item">✕</button>
+    </div>
+    {% endfor %}
+
+    <form class="quest-checklist__add-form"
+          hx-post="/quests/{{ quest_id }}/checklist"
+          hx-target="#quest-checklist-{{ quest_id }}"
+          hx-swap="outerHTML">
+      <input class="chrono-timer__task-input chrono-timer__task-input--new"
+             name="text"
+             placeholder="Add a task…"
+             autocomplete="off"
+             maxlength="200"
+             tabindex="2">
+    </form>
+  </div>
+</div>

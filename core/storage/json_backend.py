@@ -28,7 +28,10 @@ class JsonQuestRepo:
             json.dump(quests, f, indent=2)
 
     def load_all(self) -> list[dict]:
-        return self._load()
+        quests = self._load()
+        for q in quests:
+            q.setdefault("checklist", [])
+        return quests
 
     def add(self, title: str) -> dict:
         quests = self._load()
@@ -39,6 +42,7 @@ class JsonQuestRepo:
             "created_at": datetime.now(timezone.utc).isoformat(),
             "started_at": None,
             "completed_at": None,
+            "checklist": [],
         }
         quests.append(quest)
         self._save(quests)
@@ -73,6 +77,15 @@ class JsonQuestRepo:
         for quest in quests:
             if quest["id"] == quest_id:
                 quest["frog"] = not quest.get("frog", False)
+                self._save(quests)
+                return quest
+        return None
+
+    def update_checklist(self, quest_id: str, checklist: list[dict]) -> dict | None:
+        quests = self._load()
+        for quest in quests:
+            if quest["id"] == quest_id:
+                quest["checklist"] = checklist
                 self._save(quests)
                 return quest
         return None

@@ -72,4 +72,11 @@
     </div>
 
   </form>
+
+  <!-- Quest checklist — lazy-loaded, persists across pomos -->
+  <div id="quest-checklist-{{ engine.session.quest_id }}"
+       hx-get="/quests/{{ engine.session.quest_id }}/checklist"
+       hx-trigger="load"
+       hx-swap="outerHTML">
+  </div>
 </div>
