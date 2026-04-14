@@ -27,52 +27,11 @@
         {% endfor %}
       </div>
 
-      <!-- Session Tasklist — below phases, vertical separation -->
-      <div class="chrono-timer__tasklist" x-data="taskChecklist()">
-        <div class="chrono-timer__tasklist-header">
-          <span class="chrono-timer__label-micro">Tasks</span>
-          <button @click="addTask()" class="chrono-timer__tasklist-add" title="Add task" aria-label="Add task">＋</button>
-        </div>
-
-        <div class="chrono-timer__tasklist-items">
-          <template x-for="(task, i) in tasks" :key="task.id">
-            <div class="chrono-timer__task" :class="{ 'chrono-timer__task--done': task.done }">
-              <button @click="toggle(i)" class="chrono-timer__task-check" :class="{ 'chrono-timer__task-check--checked': task.done }" :aria-label="task.done ? 'Mark incomplete' : 'Mark complete'">
-                <svg x-show="task.done" viewBox="0 0 10 8" fill="none" aria-hidden="true"><path d="M1 4l3 3 5-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-
-              <span
-                x-show="!task.editing"
-                @dblclick="startEdit(task, $event)"
-                class="chrono-timer__task-text"
-                :class="{ 'chrono-timer__task-text--done': task.done }"
-                x-text="task.text"
-                title="Double-click to edit">
-              </span>
-
-              <input
-                x-show="task.editing"
-                class="chrono-timer__task-input"
-                x-model="task.text"
-                @keydown.enter="finishEdit(task)"
-                @keydown.escape="cancelEdit(task, i)"
-                @blur="finishEdit(task)">
-
-              <button @click="removeTask(i)" class="chrono-timer__task-delete" title="Remove" aria-label="Remove task">✕</button>
-            </div>
-          </template>
-
-          <div class="chrono-timer__tasklist-new" x-show="adding" x-cloak>
-            <input
-              class="chrono-timer__task-input chrono-timer__task-input--new"
-              x-ref="newInput"
-              x-model="newText"
-              placeholder="Add a task…"
-              @keydown.enter="confirmAdd()"
-              @keydown.escape="cancelAdd()"
-              @blur="confirmAdd()">
-          </div>
-        </div>
+      <!-- Quest checklist — persistent tasks, lazy-loaded -->
+      <div id="quest-checklist-{{ engine.session.quest_id }}"
+           hx-get="/quests/{{ engine.session.quest_id }}/checklist"
+           hx-trigger="load"
+           hx-swap="outerHTML">
       </div>
     </div>
 
