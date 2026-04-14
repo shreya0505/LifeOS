@@ -28,6 +28,7 @@
               class="heatmap__cell heatmap__cell--{{ cell.level }}{% if cell.is_today %} heatmap__cell--today{% endif %}"
               title="{{ cell.date }}: {{ cell.count }} pomos" data-animate-in>
               {% if cell.in_month %}<span class="heatmap__day-num">{{ cell.day_num }}</span>{% endif %}
+              {% if cell.in_month and cell.count > 0 %}<span class="heatmap__tooltip">{{ cell.count }} pomo{% if cell.count != 1 %}s{% endif %}</span>{% endif %}
             </div>
             {% endfor %}
           </div>

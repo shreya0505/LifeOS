@@ -55,13 +55,14 @@ def _build_heatmap(sessions: list[dict]) -> list[dict]:
         in_month = current.month == today.month and current.year == today.year
         is_future = current > today
         count = daily.get(d, 0)
+        is_past = in_month and not is_future and d != today_str
         if not in_month or is_future:
             level = "outside"
         elif count == 0:
             level = "empty"
-        elif count <= 2:
+        elif count <= 6:
             level = "light"
-        elif count <= 5:
+        elif count <= 10:
             level = "medium"
         else:
             level = "heavy"
@@ -70,6 +71,7 @@ def _build_heatmap(sessions: list[dict]) -> list[dict]:
             "count": count,
             "level": level,
             "is_today": d == today_str,
+            "is_past": is_past,
             "in_month": in_month,
             "day_num": current.day,
         })
