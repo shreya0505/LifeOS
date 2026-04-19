@@ -5,7 +5,19 @@ Day {{ days_elapsed }}/{{ days_total }} · {{ challenge.era_name }}
 {% endblock %}
 
 {% block content %}
-<div class="ch-today">
+<div class="ch-today{% if is_sealed_today %} is-locked-day{% endif %}">
+
+  {% if is_sealed_today %}
+  <div class="ch-lock-watermark" aria-hidden="true">
+    <div class="ch-lock-watermark__disc">
+      <span class="ch-lock-watermark__glyph">◈</span>
+    </div>
+    <div class="ch-lock-watermark__caption">
+      <span class="ch-lock-watermark__title">{{ challenge.current_level_name or 'INITIATE' }}</span>
+      <span class="ch-lock-watermark__lbl">Day {{ challenge.days_elapsed }} · Sealed</span>
+    </div>
+  </div>
+  {% endif %}
 
   <div class="ch-today-header">
     <div class="ch-header-row">

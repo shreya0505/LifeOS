@@ -1,26 +1,54 @@
 {% extends "challenge_base.html" %}
 {% set active_tab = 'history' %}
-{% block page_subtitle %}Archive of fallen eras{% endblock %}
+{% block page_subtitle %}System log · eras and fractures{% endblock %}
 
-{% block content %}
-<div class="ch-history">
-
-  {% if active %}
-  <section class="ch-era-active">
-    <div class="ch-era-badge">ACTIVE</div>
-    <h3>{{ active.era_name }}</h3>
-    <p class="ch-muted">Day {{ active.days_elapsed }} / 90 · Peak level {{ active.peak_level }}</p>
-  </section>
+{% macro fracture(cause) %}
+  {% if cause == 'hard' %}
+    <div class="ch-fracture ch-fracture-hard" aria-hidden="true">
+      <svg viewBox="0 0 12 48" preserveAspectRatio="none" width="12" height="48">
+        <polyline points="6,0 6,8 2,14 9,22 3,30 7,38 6,48"
+                  fill="none" stroke="currentColor" stroke-width="1.5"/>
+      </svg>
+    </div>
+  {% elif cause == 'soft' %}
+    <div class="ch-fracture ch-fracture-soft" aria-hidden="true">
+      <svg viewBox="0 0 12 36" preserveAspectRatio="none" width="12" height="36">
+        <line x1="6" y1="0" x2="4" y2="14" stroke="currentColor" stroke-width="1"/>
+        <line x1="7" y1="20" x2="6" y2="36" stroke="currentColor" stroke-width="1"/>
+      </svg>
+    </div>
+  {% elif cause == 'forfeit' %}
+    <div class="ch-fracture ch-fracture-forfeit" aria-hidden="true"></div>
+  {% elif cause == 'completed' %}
+    <div class="ch-fracture ch-fracture-completed" aria-hidden="true"></div>
   {% endif %}
+{% endmacro %}
 
-  {% if not eras %}
-    <p class="ch-muted ch-center">No archived eras. The first run is the first story.</p>
-  {% endif %}
+{% macro inner_timeline(anchors, duration) %}
+  <div class="ch-inner-timeline">
+    {% for a in anchors %}
+      {% set pct = ((a.day - 1) / (duration if duration > 1 else 1) * 100) | round(1) %}
+      <div class="ch-anchor ch-anchor-{{ a.kind }}" style="--anchor-pos: {{ pct }}%;">
+        <span class="ch-anchor-tick"></span>
+        <span class="ch-anchor-meta">Day {{ a.day }} · {{ a.date[5:] }}</span>
+        <span class="ch-anchor-label">{{ a.label }}</span>
+        {% if a.detail %}<span class="ch-anchor-detail">{{ a.detail }}</span>{% endif %}
+      </div>
+    {% endfor %}
+  </div>
+{% endmacro %}
 
-  {% for era in eras %}
-  <article class="ch-era-card">
-    <header class="ch-era-head">
-      <h3 class="ch-era-title">{{ era.era_name }}</h3>
+{% macro era_card(era, anchors, side, expanded=false, expandable=true) %}
+  <article class="ch-tl-era ch-tl-era--{{ side }}{% if expanded %} is-expanded{% endif %}"
+           {% if expandable %}x-data="{ open: {{ 'true' if expanded else 'false' }} }"
+           :class="{ 'is-expanded': open }"
+           @click="open = !open"
+           tabindex="0"
+           @keydown.enter.prevent="open = !open"
+           role="button"
+           :aria-expanded="open.toString()"{% endif %}>
+    <header class="ch-tl-era-head">
+      <h3 class="ch-tl-era-title">{{ era.era_name }}</h3>
       <span class="ch-era-cause ch-cause-{{ era.reset_cause }}">
         {% if era.reset_cause == 'completed' %}Completed
         {% elif era.reset_cause == 'forfeit' %}Relinquished
@@ -29,16 +57,96 @@
         {% else %}{{ era.reset_cause }}{% endif %}
       </span>
     </header>
-    <div class="ch-era-meta">
+    <div class="ch-tl-era-meta">
       <span>{{ era.start_date }} → {{ era.end_date }}</span>
-      <span>· {{ era.duration_days }} days</span>
-      <span>· Peak level {{ era.peak_level }}</span>
+      <span>· {{ era.duration_days }}d</span>
+      <span>· peak L{{ era.peak_level }}</span>
     </div>
-    <p class="ch-era-prose">{{ era.summary_prose }}</p>
+    <p class="ch-tl-era-prose">{{ era.summary_prose }}</p>
+    {% if expandable %}
+    <div class="ch-tl-era-body" x-show="open" x-collapse>
+      {{ inner_timeline(anchors, era.duration_days) }}
+    </div>
+    {% endif %}
   </article>
-  {% if not loop.last %}
-  <div class="ch-era-break">— Era Ended: {{ era.era_name }} —</div>
+{% endmacro %}
+
+{% block content %}
+<div class="ch-timeline-page">
+
+  {% if not active and not eras %}
+    <p class="ch-muted ch-center">No eras yet. The first run is the first story.</p>
+  {% else %}
+
+  <div class="ch-timeline">
+    <div class="ch-axis" aria-hidden="true"></div>
+
+    {% if active %}
+    <div class="ch-tl-row ch-tl-row--right">
+      <span class="ch-tl-node ch-tl-node--active" aria-hidden="true"></span>
+      <span class="ch-tl-connector ch-tl-connector--right" aria-hidden="true"></span>
+      <article class="ch-tl-era ch-tl-era--right ch-tl-era--active is-expanded">
+        <header class="ch-tl-era-head">
+          <h3 class="ch-tl-era-title">{{ active.era_name }}</h3>
+          <span class="ch-era-cause ch-tl-active-badge">ACTIVE</span>
+        </header>
+        <div class="ch-tl-era-meta">
+          <span>{{ active.start_date }} → now</span>
+          <span>· day {{ active.days_elapsed }}/90</span>
+          <span>· peak L{{ active.peak_level }}</span>
+        </div>
+        <div class="ch-tl-era-body">
+          {{ inner_timeline(active_anchors, active.days_elapsed if active.days_elapsed > 0 else 1) }}
+        </div>
+      </article>
+    </div>
+    {% endif %}
+
+    {% set ns = namespace(idx=0) %}
+    {% for item in timeline %}
+      {% if item.kind == 'era' %}
+        {% set era = item.era %}
+        {% set side = 'left' if ns.idx % 2 == 0 else 'right' %}
+        {{ fracture(era.reset_cause) }}
+        <div class="ch-tl-row ch-tl-row--{{ side }}">
+          {% if side == 'left' %}
+            <span class="ch-tl-connector ch-tl-connector--left" aria-hidden="true"></span>
+            <span class="ch-tl-node" aria-hidden="true"></span>
+          {% else %}
+            <span class="ch-tl-node" aria-hidden="true"></span>
+            <span class="ch-tl-connector ch-tl-connector--right" aria-hidden="true"></span>
+          {% endif %}
+          {{ era_card(era, era_anchor_map.get(era.id, []), side, expanded=false, expandable=true) }}
+        </div>
+        {% set ns.idx = ns.idx + 1 %}
+      {% else %}
+        {# false-starts cluster #}
+        <div class="ch-tl-cluster" x-data="{ open: false }">
+          <div class="ch-tl-cluster-band" @click="open = !open"
+               role="button" tabindex="0" @keydown.enter.prevent="open = !open"
+               :aria-expanded="open.toString()">
+            <span class="ch-tl-cluster-glyph" aria-hidden="true">⋮⋮</span>
+            <span class="ch-tl-cluster-label">False Starts · {{ item.count }} attempts</span>
+          </div>
+          <div class="ch-tl-cluster-body" x-show="open" x-collapse>
+            {% for fs in item.eras %}
+              <div class="ch-tl-cluster-row">
+                <span class="ch-tl-cluster-name">{{ fs.era_name }}</span>
+                <span class="ch-tl-cluster-meta">{{ fs.start_date }} · {{ fs.duration_days }}d</span>
+                <span class="ch-era-cause ch-cause-{{ fs.reset_cause }}">
+                  {% if fs.reset_cause == 'hard' %}Hard
+                  {% elif fs.reset_cause == 'soft' %}Soft
+                  {% elif fs.reset_cause == 'forfeit' %}Relinquished
+                  {% else %}{{ fs.reset_cause }}{% endif %}
+                </span>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+    {% endfor %}
+
+  </div>
   {% endif %}
-  {% endfor %}
 </div>
 {% endblock %}

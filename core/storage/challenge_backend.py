@@ -80,6 +80,15 @@ class SqliteChallengeRepo:
         row = await cursor.fetchone()
         return _challenge_row_to_dict(row) if row else None
 
+    async def get_by_start_date(self, start_date: str) -> dict | None:
+        cursor = await self._db.execute(
+            f"SELECT {_challenge_cols()} FROM challenges WHERE start_date = ? "
+            "ORDER BY created_at DESC LIMIT 1",
+            (start_date,),
+        )
+        row = await cursor.fetchone()
+        return _challenge_row_to_dict(row) if row else None
+
     async def update_level(self, challenge_id: str, level: int, level_name: str) -> None:
         await self._db.execute(
             "UPDATE challenges SET current_level = ?, current_level_name = ? WHERE id = ?",

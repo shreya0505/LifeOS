@@ -21,6 +21,55 @@ window.chEmberBurst = function () {
   }
 };
 
+window.chSealCeremony = function (btn) {
+  if (!btn || btn.dataset.sealing === "1" || btn.disabled) return false;
+  btn.dataset.sealing = "1";
+  const txt = btn.textContent || "";
+  const m = txt.match(/Day\s+(\d+)/i);
+  const day = m ? m[1] : "";
+  const stamp = document.createElement("div");
+  stamp.className = "ch-seal-stamp";
+  stamp.innerHTML =
+    '<div class="ch-seal-stamp__disc">' +
+    '<span class="ch-seal-stamp__glyph">◈</span>' +
+    '<span class="ch-seal-stamp__day">' + day + '</span>' +
+    '<span class="ch-seal-stamp__lbl">sealed</span>' +
+    '</div>';
+  document.body.appendChild(stamp);
+  setTimeout(() => stamp.remove(), 700);
+  return true;
+};
+
+document.addEventListener("submit", function (ev) {
+  const form = ev.target;
+  if (!form.matches(".ch-seal-form")) return;
+  const btn = form.querySelector(".ch-btn-seal");
+  if (!btn || btn.disabled) return;
+  if (btn.classList.contains("is-sealing")) return;
+  ev.preventDefault();
+  if (window.chSealCeremony(btn)) {
+    setTimeout(() => form.submit(), 650);
+  } else {
+    form.submit();
+  }
+}, true);
+
+window.chEmberDrift = function () {
+  const host = document.getElementById("ch-ember-drift");
+  if (!host) return;
+  const count = 7;
+  for (let i = 0; i < count; i++) {
+    const e = document.createElement("div");
+    e.className = "ch-ember-d";
+    e.style.left = (15 + Math.random() * 70) + "%";
+    e.style.bottom = (Math.random() * 20) + "%";
+    const dur = 3.5 + Math.random() * 2.5;
+    e.style.animationDuration = dur + "s";
+    e.style.animationDelay = (Math.random() * 1.2) + "s";
+    host.appendChild(e);
+  }
+};
+
 window.chAshRain = function () {
   const host = document.getElementById("ch-ash-field");
   if (!host) return;

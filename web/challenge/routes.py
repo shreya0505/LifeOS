@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from core.challenge import config as C
+from core.challenge import anchors as anchor_engine
 from core.challenge import era_names, level_engine, metrics_engine, reset_engine
 from core.utils import today_local
 
@@ -104,14 +105,12 @@ async def _build_today_context(
     if can_seal:
         seal_block_reason = ""
     elif caught_up_sealed:
-        seal_block_reason = f"Day {challenge['days_elapsed']} already sealed. Return tomorrow."
+        seal_block_reason = f"DAY {challenge['days_elapsed']} LOCKED · NEXT WINDOW TOMORROW"
     elif tracked_total == 0:
-        seal_block_reason = "No anchors or improvers defined — nothing to seal."
+        seal_block_reason = "NO TRACKED TASKS · NOTHING TO LOCK"
     else:
-        missing = tracked_total - tracked_rated
         seal_block_reason = (
-            f"Rate {missing} more tracked task{'s' if missing != 1 else ''} "
-            f"({tracked_rated}/{tracked_total} done)."
+            f"{tracked_rated}/{tracked_total} TRACKED TASKS RATED · COMPLETE TO LOCK"
         )
 
     return {
@@ -633,10 +632,62 @@ async def history_page(
     request: Request,
     era_repo=Depends(get_challenge_era_repo),
     challenge_repo=Depends(get_challenge_repo),
+    task_repo=Depends(get_challenge_task_repo),
+    entry_repo=Depends(get_challenge_entry_repo),
 ):
     eras = await era_repo.get_all()
     active = await challenge_repo.get_active()
+
+    # Anchors for active era
+    active_anchors: list[dict] = []
+    if active:
+        active_tasks = await task_repo.get_by_challenge(active["id"])
+        active_entries = await entry_repo.get_all_for_challenge(active["id"])
+        today_iso = today_local().isoformat()
+        today_day = _days_elapsed(active["start_date"])
+        active_anchors = anchor_engine.compute_era_anchors(
+            start_date=active["start_date"],
+            end_date=today_iso,
+            duration_days=max(active.get("days_elapsed") or 0, today_day),
+            entries=active_entries,
+            tasks=active_tasks,
+            reset_cause=None,
+            trigger_task_name=None,
+            is_active=True,
+            today_iso=today_iso,
+            today_day_num=today_day,
+        )
+
+    # Anchors for archived eras (lookup challenge by start_date)
+    era_anchor_map: dict[str, list[dict]] = {}
+    for era in eras:
+        ch = await challenge_repo.get_by_start_date(era["start_date"])
+        if ch is None:
+            era_anchor_map[era["id"]] = []
+            continue
+        ch_tasks = await task_repo.get_by_challenge(ch["id"])
+        ch_entries = await entry_repo.get_all_for_challenge(ch["id"])
+        trigger_name = None
+        if era.get("reset_trigger_task_id"):
+            trig = await task_repo.get_by_id(era["reset_trigger_task_id"])
+            trigger_name = trig["name"] if trig else None
+        era_anchor_map[era["id"]] = anchor_engine.compute_era_anchors(
+            start_date=era["start_date"],
+            end_date=era["end_date"],
+            duration_days=era["duration_days"],
+            entries=ch_entries,
+            tasks=ch_tasks,
+            reset_cause=era["reset_cause"],
+            trigger_task_name=trigger_name,
+            is_active=False,
+        )
+
+    timeline = anchor_engine.cluster_false_starts(eras)
+
     return _render(request, "challenge_history.html", {
         "eras": eras,
         "active": active,
+        "active_anchors": active_anchors,
+        "era_anchor_map": era_anchor_map,
+        "timeline": timeline,
     })

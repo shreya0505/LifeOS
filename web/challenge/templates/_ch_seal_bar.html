@@ -1,38 +1,48 @@
 {# Seal bar. Rendered inline on full page AND as OOB swap on rating change. #}
-<div class="ch-seal-bar" id="ch-seal-bar"{% if oob %} hx-swap-oob="outerHTML"{% endif %}>
-  <div class="ch-seal-status">
-    <span class="ch-seal-count">{{ tracked_rated }}/{{ tracked_total }}</span>
-    <span class="ch-seal-lbl">tracked tasks rated</span>
-  </div>
-  <form method="post" action="/challenge/today/seal" class="ch-seal-form">
-    <span class="ch-seal-wrap"
-          {% if not can_seal %}title="{{ seal_block_reason }}"
-          data-tooltip="{{ seal_block_reason }}"{% endif %}>
-      <button type="submit" class="ch-btn-seal"
-              {% if not can_seal %}disabled aria-disabled="true"
-              aria-describedby="ch-seal-reason"{% endif %}>
-        {% if target_day_num == 1 and not is_sealed_today %}
-          Begin &amp; Seal Day 1
-        {% elif is_backfill %}
-          Seal Day {{ target_day_num }} · {{ target_date_fmt }}
-        {% else %}
-          Seal Day {{ target_day_num }} · Today
-        {% endif %}
-      </button>
-    </span>
-    {% if not can_seal and seal_block_reason %}
-    <span id="ch-seal-reason" class="ch-seal-reason">{{ seal_block_reason }}</span>
-    {% endif %}
-  </form>
-  <div class="ch-forfeit" x-data="{ confirm: false }">
-    <button type="button" class="ch-btn-forfeit" x-show="!confirm" @click="confirm = true">
-      Relinquish
-    </button>
-    <form x-show="confirm" method="post" action="/challenge/forfeit" class="ch-forfeit-confirm">
-      <input type="hidden" name="confirm" value="yes">
-      <span class="ch-forfeit-text">Abandon this era?</span>
-      <button type="submit" class="ch-btn-forfeit-yes">Yes, end it</button>
-      <button type="button" class="ch-btn-forfeit-no" @click="confirm = false">Cancel</button>
+<div class="ch-seal-bar{% if not can_seal %} is-blocked{% endif %}" id="ch-seal-bar"{% if oob %} hx-swap-oob="outerHTML"{% endif %}>
+  <div class="ch-seal-strip">
+    <div class="ch-seal-kicker">
+      <span>LOCK</span>
+      <span class="ch-seal-kicker__sep">·</span>
+      <strong>DAY {{ target_day_num }}</strong>
+    </div>
+
+    <form method="post" action="/challenge/today/seal" class="ch-seal-primary">
+      <span class="ch-seal-wrap"
+            {% if not can_seal %}title="{{ seal_block_reason }}"
+            data-tooltip="{{ seal_block_reason }}"{% endif %}>
+        <button type="submit" class="ch-btn-seal"
+                {% if not can_seal %}disabled aria-disabled="true"
+                aria-describedby="ch-seal-reason"{% endif %}>
+          {% if target_day_num == 1 and not is_sealed_today %}
+            Begin · Seal Day 1
+          {% elif is_backfill %}
+            Seal Day {{ target_day_num }} · {{ target_date_fmt }}
+          {% else %}
+            Seal Day {{ target_day_num }}
+          {% endif %}
+        </button>
+      </span>
     </form>
+
+    <div class="ch-seal-meta">
+      <span class="ch-seal-meta__stat">{{ tracked_rated }}/{{ tracked_total }} rated</span>
+      <span class="ch-seal-meta__sep" aria-hidden="true">·</span>
+      <span class="ch-forfeit" x-data="{ confirm: false }">
+        <button type="button" class="ch-btn-forfeit" x-show="!confirm" @click="confirm = true">
+          relinquish
+        </button>
+        <form x-show="confirm" method="post" action="/challenge/forfeit" class="ch-forfeit-confirm">
+          <input type="hidden" name="confirm" value="yes">
+          <span class="ch-forfeit-text">END ERA?</span>
+          <button type="submit" class="ch-btn-forfeit-yes">CONFIRM</button>
+          <button type="button" class="ch-btn-forfeit-no" @click="confirm = false">CANCEL</button>
+        </form>
+      </span>
+    </div>
   </div>
+
+  {% if seal_block_reason %}
+  <div id="ch-seal-reason" class="ch-seal-reason">{{ seal_block_reason }}</div>
+  {% endif %}
 </div>
