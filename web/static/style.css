@@ -130,6 +130,23 @@ body::before {
   justify-content: flex-end;
 }
 
+.app-navbar__switch {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--on-surface-muted);
+  text-decoration: none;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  transition: color 200ms var(--ease-natural), background 200ms var(--ease-natural);
+}
+.app-navbar__switch:hover {
+  color: var(--primary);
+  background: rgba(0, 0, 0, 0.04);
+}
+
 .app-navbar__date {
   font-family: var(--font-display);
   font-size: var(--text-sm);
@@ -5160,3 +5177,38 @@ body::before {
   pointer-events: none;
   line-height: 1;
 }
+
+/* ── Test Mode Bar (dev-only) ──────────────────────────────── */
+.test-mode-bar {
+  position: fixed;
+  bottom: 56px;
+  right: 16px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #ff5722;
+  color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+.test-mode-bar__label {
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.test-mode-bar__day { opacity: 0.9; }
+.test-mode-bar__btn {
+  background: rgba(0,0,0,0.25);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+  font: inherit;
+}
+.test-mode-bar__btn:hover { background: rgba(0,0,0,0.45); }
+.test-mode-bar__btn--reset { opacity: 0.8; }

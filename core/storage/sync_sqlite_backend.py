@@ -10,6 +10,7 @@ from __future__ import annotations
 import sqlite3
 import uuid
 from datetime import datetime, timezone
+from core import clock
 from pathlib import Path
 
 
@@ -59,7 +60,7 @@ class SyncSqlitePomoRepo:
 
     def start_session(self, quest_id: str, quest_title: str) -> dict:
         sid = uuid.uuid4().hex[:8]
-        now = datetime.now(timezone.utc).isoformat()
+        now = clock.utcnow().isoformat()
         self._conn.execute(
             "INSERT INTO pomo_sessions "
             "(id, quest_id, quest_title, started_at, status, actual_pomos, "
@@ -194,7 +195,7 @@ class SyncSqlitePomoRepo:
             return None
 
         status = "completed" if row[0] > 0 else "stopped"
-        now = datetime.now(timezone.utc).isoformat()
+        now = clock.utcnow().isoformat()
         self._conn.execute(
             "UPDATE pomo_sessions SET status = ?, ended_at = ? WHERE id = ?",
             (status, now, session_id),

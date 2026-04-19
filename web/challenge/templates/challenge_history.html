@@ -1,0 +1,44 @@
+{% extends "challenge_base.html" %}
+{% set active_tab = 'history' %}
+{% block page_subtitle %}Archive of fallen eras{% endblock %}
+
+{% block content %}
+<div class="ch-history">
+
+  {% if active %}
+  <section class="ch-era-active">
+    <div class="ch-era-badge">ACTIVE</div>
+    <h3>{{ active.era_name }}</h3>
+    <p class="ch-muted">Day {{ active.days_elapsed }} / 90 · Peak level {{ active.peak_level }}</p>
+  </section>
+  {% endif %}
+
+  {% if not eras %}
+    <p class="ch-muted ch-center">No archived eras. The first run is the first story.</p>
+  {% endif %}
+
+  {% for era in eras %}
+  <article class="ch-era-card">
+    <header class="ch-era-head">
+      <h3 class="ch-era-title">{{ era.era_name }}</h3>
+      <span class="ch-era-cause ch-cause-{{ era.reset_cause }}">
+        {% if era.reset_cause == 'completed' %}Completed
+        {% elif era.reset_cause == 'forfeit' %}Relinquished
+        {% elif era.reset_cause == 'hard' %}Hard fail
+        {% elif era.reset_cause == 'soft' %}Soft fail
+        {% else %}{{ era.reset_cause }}{% endif %}
+      </span>
+    </header>
+    <div class="ch-era-meta">
+      <span>{{ era.start_date }} → {{ era.end_date }}</span>
+      <span>· {{ era.duration_days }} days</span>
+      <span>· Peak level {{ era.peak_level }}</span>
+    </div>
+    <p class="ch-era-prose">{{ era.summary_prose }}</p>
+  </article>
+  {% if not loop.last %}
+  <div class="ch-era-break">— Era Ended: {{ era.era_name }} —</div>
+  {% endif %}
+  {% endfor %}
+</div>
+{% endblock %}

@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import datetime, timezone
+from core import clock
 
 import aiosqlite
 
@@ -42,7 +43,7 @@ class SqliteQuestRepo:
 
     async def add(self, title: str) -> dict:
         qid = uuid.uuid4().hex[:8]
-        now = datetime.now(timezone.utc).isoformat()
+        now = clock.utcnow().isoformat()
         await self._db.execute(
             "INSERT INTO quests (id, title, status, frog, created_at) "
             "VALUES (?, ?, 'log', 0, ?)",
@@ -70,7 +71,7 @@ class SqliteQuestRepo:
         if row is None:
             return None
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = clock.utcnow().isoformat()
         started_at = row[5]
         completed_at = row[6]
 
@@ -104,7 +105,7 @@ class SqliteQuestRepo:
         row = await cursor.fetchone()
         if row is None:
             return None
-        now = datetime.now(timezone.utc).isoformat()
+        now = clock.utcnow().isoformat()
         await self._db.execute(
             "UPDATE quests SET status = 'abandoned', abandoned_at = ? WHERE id = ?",
             (now, quest_id),
@@ -231,7 +232,7 @@ class SqlitePomoRepo:
 
     async def start_session(self, quest_id: str, quest_title: str) -> dict:
         sid = uuid.uuid4().hex[:8]
-        now = datetime.now(timezone.utc).isoformat()
+        now = clock.utcnow().isoformat()
         await self._db.execute(
             "INSERT INTO pomo_sessions "
             "(id, quest_id, quest_title, started_at, status, actual_pomos, "
@@ -376,7 +377,7 @@ class SqlitePomoRepo:
             return None
 
         status = "completed" if row[0] > 0 else "stopped"
-        now = datetime.now(timezone.utc).isoformat()
+        now = clock.utcnow().isoformat()
         await self._db.execute(
             "UPDATE pomo_sessions SET status = ?, ended_at = ? WHERE id = ?",
             (status, now, session_id),

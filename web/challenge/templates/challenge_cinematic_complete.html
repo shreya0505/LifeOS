@@ -1,0 +1,21 @@
+{% extends "challenge_base.html" %}
+{% set active_tab = 'today' %}
+{% block page_subtitle %}The 90 stands{% endblock %}
+
+{% block content %}
+<div class="ch-cinema ch-cinema-complete">
+  <div class="ch-ash-field" id="ch-ash-field"></div>
+  <div class="ch-cinema-core">
+    <p class="ch-cinema-eyebrow">NINETY</p>
+    <h2 class="ch-cinema-title">The 90 stands.<br>You did not break.</h2>
+    <p class="ch-cinema-prose">{{ prose }}</p>
+    <div class="ch-cinema-stats">
+      <div><span>Era</span><strong>{{ era }}</strong></div>
+      <div><span>Days</span><strong>{{ days_elapsed }}</strong></div>
+      <div><span>Peak</span><strong>{{ peak_level_name }}</strong></div>
+    </div>
+    <a href="/challenge/history" class="ch-btn-primary">Archive This Era</a>
+  </div>
+</div>
+<script>if (window.chAshRain) window.chAshRain();</script>
+{% endblock %}

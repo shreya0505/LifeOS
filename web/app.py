@@ -21,6 +21,7 @@ _TEMPLATE_DIRS = [
     str(_WEB_DIR / "chronicle" / "templates"),
     str(_WEB_DIR / "trophies" / "templates"),
     str(_WEB_DIR / "dashboard" / "templates"),
+    str(_WEB_DIR / "challenge" / "templates"),
 ]
 
 
@@ -56,6 +57,7 @@ from web.pomos.sse import router as sse_router  # noqa: E402
 from web.chronicle.routes import router as chronicle_router  # noqa: E402
 from web.trophies.routes import router as trophy_router  # noqa: E402
 from web.dashboard.routes import router as dashboard_router  # noqa: E402
+from web.challenge.routes import router as challenge_router  # noqa: E402
 
 app.include_router(quest_router)
 app.include_router(pomo_router)
@@ -63,6 +65,15 @@ app.include_router(sse_router)
 app.include_router(chronicle_router)
 app.include_router(trophy_router)
 app.include_router(dashboard_router)
+app.include_router(challenge_router)
+
+# Test mode — dev-only, gated by TEST_MODE env var
+from core import clock  # noqa: E402
+if clock.is_test_mode():
+    from web.test_mode.routes import router as test_mode_router  # noqa: E402
+    app.include_router(test_mode_router)
+
+_jinja_env.globals["test_mode_enabled"] = clock.is_test_mode
 
 
 @app.get("/health")

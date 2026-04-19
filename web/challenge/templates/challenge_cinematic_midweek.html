@@ -1,0 +1,15 @@
+{% extends "challenge_base.html" %}
+{% set active_tab = 'today' %}
+{% block page_subtitle %}Mid-week tier{% endblock %}
+
+{% block content %}
+<div class="ch-cinema ch-cinema-midweek">
+  <div class="ch-cinema-core">
+    <p class="ch-cinema-eyebrow">MID-WEEK TIER · DAY {{ days_elapsed }}</p>
+    <h2 class="ch-cinema-title">{{ level_name }}</h2>
+    <p class="ch-cinema-prose">A half-step. Keep the chain.</p>
+    <a href="/challenge/today" class="ch-btn-primary">Continue</a>
+  </div>
+</div>
+<script>setTimeout(() => location.href='/challenge/today', 3500);</script>
+{% endblock %}

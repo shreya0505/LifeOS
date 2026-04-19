@@ -6,12 +6,13 @@ both TUI and web frontends.
 
 from datetime import datetime, date, timezone, timedelta
 
+from core import clock
 from core.config import USER_TZ
 
 
 def today_local() -> date:
     """Return today's date in the user's timezone."""
-    return datetime.now(USER_TZ).date()
+    return clock.today_local()
 
 
 def to_local_date(iso_str: str) -> str:
@@ -26,7 +27,7 @@ def to_local_date(iso_str: str) -> str:
 
 
 def fantasy_date(d: date | None = None) -> str:
-    d = d or datetime.now(USER_TZ).date()
+    d = d or clock.today_local()
     day    = d.day
     month  = d.strftime("%B")
     suffix = "th" if 11 <= day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
@@ -55,7 +56,7 @@ def get_elapsed(quest: dict) -> float | None:
     if started is None:
         return None
     completed = parse_dt(quest.get("completed_at"))
-    end = completed if completed else datetime.now(timezone.utc)
+    end = completed if completed else clock.utcnow()
     return (end - started).total_seconds()
 
 

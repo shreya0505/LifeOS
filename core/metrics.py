@@ -7,6 +7,7 @@ accept data as parameters — no internal I/O.
 from __future__ import annotations
 
 from datetime import datetime, timezone, timedelta
+from core import clock
 
 from core.config import POMO_CONFIG
 from core.utils import (
@@ -17,7 +18,7 @@ from core.utils import (
 
 def compute_metrics(quests: list[dict]) -> list[dict]:
     """Compute productivity improvement metrics from quest history."""
-    now         = datetime.now(timezone.utc)
+    now         = clock.utcnow()
     week_ago    = now - timedelta(days=7)
     two_wks_ago = now - timedelta(days=14)
 
@@ -111,7 +112,7 @@ def compute_metrics(quests: list[dict]) -> list[dict]:
 
 def compute_pomo_metrics(sessions: list[dict]) -> list[dict]:
     """Compute productivity metrics from pomodoro session history."""
-    now         = datetime.now(timezone.utc)
+    now         = clock.utcnow()
     week_ago    = now - timedelta(days=7)
     two_wks_ago = now - timedelta(days=14)
 
@@ -367,7 +368,7 @@ def _trend_line(values: list) -> list:
 
 def compute_war_room(quests: list[dict], sessions: list[dict]) -> dict:
     """Chart configs for the War Room section (below Hall of Valor)."""
-    now      = datetime.now(timezone.utc)
+    now      = clock.utcnow()
     wranges  = _week_ranges(now, WEEK_N)
     wlabels  = _week_labels(WEEK_N)
 

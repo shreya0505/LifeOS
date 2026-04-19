@@ -1,0 +1,56 @@
+{% extends "challenge_base.html" %}
+{% set active_tab = 'setup' %}
+{% block page_subtitle %}Forge the challenge{% endblock %}
+
+{% block content %}
+<div class="ch-setup" x-data="setupWizard()">
+  <div class="ch-setup-intro">
+    <h2>Begin the Hard 90.</h2>
+    <p class="ch-lede">
+      Ninety days. Three buckets. No excuses. Define what you will rate
+      each day — anchors must hold, improvers must progress, enrichers
+      may engage without penalty.
+    </p>
+  </div>
+
+  <form method="post" action="/challenge/setup" class="ch-setup-form">
+    {% for bucket in buckets %}
+    <section class="ch-setup-bucket">
+      <header>
+        <h3>{{ bucket_labels[bucket] }}</h3>
+        <p class="ch-bucket-desc">{{ bucket_descriptions[bucket] }}</p>
+      </header>
+      <div class="ch-task-rows">
+        <template x-for="(t, i) in tasks['{{ bucket }}']" :key="i">
+          <div class="ch-task-row">
+            <input type="text" name="{{ bucket }}[]" x-model="t.name"
+                   placeholder="{{ bucket_labels[bucket][:-1] }} task name…" required>
+            <button type="button" class="ch-row-remove" @click="removeTask('{{ bucket }}', i)">×</button>
+          </div>
+        </template>
+      </div>
+      <button type="button" class="ch-add-btn" @click="addTask('{{ bucket }}')">+ Add {{ bucket_labels[bucket][:-1] }}</button>
+    </section>
+    {% endfor %}
+
+    <div class="ch-setup-actions">
+      <p class="ch-setup-warn">Once sealed, tasks cannot be changed except for typos.</p>
+      <button type="submit" class="ch-btn-primary">Seal &amp; Begin</button>
+    </div>
+  </form>
+</div>
+
+<script>
+function setupWizard() {
+  return {
+    tasks: {
+      anchor: [{name:''},{name:''}],
+      improver: [{name:''}],
+      enricher: [{name:''}],
+    },
+    addTask(b) { this.tasks[b].push({name:''}); },
+    removeTask(b, i) { if (this.tasks[b].length > 1) this.tasks[b].splice(i,1); },
+  };
+}
+</script>
+{% endblock %}

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from core import clock
 
 from core.config import POMO_CONFIG
 from core.storage.protocols import PomoRepo
@@ -162,7 +163,7 @@ class PomoEngine:
         """Seconds remaining in current segment."""
         if self.seg_start is None:
             return 0.0
-        elapsed = (datetime.now(timezone.utc) - self.seg_start).total_seconds()
+        elapsed = (clock.utcnow() - self.seg_start).total_seconds()
         return max(0.0, self.seg_duration() - elapsed)
 
     def submit_charge(self, charge: str) -> None:
@@ -172,7 +173,7 @@ class PomoEngine:
     def start_segment(self, seg_type: str) -> SegmentStarted:
         """Begin a work or break segment. Returns event with timing info."""
         self.seg_type = seg_type
-        self.seg_start = datetime.now(timezone.utc)
+        self.seg_start = clock.utcnow()
         self.seg_interruptions = 0
 
         return SegmentStarted(
@@ -191,7 +192,7 @@ class PomoEngine:
         early_completion: bool = False,
     ) -> SegmentEnded:
         """End current segment. Returns event indicating next gate."""
-        now = datetime.now(timezone.utc)
+        now = clock.utcnow()
         seg_secs = (now - self.seg_start).total_seconds() if self.seg_start else 0.0
         seg_started_at = self.seg_start.isoformat() if self.seg_start else now.isoformat()
 
@@ -335,7 +336,7 @@ class PomoEngine:
         self.streak = 0
         self.momentum = 0
 
-        now = datetime.now(timezone.utc)
+        now = clock.utcnow()
         self.seg_interruptions += 1
         self.lap_history[self.lap] = "broken"
 
@@ -413,7 +414,7 @@ class PomoEngine:
         if not (self.session and self.seg_start):
             return
 
-        now = datetime.now(timezone.utc)
+        now = clock.utcnow()
         interruptions = self.seg_interruptions
         if self.seg_type == "work":
             interruptions += 1

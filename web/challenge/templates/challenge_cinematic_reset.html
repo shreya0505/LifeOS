@@ -1,0 +1,25 @@
+{% extends "challenge_base.html" %}
+{% set active_tab = 'today' %}
+{% block page_subtitle %}The era ends{% endblock %}
+
+{% block content %}
+<div class="ch-cinema ch-cinema-reset">
+  <div class="ch-cinema-flash"></div>
+  <div class="ch-cinema-core">
+    <p class="ch-cinema-eyebrow">FAILURE DETECTED</p>
+    <h2 class="ch-cinema-title">The era ends.<br><em>{{ old_era }}</em> falls.</h2>
+    <p class="ch-cinema-prose">{{ prose }}</p>
+    <div class="ch-cinema-stats">
+      <div><span>Days held</span><strong>{{ days_elapsed }}</strong></div>
+      <div><span>Peak level</span><strong>{{ peak_level_name }}</strong></div>
+      <div><span>Cause</span><strong>{{ reset_cause | upper }}</strong></div>
+    </div>
+    <div class="ch-cinema-new-era">
+      <p class="ch-cinema-rise">A new age rises.</p>
+      <h3>{{ new_era }}</h3>
+      <p>Level reset · Days reset · Tasks preserved</p>
+    </div>
+    <a href="/challenge/today" class="ch-btn-primary">Witness the New Age</a>
+  </div>
+</div>
+{% endblock %}

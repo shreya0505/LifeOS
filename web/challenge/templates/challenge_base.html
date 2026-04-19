@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Hard 90{% endblock %}</title>
+<link rel="stylesheet" href="/static/tokens.css">
+<link rel="stylesheet" href="/static/challenge.css?v=9">
+<script src="/static/htmx.min.js" defer></script>
+<script src="/static/alpine.min.js" defer></script>
+<script src="/static/chart.min.js" defer></script>
+<script src="/static/challenge.js?v=5" defer></script>
+</head>
+<body class="challenge-page">
+
+<header class="ch-navbar">
+  <div class="ch-navbar__brand">
+    <a href="/challenge" class="ch-brand">HARD<span class="ch-brand-dot">/</span>90</a>
+  </div>
+  <nav class="ch-navbar__nav">
+    <a href="/challenge/today" class="ch-nav-link{% if active_tab == 'today' %} is-active{% endif %}">Today</a>
+    <a href="/challenge/metrics" class="ch-nav-link{% if active_tab == 'metrics' %} is-active{% endif %}">Metrics</a>
+    <a href="/challenge/history" class="ch-nav-link{% if active_tab == 'history' %} is-active{% endif %}">History</a>
+  </nav>
+  <div class="ch-navbar__end">
+    <a href="/" class="ch-navbar__switch" title="Quest Tracker">QuestLog ↗</a>
+  </div>
+</header>
+
+<main class="ch-main">
+  <section class="ch-content">
+    {% block content %}{% endblock %}
+  </section>
+</main>
+
+<div id="ch-overlay-mount"></div>
+
+{% if test_mode_enabled() %}
+<div hx-get="/test/bar" hx-trigger="load" hx-swap="outerHTML"></div>
+{% endif %}
+
+</body>
+</html>

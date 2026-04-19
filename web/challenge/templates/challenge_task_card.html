@@ -1,0 +1,38 @@
+{# Flush task row. Used inside day form and as HTMX swap target. #}
+<div class="ch-task-row{% if task.current_state %} is-rated{% elif task.bucket != 'enricher' %} is-unrated is-tracked{% endif %}"
+     id="task-{{ task.id }}"
+     x-data="{ notesOpen: {{ 'true' if task.current_notes else 'false' }} }">
+  <form class="ch-task-row__form"
+        hx-post="/challenge/today/entry/{{ task.id }}"
+        hx-target="#task-{{ task.id }}"
+        hx-swap="outerHTML"
+        hx-trigger="change from:input[type=radio] delay:80ms">
+    <div class="ch-task-name">{{ task.name }}</div>
+    <div class="ch-dot-picker" role="radiogroup" aria-label="State">
+      {% for s in states %}
+      <label class="ch-dot ch-dot-{{ s | lower }}{% if task.current_state == s %} is-selected{% endif %}"
+             title="{{ state_labels[s] }}"
+             aria-label="{{ state_labels[s] }}">
+        <input type="radio" name="state" value="{{ s }}"
+               {% if task.current_state == s %}checked{% endif %}>
+      </label>
+      {% endfor %}
+    </div>
+    <div class="ch-state-caption ch-cap-{{ task.current_state | lower if task.current_state else 'none' }}">
+      {{ state_short[task.current_state] if task.current_state else '' }}
+    </div>
+    <button type="button"
+            class="ch-notes-toggle{% if task.current_notes %} has-notes{% endif %}"
+            @click="notesOpen = !notesOpen"
+            :aria-expanded="notesOpen"
+            aria-label="Toggle notes">✎</button>
+    <div class="ch-notes-row" x-show="notesOpen" x-cloak>
+      <textarea class="ch-task-notes" name="notes"
+                placeholder="Notes…"
+                hx-post="/challenge/today/entry/{{ task.id }}"
+                hx-target="#task-{{ task.id }}"
+                hx-swap="outerHTML"
+                hx-trigger="blur changed">{{ task.current_notes }}</textarea>
+    </div>
+  </form>
+</div>

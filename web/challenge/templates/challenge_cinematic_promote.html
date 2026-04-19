@@ -1,0 +1,23 @@
+{% extends "challenge_base.html" %}
+{% set active_tab = 'today' %}
+{% block page_subtitle %}Promotion{% endblock %}
+
+{% block content %}
+<div class="ch-cinema ch-cinema-promote">
+  <div class="ch-ember-burst" id="ch-ember-burst"></div>
+  <div class="ch-cinema-core">
+    <p class="ch-cinema-eyebrow">TIER UNLOCKED · DAY {{ days_elapsed }}</p>
+    <div class="ch-sigil">
+      <svg viewBox="0 0 100 100" width="120" height="120" aria-hidden="true">
+        <circle cx="50" cy="50" r="44" fill="none" stroke="currentColor" stroke-width="2"/>
+        <polygon points="50,12 88,50 50,88 12,50" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="50" cy="50" r="6" fill="currentColor"/>
+      </svg>
+    </div>
+    <h2 class="ch-cinema-title ch-typed">{{ level_name }}</h2>
+    <p class="ch-cinema-prose"><em>{{ era }}</em> · The ladder ascends.</p>
+    <a href="/challenge/today" class="ch-btn-primary">Continue</a>
+  </div>
+</div>
+<script>if (window.chEmberBurst) window.chEmberBurst();</script>
+{% endblock %}

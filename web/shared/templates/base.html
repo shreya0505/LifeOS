@@ -40,7 +40,9 @@
         <button class="app-navbar__link" data-tab="board" onclick="switchNavTab('board')">Board</button>
         <button class="app-navbar__link" data-tab="metrics" onclick="switchNavTab('metrics')">Codex</button>
       </nav>
-      <div class="app-navbar__end"></div>
+      <div class="app-navbar__end">
+        <a href="/challenge" class="app-navbar__switch" title="Hard 90 Challenge">Hard 90 ↗</a>
+      </div>
     </header>
 
     <!-- Main Content -->
@@ -61,6 +63,10 @@
 
   <!-- Toast container -->
   <div class="toast-container" id="toast-container"></div>
+
+  {% if test_mode_enabled() %}
+  <div hx-get="/test/bar" hx-trigger="load" hx-swap="outerHTML"></div>
+  {% endif %}
 
   <script>
     // Simple toast helper

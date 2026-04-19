@@ -9,6 +9,12 @@ from core.storage.sqlite_backend import (
     SqlitePomoRepo,
     SqliteTrophyPRRepo,
 )
+from core.storage.challenge_backend import (
+    SqliteChallengeRepo,
+    SqliteChallengeTaskRepo,
+    SqliteChallengeEntryRepo,
+    SqliteChallengeEraRepo,
+)
 
 
 def get_quest_repo(request: Request) -> SqliteQuestRepo:
@@ -21,3 +27,19 @@ def get_pomo_repo(request: Request) -> SqlitePomoRepo:
 
 def get_trophy_repo(request: Request) -> SqliteTrophyPRRepo:
     return SqliteTrophyPRRepo(request.app.state.db)
+
+
+def get_challenge_repo(request: Request) -> SqliteChallengeRepo:
+    return SqliteChallengeRepo(request.app.state.db)
+
+
+def get_challenge_task_repo(request: Request) -> SqliteChallengeTaskRepo:
+    return SqliteChallengeTaskRepo(request.app.state.db)
+
+
+def get_challenge_entry_repo(request: Request) -> SqliteChallengeEntryRepo:
+    return SqliteChallengeEntryRepo(request.app.state.db)
+
+
+def get_challenge_era_repo(request: Request) -> SqliteChallengeEraRepo:
+    return SqliteChallengeEraRepo(request.app.state.db)

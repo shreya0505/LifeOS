@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import datetime, timezone
+from core import clock
 from pathlib import Path
 
 
@@ -39,7 +40,7 @@ class JsonQuestRepo:
             "id": str(uuid.uuid4())[:8],
             "title": title,
             "status": "log",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": clock.utcnow().isoformat(),
             "started_at": None,
             "completed_at": None,
             "checklist": [],
@@ -53,7 +54,7 @@ class JsonQuestRepo:
         for quest in quests:
             if quest["id"] == quest_id:
                 quest["status"] = status
-                now = datetime.now(timezone.utc).isoformat()
+                now = clock.utcnow().isoformat()
                 if status == "active" and not quest.get("started_at"):
                     quest["started_at"] = now
                 elif status == "done":
@@ -67,7 +68,7 @@ class JsonQuestRepo:
         for quest in quests:
             if quest["id"] == quest_id:
                 quest["status"] = "abandoned"
-                quest["abandoned_at"] = datetime.now(timezone.utc).isoformat()
+                quest["abandoned_at"] = clock.utcnow().isoformat()
                 self._save(quests)
                 return quest
         return None
@@ -116,7 +117,7 @@ class JsonPomoRepo:
             "id": str(uuid.uuid4())[:8],
             "quest_id": quest_id,
             "quest_title": quest_title,
-            "started_at": datetime.now(timezone.utc).isoformat(),
+            "started_at": clock.utcnow().isoformat(),
             "ended_at": None,
             "segments": [],
             "actual_pomos": 0,
@@ -200,7 +201,7 @@ class JsonPomoRepo:
         for s in pomos:
             if s["id"] == session_id:
                 s["status"] = "completed" if s["actual_pomos"] > 0 else "stopped"
-                s["ended_at"] = datetime.now(timezone.utc).isoformat()
+                s["ended_at"] = clock.utcnow().isoformat()
                 self._save(pomos)
                 return s
         return None
