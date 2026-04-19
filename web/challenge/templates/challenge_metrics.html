@@ -3,7 +3,7 @@
 {% block page_subtitle %}System report · Day {{ days_elapsed }}/{{ days_total }}{% endblock %}
 
 {% block content %}
-<article class="ch-mag ch-mag-v2"
+<article class="ch-mag ch-mag-v2 ch-mag-flow"
          data-metrics
          data-quality='{{ quality_series | tojson }}'
          data-weekday='{{ weekday | tojson }}'
@@ -13,115 +13,92 @@
          data-days-total="{{ days_total }}"
          data-peak-level="{{ peak_level }}">
 
-  {# ═══════════════════ SPREAD 1 · THE PULSE ═══════════════════ #}
-  <section class="ch-spread ch-spread-pulse" data-reveal>
-    <header class="ch-spread-head">
-      <p class="ch-mag-eyebrow">SYSTEM REPORT — {{ challenge.era_name | upper }}</p>
-      <h1 class="ch-spread-title">
-        <span class="ch-big-num ch-count" data-target="{{ days_elapsed }}">{{ days_elapsed }}</span>
-        <span class="ch-big-sub">of {{ days_total }} days</span>
-      </h1>
-      <p class="ch-spread-deck">
-        {% if momentum and momentum.direction == 'up' %}
-          The first spread reads the <em>pulse</em>. Last seven days outrun the prior seven. Form is consolidating.
-        {% elif momentum and momentum.direction == 'down' %}
-          The first spread reads the <em>pulse</em>. Last seven days trail the prior seven. Drift has entered the chain.
-        {% else %}
-          The first spread reads the <em>pulse</em> — daily quality across all tracked tasks, one line per day.
-        {% endif %}
-      </p>
-    </header>
+  {# ═══════════════ 1 · IDENTITY ═══════════════ #}
+  <section class="ch-sec ch-sec-identity" data-reveal>
+    <p class="ch-mag-eyebrow">SYSTEM REPORT — {{ challenge.era_name | upper }}</p>
+    <h1 class="ch-identity-line">
+      <span class="ch-id-day">Day <span class="ch-count" data-target="{{ days_elapsed }}">{{ days_elapsed }}</span><span class="ch-id-of"> of {{ days_total }}</span></span>
+      <span class="ch-id-sep">·</span>
+      <span class="ch-id-tier">{{ current_level_name }}</span>
+    </h1>
+  </section>
 
-    <div class="ch-spread-chart-wrap">
+  {# ═══════════════ 2 · VERDICT ═══════════════ #}
+  <section class="ch-sec ch-sec-verdict" data-reveal>
+    <div class="ch-verdict">
+      <div class="ch-verdict-num">
+        <span class="ch-verdict-big ch-count" data-target="{{ survival_pct }}">{{ survival_pct }}</span>
+        <span class="ch-verdict-label">survival index</span>
+      </div>
+      <div class="ch-verdict-body">
+        <span class="ch-status-chip ch-status-{{ system_status | lower | replace(' ', '-') }}">
+          ◆ {{ system_status | upper }}
+        </span>
+        <p class="ch-verdict-line">{{ system_verdict }}</p>
+      </div>
+    </div>
+  </section>
+
+  {# ═══════════════ 3 · DIRECTIVE ═══════════════ #}
+  <section class="ch-sec ch-sec-directive" data-reveal>
+    <div class="ch-directive">
+      <div class="ch-directive-row">
+        <span class="ch-dir-eyebrow">MOMENTUM</span>
+        <div class="ch-dir-value">
+          {% if momentum %}
+          <span class="ch-dir-momentum ch-dir-{{ momentum.direction }}">
+            {% if momentum.direction == 'up' %}▲{% elif momentum.direction == 'down' %}▼{% else %}▬{% endif %}
+            {{ momentum.delta }}
+          </span>
+          <span class="ch-dir-meta">last7 {{ momentum.last7_avg }} · prior7 {{ momentum.prior7_avg }}</span>
+          {% else %}
+          <span class="ch-dir-meta">reads in {{ gates.momentum }} more {% if gates.momentum == 1 %}day{% else %}days{% endif %}</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="ch-directive-row">
+        <span class="ch-dir-eyebrow">STATUS</span>
+        <div class="ch-dir-value">
+          <span class="ch-status-chip ch-status-{{ system_status | lower | replace(' ', '-') }}">◆ {{ system_status }}</span>
+        </div>
+      </div>
+      <div class="ch-directive-row">
+        <span class="ch-dir-eyebrow">DIRECTIVE</span>
+        <div class="ch-dir-value ch-dir-sentence">{{ directive }}</div>
+      </div>
+      <div class="ch-directive-row">
+        <span class="ch-dir-eyebrow">NEXT</span>
+        <div class="ch-dir-value">
+          <a href="/challenge/today" class="ch-dir-cta">Open Today →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {# ═══════════════ 4 · PULSE (EVIDENCE) ═══════════════ #}
+  <section class="ch-sec ch-sec-pulse" data-reveal>
+    <header class="ch-sec-head">
+      <p class="ch-mag-eyebrow">EVIDENCE · DAILY PULSE</p>
+      <p class="ch-sec-sub">This is why the state reads the way it does — daily quality across tracked tasks.</p>
+    </header>
+    <div class="ch-spread-chart-wrap ch-chart-wrap-compact">
       <div class="ch-chart-label">Daily quality · rank 1 (miss) → 5 (done)</div>
       {% if quality_series and quality_series | length >= 3 %}
-      <canvas id="ch-chart-pulse" class="ch-chart ch-chart-pulse"></canvas>
+      <canvas id="ch-chart-pulse" class="ch-chart ch-chart-pulse ch-chart-compact"></canvas>
       {% else %}
       <div class="ch-gate">Line plots once at least 3 days are logged.</div>
       {% endif %}
     </div>
-
-    <div class="ch-spread-sidebar">
-      <div class="ch-lead-card"
-           title="{{ momentum.last7_avg if momentum else '—' }} avg last 7 vs {{ momentum.prior7_avg if momentum else '—' }} prior 7">
-        <span class="ch-lead-eyebrow">MOMENTUM</span>
-        {% if momentum %}
-        <span class="ch-lead-num ch-count ch-dir-{{ momentum.direction }}"
-              data-target="{{ momentum.delta }}" data-decimals="2" data-sign="true">
-          {{ momentum.delta }}
-        </span>
-        <span class="ch-lead-cap">
-          {% if momentum.direction == 'up' %}▲ rising{% elif momentum.direction == 'down' %}▼ falling{% else %}▬ flat{% endif %}
-          · last7 {{ momentum.last7_avg }} · prior7 {{ momentum.prior7_avg }}
-        </span>
-        {% else %}
-        <div class="ch-gate ch-gate-inline">Momentum reads in {{ gates.momentum }} more {% if gates.momentum == 1 %}day{% else %}days{% endif %}.</div>
-        {% endif %}
-      </div>
-
-      <blockquote class="ch-pull-quote">
-        <span class="ch-dropcap">“</span>{{ pulse_quote }}
-      </blockquote>
-    </div>
   </section>
 
-  {# ═══════════════════ SPREAD 2 · THE PRESSURE ═══════════════════ #}
-  <section class="ch-spread ch-spread-pressure" data-reveal>
-    <header class="ch-spread-head">
-      <p class="ch-mag-eyebrow">ACTIVE RISK · SPREAD II</p>
-      <h2 class="ch-spread-title">
-        <span class="ch-big-num ch-count" data-target="{{ survival_pct }}">{{ survival_pct }}</span>
-        <span class="ch-big-sub">survival index</span>
-      </h2>
-      <p class="ch-spread-deck">
-        <em>Survival index</em> is a single 0–100 score: weighted average of how close each tracked task
-        sits to its reset trigger. 100 means every chain is clean; 0 means a reset is one miss away.
-        Two triggers feed it — the <em>hard</em> window (3 consecutive missed days on a task resets it)
-        and the <em>soft</em> window (7 consecutive days without a <em>completed-satisfactory</em>
-        rating resets it). Each row below shows a task's last 14 days as a sparkline:
-        <span class="ch-inline-swatch" style="background:#4fbf6a"></span>&nbsp;held
-        &nbsp;<span class="ch-inline-swatch" style="background:#d6a93a"></span>&nbsp;partial
-        &nbsp;<span class="ch-inline-swatch" style="background:#d4383a"></span>&nbsp;missed.
-      </p>
+  {# ═══════════════ 5 · INSIGHTS ═══════════════ #}
+  <section class="ch-sec ch-sec-insights" data-reveal>
+    <header class="ch-sec-head">
+      <p class="ch-mag-eyebrow">INSIGHTS · PATTERN READ</p>
+      <p class="ch-sec-sub">Interpretation before raw detail. What the system sees in the data.</p>
     </header>
-
-    <div class="ch-pressure-grid ch-pressure-grid-solo">
-      <div class="ch-mag-health">
-        <h3 class="ch-section-label">Per-task pressure</h3>
-        {% for row in health_rows %}
-        <div class="ch-health-row">
-          <div class="ch-health-head">
-            <span class="ch-health-name">
-              <span class="ch-bucket-dot ch-bucket-dot-{{ row.bucket }}"></span>
-              {{ row.name }}
-            </span>
-            <span class="ch-task-spark" data-spark='{{ row.spark | tojson }}'
-                  title="Last 14 ratings — tall/green = completed, short/red = missed"></span>
-          </div>
-          <div class="ch-health-bars">
-            <div class="ch-hbar" title="Hard window: 3 consecutive Not Done → reset">
-              <span class="ch-hbar-lbl">Hard {{ row.hard_progress }}/{{ row.hard_window }}</span>
-              <div class="ch-hbar-track">
-                <div class="ch-hbar-fill ch-hard{% if row.hard_zone %} in-zone{% endif %}"
-                     style="width: {{ (row.hard_progress / row.hard_window * 100) | round }}%"></div>
-              </div>
-            </div>
-            <div class="ch-hbar" title="Soft window: 7 consecutive without a finish → reset">
-              <span class="ch-hbar-lbl">Soft {{ row.soft_progress }}/{{ row.soft_window }}</span>
-              <div class="ch-hbar-track">
-                <div class="ch-hbar-fill ch-soft{% if row.soft_zone %} in-zone{% endif %}"
-                     style="width: {{ (row.soft_progress / row.soft_window * 100) | round }}%"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-
     <div class="ch-callouts-grid">
-      <div class="ch-callout-card ch-callout-fragile"
-           title="Task nearest a reset trigger">
+      <div class="ch-callout-card ch-callout-fragile" title="Task nearest a reset trigger">
         <span class="ch-callout-eyebrow">FRAGILE TASK</span>
         {% if fragile %}
         <div class="ch-callout-name">{{ fragile.name }}</div>
@@ -134,8 +111,7 @@
         {% endif %}
       </div>
 
-      <div class="ch-callout-card ch-callout-keystone"
-           title="Task most correlated with high-quality days">
+      <div class="ch-callout-card ch-callout-keystone" title="Task most correlated with high-quality days">
         <span class="ch-callout-eyebrow">KEYSTONE TASK</span>
         {% if keystone %}
         <div class="ch-callout-name">{{ keystone.name }}</div>
@@ -161,101 +137,157 @@
     </div>
   </section>
 
-  {# ═══════════════════ SPREAD 3 · THE RHYTHM ═══════════════════ #}
-  <section class="ch-spread ch-spread-rhythm" data-reveal>
-    <header class="ch-spread-head">
-      <p class="ch-mag-eyebrow">TEMPORAL PATTERN · SPREAD III</p>
-      <h2 class="ch-spread-title">
-        {% if consistency %}
-        <span class="ch-big-num ch-count" data-target="{{ consistency.index_0_100 }}">{{ consistency.index_0_100 }}</span>
-        <span class="ch-big-sub">consistency index</span>
+  {# ═══════════════ 6 · BUCKET POSTURE ═══════════════ #}
+  <section class="ch-sec ch-sec-posture" data-reveal>
+    <header class="ch-sec-head">
+      <p class="ch-mag-eyebrow">BUCKET POSTURE · AT A GLANCE</p>
+      <p class="ch-sec-sub">System health in under two seconds, grouped by task class.</p>
+    </header>
+    <div class="ch-posture-strip">
+      {% for bucket in ['anchor', 'improver', 'enricher'] %}
+        {% set counts = posture.get(bucket, {}) %}
+        {% set held = counts.get('COMPLETED_SATISFACTORY', 0) %}
+        {% set subpar = counts.get('COMPLETED_UNSATISFACTORY', 0) %}
+        {% set partial = counts.get('PARTIAL', 0) %}
+        {% set started = counts.get('STARTED', 0) %}
+        {% set missed = counts.get('NOT_DONE', 0) %}
+        {% set total = held + subpar + partial + started + missed %}
+      <div class="ch-posture-cell">
+        <div class="ch-posture-head">
+          <span class="ch-bucket-dot ch-bucket-dot-{{ bucket }}"></span>
+          <span class="ch-posture-label">{{ bucket_labels[bucket] | upper }}</span>
+        </div>
+        {% if total > 0 %}
+        <div class="ch-posture-bar">
+          <div class="ch-posture-seg ch-posture-held"    style="flex: {{ held }} {{ held }} 0;"></div>
+          <div class="ch-posture-seg ch-posture-subpar"  style="flex: {{ subpar }} {{ subpar }} 0;"></div>
+          <div class="ch-posture-seg ch-posture-partial" style="flex: {{ partial }} {{ partial }} 0;"></div>
+          <div class="ch-posture-seg ch-posture-started" style="flex: {{ started }} {{ started }} 0;"></div>
+          <div class="ch-posture-seg ch-posture-missed"  style="flex: {{ missed }} {{ missed }} 0;"></div>
+        </div>
+        <div class="ch-posture-meta">
+          {{ held }} held
+          {% if partial %} · {{ partial }} partial{% endif %}
+          {% if missed %} · {{ missed }} miss{% endif %}
+          {% if bucket == 'enricher' and started %} · {{ started }} started{% endif %}
+        </div>
         {% else %}
-        <span class="ch-big-num ch-dim">—</span>
-        <span class="ch-big-sub">consistency (in {{ gates.consistency }}d)</span>
+        <div class="ch-posture-meta ch-posture-empty">— no entries yet —</div>
         {% endif %}
-      </h2>
-      <p class="ch-spread-deck">
-        Discipline is not a single day; it is a <em>rhythm</em>. This spread traces the week.
-        Lower variance in daily quality means steadier footing. Recovery rate measures how fast the system
-        returns from a dip to a finish.
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ═══════════════ 7 · PER-TASK PRESSURE ═══════════════ #}
+  <section class="ch-sec ch-sec-pressure" data-reveal>
+    <header class="ch-sec-head">
+      <p class="ch-mag-eyebrow">PER-TASK PRESSURE · DETAIL</p>
+      <p class="ch-sec-sub">
+        Each row shows the last 14 ratings plus distance to each reset trigger —
+        the <em>hard</em> window (3 consecutive misses → reset) and
+        the <em>soft</em> window (7 consecutive without a satisfactory → reset).
+        <span class="ch-inline-swatch" style="background:#4fbf6a"></span>&nbsp;held
+        &nbsp;<span class="ch-inline-swatch" style="background:#d6a93a"></span>&nbsp;partial
+        &nbsp;<span class="ch-inline-swatch" style="background:#d4383a"></span>&nbsp;missed.
+      </p>
+    </header>
+    <div class="ch-mag-health">
+      {% for row in health_rows %}
+      <div class="ch-health-row">
+        <div class="ch-health-head">
+          <span class="ch-health-name">
+            <span class="ch-bucket-dot ch-bucket-dot-{{ row.bucket }}"></span>
+            {{ row.name }}
+          </span>
+          <span class="ch-task-spark" data-spark='{{ row.spark | tojson }}'
+                title="Last 14 ratings — tall/green = completed, short/red = missed"></span>
+        </div>
+        <div class="ch-health-bars">
+          <div class="ch-hbar" title="Hard window: 3 consecutive Not Done → reset">
+            <span class="ch-hbar-lbl">Hard {{ row.hard_progress }}/{{ row.hard_window }}</span>
+            <div class="ch-hbar-track">
+              <div class="ch-hbar-fill ch-hard{% if row.hard_zone %} in-zone{% endif %}"
+                   style="width: {{ (row.hard_progress / row.hard_window * 100) | round }}%"></div>
+            </div>
+          </div>
+          <div class="ch-hbar" title="Soft window: 7 consecutive without a finish → reset">
+            <span class="ch-hbar-lbl">Soft {{ row.soft_progress }}/{{ row.soft_window }}</span>
+            <div class="ch-hbar-track">
+              <div class="ch-hbar-fill ch-soft{% if row.soft_zone %} in-zone{% endif %}"
+                   style="width: {{ (row.soft_progress / row.soft_window * 100) | round }}%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ═══════════════ 8 · TEMPORAL ANALYSIS ═══════════════ #}
+  <section class="ch-sec ch-sec-temporal" data-reveal>
+    <header class="ch-sec-head">
+      <p class="ch-mag-eyebrow">TEMPORAL ANALYSIS · PATTERNS OVER TIME</p>
+      <p class="ch-sec-sub">
+        Discipline is a rhythm, not a day. Consistency, recovery, weekly posture, and the arc toward
+        the peak tier all read the same time axis.
       </p>
     </header>
 
-    <div class="ch-rhythm-grid">
-      <div class="ch-rhythm-heatmap">
-        <h3 class="ch-section-label">Weekday posture</h3>
-        {% if weekday %}
-        <div class="ch-heatmap" id="ch-heatmap"></div>
-        <div class="ch-heatmap-scale">
-          <span>missed</span>
-          <span class="ch-heatmap-gradient"></span>
-          <span>held</span>
-        </div>
+    <h3 class="ch-section-label">Consistency &amp; recovery</h3>
+    <div class="ch-temporal-stats">
+      <div class="ch-stat-block" title="Standard deviation of daily quality, mapped to a 0–100 steadiness index.">
+        <span class="ch-stat-eyebrow">CONSISTENCY</span>
+        {% if consistency %}
+        <span class="ch-stat-num">{{ consistency.index_0_100 }}</span>
+        <span class="ch-stat-unit">/100</span>
+        <span class="ch-stat-caption">σ = {{ consistency.stdev }} · mean {{ consistency.mean }}</span>
         {% else %}
-        <div class="ch-gate">Rhythm reads in {{ gates.weekday }} more {% if gates.weekday == 1 %}day{% else %}days{% endif %}.</div>
+        <span class="ch-stat-caption">Needs {{ gates.consistency }} more {% if gates.consistency == 1 %}day{% else %}days{% endif %}.</span>
         {% endif %}
       </div>
 
-      <div class="ch-rhythm-stats">
-        <div class="ch-stat-block" title="Standard deviation of daily quality, mapped to a 0–100 steadiness index.">
-          <span class="ch-stat-eyebrow">CONSISTENCY</span>
-          {% if consistency %}
-          <span class="ch-stat-num">{{ consistency.index_0_100 }}</span>
-          <span class="ch-stat-unit">/100</span>
-          <span class="ch-stat-caption">σ = {{ consistency.stdev }} · mean {{ consistency.mean }}</span>
-          {% else %}
-          <span class="ch-stat-caption">Needs {{ gates.consistency }} more {% if gates.consistency == 1 %}day{% else %}days{% endif %}.</span>
-          {% endif %}
-        </div>
+      <div class="ch-stat-block" title="Average days from a dip (missed/started) to the next completed-satisfactory.">
+        <span class="ch-stat-eyebrow">RECOVERY</span>
+        {% if recovery %}
+        <span class="ch-stat-num">{{ recovery.avg_days }}</span>
+        <span class="ch-stat-unit">days</span>
+        <span class="ch-stat-caption">{{ recovery.samples }} samples · best {{ recovery.best }}d · worst {{ recovery.worst }}d</span>
+        {% else %}
+        <span class="ch-stat-caption">Needs a dip-and-recover cycle.</span>
+        {% endif %}
+      </div>
 
-        <div class="ch-stat-block" title="Average days from a dip (missed/started) to the next completed-satisfactory.">
-          <span class="ch-stat-eyebrow">RECOVERY</span>
-          {% if recovery %}
-          <span class="ch-stat-num">{{ recovery.avg_days }}</span>
-          <span class="ch-stat-unit">days</span>
-          <span class="ch-stat-caption">{{ recovery.samples }} samples · best {{ recovery.best }}d · worst {{ recovery.worst }}d</span>
-          {% else %}
-          <span class="ch-stat-caption">Needs a dip-and-recover cycle.</span>
-          {% endif %}
-        </div>
-
-        <div class="ch-stat-block" title="Longest contiguous run of days where all tracked tasks averaged ≥ 4.5">
-          <span class="ch-stat-eyebrow">PEAK STREAK</span>
-          <span class="ch-stat-num">{{ streaks.peak }}</span>
-          <span class="ch-stat-unit">days</span>
-          <span class="ch-stat-caption">current run: {{ streaks.current }}d</span>
-        </div>
+      <div class="ch-stat-block" title="Longest contiguous run of days where all tracked tasks averaged ≥ 4.5">
+        <span class="ch-stat-eyebrow">PEAK STREAK</span>
+        <span class="ch-stat-num">{{ streaks.peak }}</span>
+        <span class="ch-stat-unit">days</span>
+        <span class="ch-stat-caption">current run: {{ streaks.current }}d</span>
       </div>
     </div>
 
-    <blockquote class="ch-pull-quote ch-pull-quote-wide">
-      <span class="ch-dropcap">“</span>{{ rhythm_quote }}
-    </blockquote>
-  </section>
+    <h3 class="ch-section-label">Weekday posture</h3>
+    <div class="ch-temporal-heatmap">
+      {% if weekday %}
+      <div class="ch-heatmap" id="ch-heatmap"></div>
+      <div class="ch-heatmap-scale">
+        <span>missed</span>
+        <span class="ch-heatmap-gradient"></span>
+        <span>held</span>
+      </div>
+      {% else %}
+      <div class="ch-gate">Rhythm reads in {{ gates.weekday }} more {% if gates.weekday == 1 %}day{% else %}days{% endif %}.</div>
+      {% endif %}
+    </div>
 
-  {# ═══════════════════ SPREAD 4 · THE ARC ═══════════════════ #}
-  <section class="ch-spread ch-spread-arc ch-spread-flush">
-    <header class="ch-spread-head">
-      <p class="ch-mag-eyebrow">PROGRESSION · SPREAD IV</p>
-      <h2 class="ch-spread-title">
-        {% if tier_velocity %}
-        <span class="ch-big-num">{{ tier_velocity.actual_days_per_tier }}</span>
-        <span class="ch-big-sub">days per tier</span>
-        {% else %}
-        <span class="ch-big-num ch-dim">—</span>
-        <span class="ch-big-sub">velocity (in {{ gates.tier_velocity }}d)</span>
-        {% endif %}
-      </h2>
-      <p class="ch-spread-deck">
-        The <em>arc</em> reads the long line. Thirteen main tiers stretch across 90 days — one every seven days on
-        schedule. Below, the rail marks where you stand against where the system expects you.
-        Current tier: <em>{{ current_level_name }}</em>. Peak reached: <em>{{ peak_level_name }}</em>.
-      </p>
-    </header>
-
+    <h3 class="ch-section-label">Progression · arc to peak</h3>
+    <p class="ch-temporal-arc-note">
+      Current tier: <em>{{ current_level_name }}</em>. Peak reached: <em>{{ peak_level_name }}</em>.
+      Thirteen main tiers across 90 days — one every seven days on baseline.
+    </p>
     <div class="ch-arc-rail" id="ch-arc-rail"></div>
 
-    <div class="ch-arc-grid">
+    <div class="ch-temporal-stats">
       <div class="ch-stat-block" title="Actual days used per tier so far, versus the baseline of 7.">
         <span class="ch-stat-eyebrow">VELOCITY</span>
         {% if tier_velocity %}
@@ -280,17 +312,20 @@
       <div class="ch-stat-block" title="Per-week share of entries that included a written note.">
         <span class="ch-stat-eyebrow">REFLECTION DENSITY</span>
         {% if engagement %}
-        <canvas id="ch-chart-engagement" class="ch-mini-chart"></canvas>
+        <div class="ch-mini-chart-wrap"><canvas id="ch-chart-engagement" class="ch-mini-chart"></canvas></div>
         <span class="ch-stat-caption">notes per tracked entry, by ISO week</span>
         {% else %}
         <span class="ch-stat-caption">No notes written yet.</span>
         {% endif %}
       </div>
     </div>
+  </section>
 
-    <section class="ch-mag-narrative">
-      <p>{{ closing_narrative | safe }}</p>
-    </section>
+  {# ═══════════════ 9 · CLOSURE ═══════════════ #}
+  <section class="ch-sec ch-sec-closure" data-reveal>
+    <div class="ch-close-divider"></div>
+    <p class="ch-close-prose">{{ closing_narrative | safe }}</p>
+    <p class="ch-close-stamp">— END OF REPORT —</p>
   </section>
 
 </article>

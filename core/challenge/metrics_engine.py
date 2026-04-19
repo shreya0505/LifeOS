@@ -432,3 +432,64 @@ def closing_narrative(state: dict) -> str:
 
     parts.append("The system does not flatter. It only reports.")
     return " ".join(parts)
+
+
+# ── System verdict + directive (derived) ──────────────────────────────────
+
+def system_status(survival_pct: int, health_by_task: dict[str, dict]) -> str:
+    """Single-word system state. Thresholds + hard-zone short-circuit."""
+    any_hard_zone = any(h.get("hard_zone") for h in health_by_task.values())
+    if any_hard_zone or survival_pct < 50:
+        return "Collapse"
+    if survival_pct < 80:
+        return "At Risk"
+    return "Stable"
+
+
+def system_verdict(status: str, momentum_dict: dict | None, fragile: dict | None) -> str:
+    """1–2 line prose verdict selected by (status, momentum)."""
+    mdir = momentum_dict["direction"] if momentum_dict else None
+    if status == "Collapse":
+        base = "One chain sits on the reset trigger."
+        if fragile:
+            base = f"{fragile['name']} sits on the reset trigger."
+        tail = "A single miss ends the era." if mdir != "up" else "Reverse the slide today."
+        return f"{base} {tail}"
+    if status == "At Risk":
+        if mdir == "down":
+            return "The form is drifting and a chain is within the soft window. Hold the line."
+        return "Pressure has entered the system. One task is closer to a reset than the rest."
+    if mdir == "up":
+        return "All chains clean. Form is consolidating."
+    if mdir == "down":
+        return "Chains are clean, but the pulse is slipping. Do not coast."
+    return "All chains clean. The system is holding."
+
+
+def _fragile_in_hard_zone(fragile: dict | None) -> bool:
+    if not fragile:
+        return False
+    return fragile.get("hard_progress", 0) >= fragile.get("hard_window", RESET_HARD_WINDOW) - 1
+
+
+def _fragile_in_soft_zone(fragile: dict | None) -> bool:
+    if not fragile:
+        return False
+    return fragile.get("soft_progress", 0) >= fragile.get("soft_window", RESET_SOFT_WINDOW) - 1
+
+
+def directive(
+    fragile: dict | None,
+    keystone: dict | None,
+    momentum_dict: dict | None,
+) -> str:
+    """Single actionable sentence — what to do next."""
+    if _fragile_in_hard_zone(fragile):
+        return f"Hold {fragile['name']} today — one miss resets the chain."
+    if _fragile_in_soft_zone(fragile):
+        return f"Land a satisfactory on {fragile['name']} before the soft window closes."
+    if momentum_dict and momentum_dict["direction"] == "down":
+        if keystone:
+            return f"Pulse is drifting. Protect {keystone['name']} for the next three days."
+        return "Pulse is drifting. Tighten the anchors for the next three days."
+    return "System is holding. Keep the anchors clean."

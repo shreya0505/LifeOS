@@ -568,6 +568,10 @@ async def metrics_page(
         "streak_peak": m_streaks["peak"],
     }
 
+    sys_status = metrics_engine.system_status(int(survival * 100), health_map)
+    sys_verdict = metrics_engine.system_verdict(sys_status, m_momentum, m_fragile)
+    sys_directive = metrics_engine.directive(m_fragile, m_keystone, m_momentum)
+
     # Build tier rail data: main-level boundaries across 90 days
     tier_rail = []
     for week in range(len(C.MAIN_LEVEL_NAMES)):
@@ -612,6 +616,9 @@ async def metrics_page(
         "closing_narrative": metrics_engine.closing_narrative(narrative_state),
         "gates": gates,
         "tier_rail": tier_rail,
+        "system_status": sys_status,
+        "system_verdict": sys_verdict,
+        "directive": sys_directive,
     })
 
 
