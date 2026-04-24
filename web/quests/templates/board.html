@@ -259,15 +259,14 @@
     <div class="column__body" id="col-body-done" x-show="expanded" x-collapse>
       {% if col.quests %}
         {% for quest in col.quests %}
-          {% set quest_stale = not quest.done_today %}
-          <article class="quest-card{% if quest_stale %} quest-card--stale{% endif %}"
+          <article class="quest-card"
                    data-status="{{ quest.status }}" data-id="{{ quest.id }}"
                    data-age="{{ quest.age_bucket }}" data-priority="{{ quest.priority | default(4) }}"
                    data-animate-in>
             <div class="quest-card__header">
               <div class="quest-card__left">
                 <span class="prio-rune prio-rune--p{{ quest.priority | default(4) }}"
-                      aria-label="Priority {{ quest.priority_name }}">{{ quest.priority_glyph }}</span>
+                      aria-label="Priority {{ quest.priority_name }}">{{ icon(quest.priority_glyph, 'icon') }}</span>
                 {% if quest.frog %}<span class="quest-card__frog">{{ icon('target', 'icon') }}</span>{% endif %}
                 <h3 class="quest-card__title">{{ quest.title }}</h3>
               </div>
@@ -288,18 +287,20 @@
           </article>
         {% endfor %}
       {% else %}
-        <p class="column__empty">{{ col.empty_text }}</p>
+        <p class="column__empty">No victories today.</p>
       {% endif %}
     </div>
 
     <div class="column__collapsed-summary" x-show="!expanded">
-      {% set done_today_count = col.quests | selectattr("done_today") | list | length %}
-      {% set stale_count = col.quests | length - done_today_count %}
-      {% if done_today_count > 0 %}
-      <span class="column__done-today">{{ done_today_count }} today</span>
+      {% if col.quests | length > 0 %}
+      <span class="column__done-today">{{ col.quests | length }} today</span>
+      {% else %}
+      <span class="column__done-today">0 today</span>
       {% endif %}
-      {% if stale_count > 0 %}
-      <span class="column__done-stale">+ {{ stale_count }} carried</span>
+      {% if col.all_count > 0 %}
+      <button type="button" class="column__legend-link" onclick="switchNavTab('legend')">
+        {{ col.all_count }} in Legend
+      </button>
       {% endif %}
     </div>
 

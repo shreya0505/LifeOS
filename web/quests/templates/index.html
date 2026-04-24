@@ -14,6 +14,9 @@
       htmx.trigger('#chronicle-slot', 'refresh');
       htmx.trigger('#trophy-slot', 'refresh');
     }
+    if (value === 'legend') {
+      htmx.trigger('#legend-slot', 'refresh');
+    }
   })
 ">
 
@@ -120,6 +123,16 @@
       hx-trigger="pomo-started from:body, pomo-stopped from:body"
       hx-swap="innerHTML">
       {% include "board.html" %}
+    </div>
+  </section>
+
+  <!-- ── Tab: Legend (Conquered Archive) ─────────────────── -->
+  <section class="tab-panel" x-show="tab === 'legend'" x-transition:enter="tab-enter"
+    x-transition:enter-start="tab-enter-from" x-transition:enter-end="tab-enter-to">
+    <div id="legend-slot"
+         hx-get="/quests/legend"
+         hx-trigger="load, quest-done from:body, quest-abandoned from:body, refresh"
+         hx-swap="innerHTML">
     </div>
   </section>
 

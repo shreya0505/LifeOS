@@ -1,0 +1,83 @@
+{% from 'components/icons.html' import icon %}
+
+<section class="legend-panel">
+  <header class="legend-header">
+    <div>
+      <p class="legend-header__eyebrow">Conquered Archive</p>
+      <h1 class="legend-header__title">Legend</h1>
+    </div>
+    <span class="legend-header__count">{{ legend_total }} conquered</span>
+  </header>
+
+  {% if legend_groups %}
+  <div class="legend-timeline" role="list">
+    {% for group in legend_groups %}
+    <section class="legend-day" role="listitem" style="--legend-day-index: {{ loop.index0 }}">
+      <div class="legend-day__rail" aria-hidden="true"></div>
+      <header class="legend-day__header">
+        <h2 class="legend-day__title">{{ group.label }}</h2>
+        <span class="legend-day__count">{{ group.count }} victor{{ 'y' if group.count == 1 else 'ies' }}</span>
+      </header>
+
+      <div class="legend-day__quests">
+        {% for quest in group.quests %}
+        <article class="legend-entry{% if quest.frog %} legend-entry--frog{% endif %}"
+                 data-priority="{{ quest.priority | default(4) }}"
+                 style="--legend-entry-index: {{ loop.index0 }}">
+          <span class="legend-entry__mark" aria-hidden="true">{{ icon('check-circle', 'icon') }}</span>
+          <div class="legend-entry__main">
+            <div class="legend-entry__topline">
+              <span class="prio-rune prio-rune--p{{ quest.priority | default(4) }}"
+                    aria-label="Priority {{ quest.priority_name }}">{{ icon(quest.priority_glyph, 'icon') }}</span>
+              {% if quest.frog %}
+              <span class="legend-entry__toxic" title="Eat the frog first">
+                {{ icon('biohazard', 'icon') }} Toxic
+              </span>
+              {% endif %}
+              <h3 class="legend-entry__title">{{ quest.title }}</h3>
+              <span class="legend-entry__time">{{ quest.completed_time or 'time unknown' }}</span>
+            </div>
+
+            {% if quest.labels_with_hue or quest.project or quest.elapsed %}
+            <div class="legend-entry__meta">
+              {% if quest.elapsed %}<span class="legend-entry__elapsed">{{ quest.elapsed }}</span>{% endif %}
+              {% if quest.project %}<span class="project-pill">{{ quest.project }}</span>{% endif %}
+              {% for lbl in quest.labels_with_hue %}
+              <span class="label-chip label-hue-{{ lbl.hue }}">{{ lbl.name }}</span>
+              {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if quest.artifacts_display %}
+            <div class="legend-entry__artifacts" aria-label="Artifacts">
+              {% for art in quest.artifacts_display %}
+                {% if art.is_url %}
+                <a class="legend-artifact legend-artifact--link" href="{{ art.value }}" target="_blank" rel="noopener"
+                   title="{{ art.key }}: {{ art.value }}">
+                  <span class="legend-artifact__key">{{ art.key }}</span>
+                  <span class="legend-artifact__value">{{ art.value }}</span>
+                  {{ icon('external-link', 'icon legend-artifact__icon') }}
+                </a>
+                {% else %}
+                <span class="legend-artifact legend-artifact--data" title="{{ art.key }}: {{ art.value }}">
+                  <span class="legend-artifact__key">{{ art.key }}</span>
+                  <span class="legend-artifact__value">{{ art.value }}</span>
+                </span>
+                {% endif %}
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="legend-empty">
+    {{ icon('scroll', 'icon legend-empty__icon') }}
+    <p>No victories recorded yet.</p>
+  </div>
+  {% endif %}
+</section>

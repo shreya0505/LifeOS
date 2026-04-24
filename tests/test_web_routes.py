@@ -7,6 +7,14 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from core.config import USER_TZ
+
+
+async def _quest_id_by_title(db, title: str) -> str:
+    row = await (await db.execute("SELECT id FROM quests WHERE title = ?", (title,))).fetchone()
+    assert row is not None
+    return row[0]
+
 
 @pytest.mark.asyncio
 async def test_index_renders_full_page(client):
@@ -134,6 +142,82 @@ async def test_quest_board_partial(client):
     assert r.status_code == 200
     assert "Quest A" in r.text
     assert "Quest B" in r.text
+
+
+@pytest.mark.asyncio
+async def test_board_conquered_shows_only_today(client, db):
+    await client.post("/quests", data={"title": "Today victory"})
+    await client.post("/quests", data={"title": "Old victory"})
+    today_id = await _quest_id_by_title(db, "Today victory")
+    older_id = await _quest_id_by_title(db, "Old victory")
+
+    await client.patch(f"/quests/{today_id}/status", data={"status": "active"})
+    await client.patch(f"/quests/{today_id}/status", data={"status": "done"})
+    await client.patch(f"/quests/{older_id}/status", data={"status": "active"})
+    await client.patch(f"/quests/{older_id}/status", data={"status": "done"})
+
+    old_completed = (datetime.now(USER_TZ) - timedelta(days=2)).isoformat()
+    await db.execute(
+        "UPDATE quests SET completed_at = ? WHERE id = ?",
+        (old_completed, older_id),
+    )
+    await db.commit()
+
+    r = await client.get("/quests")
+    assert r.status_code == 200
+    assert "Today victory" in r.text
+    assert "Old victory" not in r.text
+    assert "2 in Legend" in r.text
+
+
+@pytest.mark.asyncio
+async def test_legend_shows_all_done_quests_grouped_by_day(client, db):
+    await client.post("/quests", data={"title": "Latest victory"})
+    await client.post("/quests", data={"title": "Earlier victory"})
+    latest_id = await _quest_id_by_title(db, "Latest victory")
+    older_id = await _quest_id_by_title(db, "Earlier victory")
+
+    for qid in (latest_id, older_id):
+        await client.patch(f"/quests/{qid}/status", data={"status": "active"})
+        await client.patch(f"/quests/{qid}/status", data={"status": "done"})
+
+    older_completed = (datetime.now(USER_TZ) - timedelta(days=3)).replace(hour=9, minute=0).isoformat()
+    await db.execute(
+        "UPDATE quests SET completed_at = ? WHERE id = ?",
+        (older_completed, older_id),
+    )
+    await db.commit()
+
+    r = await client.get("/quests/legend")
+    assert r.status_code == 200
+    assert "Latest victory" in r.text
+    assert "Earlier victory" in r.text
+    assert "Today" in r.text
+    assert "2 conquered" in r.text
+    assert r.text.index("Latest victory") < r.text.index("Earlier victory")
+
+
+@pytest.mark.asyncio
+async def test_legend_shows_artifacts_for_done_quests(client, db):
+    await client.post(
+        "/quests",
+        data={
+            "title": "Ship summary",
+            "artifact_key[]": ["PR", "Outcome"],
+            "artifact_val[]": ["https://example.com/pr/42", "Released billing fix"],
+        },
+    )
+    qid = await _quest_id_by_title(db, "Ship summary")
+    await client.patch(f"/quests/{qid}/status", data={"status": "active"})
+    await client.patch(f"/quests/{qid}/status", data={"status": "done"})
+
+    r = await client.get("/quests/legend")
+    assert r.status_code == 200
+    assert "Ship summary" in r.text
+    assert "PR" in r.text
+    assert "https://example.com/pr/42" in r.text
+    assert "Outcome" in r.text
+    assert "Released billing fix" in r.text
 
 
 @pytest.mark.asyncio

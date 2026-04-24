@@ -729,6 +729,24 @@ body::before {
   border-radius: var(--radius-full);
 }
 
+.column__legend-link {
+  border: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--primary);
+  background: rgba(22, 52, 34, 0.08);
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: background 160ms var(--ease-natural), color 160ms var(--ease-natural);
+}
+
+.column__legend-link:hover {
+  color: var(--on-primary-container);
+  background: rgba(22, 52, 34, 0.14);
+}
+
 .column__title {
   font-family: var(--font-body);
   font-size: var(--text-sm);
@@ -925,6 +943,434 @@ body::before {
 .quest-card--stale:hover {
   opacity: 0.65;
   filter: saturate(0.6);
+}
+
+/* ── Legend archive ───────────────────────────────────── */
+.legend-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.legend-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  padding: var(--space-xl) 0 var(--space-sm);
+  border-bottom: 1px solid rgba(22, 52, 34, 0.12);
+}
+
+.legend-header__eyebrow {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--on-surface-muted);
+  margin-bottom: 4px;
+}
+
+.legend-header__title {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  color: var(--on-surface);
+}
+
+.legend-header__count,
+.legend-day__count,
+.legend-entry__time,
+.legend-entry__elapsed {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--on-surface-muted);
+}
+
+.legend-header__count {
+  font-weight: 700;
+  background: var(--surface-container-low);
+  border-radius: var(--radius-full);
+  padding: 5px 10px;
+}
+
+.legend-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  padding: var(--space-sm) 10px var(--space-2xl) 0;
+  scroll-behavior: smooth;
+  scroll-snap-type: y proximity;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(22, 52, 34, 0.2) transparent;
+  mask-image: linear-gradient(to bottom, transparent 0, black 18px, black calc(100% - 36px), transparent 100%);
+}
+
+.legend-day {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  column-gap: var(--space-md);
+  row-gap: var(--space-xs);
+  scroll-snap-align: start;
+  animation: legend-day-in 420ms var(--ease-decelerate) both;
+  animation-delay: calc(var(--legend-day-index, 0) * 45ms);
+}
+
+.legend-day__rail {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  position: relative;
+}
+
+.legend-day__rail::before {
+  content: "";
+  position: absolute;
+  top: 9px;
+  bottom: -28px;
+  left: 8px;
+  width: 1px;
+  background: rgba(22, 52, 34, 0.16);
+}
+
+.legend-day__rail::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 4px;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-full);
+  background: var(--secondary);
+  box-shadow: 0 0 0 4px rgba(122, 158, 126, 0.12);
+}
+
+.legend-day:last-child .legend-day__rail::before {
+  bottom: 0;
+}
+
+.legend-day__header {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  min-height: 32px;
+  margin-bottom: 2px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: color-mix(in oklch, var(--surface) 86%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.legend-day__title {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--on-surface-variant);
+}
+
+.legend-day__quests {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.legend-entry {
+  --legend-prio: var(--outline-variant);
+  --legend-row-bg: color-mix(in oklch, var(--surface-container-lowest) 72%, transparent);
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: var(--space-sm);
+  align-items: start;
+  padding: 11px 12px;
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: inset 0 -1px 0 rgba(22, 52, 34, 0.08);
+  transition: background 180ms var(--ease-natural),
+              box-shadow 180ms var(--ease-natural),
+              transform 180ms var(--ease-natural);
+  animation: legend-entry-in 360ms var(--ease-decelerate) both;
+  animation-delay: calc((var(--legend-day-index, 0) * 45ms) + (var(--legend-entry-index, 0) * 35ms));
+  will-change: transform, opacity;
+}
+
+.legend-entry[data-priority="0"] { --legend-prio: var(--prio-p0); }
+.legend-entry[data-priority="1"] { --legend-prio: var(--prio-p1); }
+.legend-entry[data-priority="2"] { --legend-prio: var(--prio-p2); }
+.legend-entry[data-priority="3"] { --legend-prio: var(--prio-p3); }
+.legend-entry[data-priority="4"] { --legend-prio: var(--prio-p4); }
+.legend-entry--frog {
+  --legend-toxic: #4a9e5c;
+  --legend-toxic-bg: rgba(74, 158, 92, 0.08);
+  --legend-row-bg: linear-gradient(90deg, rgba(74, 158, 92, 0.13), rgba(74, 158, 92, 0.045) 46%, transparent);
+  box-shadow: inset 0 -1px 0 rgba(74, 158, 92, 0.18);
+}
+
+.legend-entry__mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  color: var(--tertiary);
+  background: color-mix(in oklch, var(--surface-container-lowest) 70%, var(--legend-prio));
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--legend-prio) 22%, transparent);
+  transition: background 180ms var(--ease-natural),
+              color 180ms var(--ease-natural),
+              transform 180ms var(--ease-natural);
+}
+
+.legend-entry__mark .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.legend-entry__main {
+  min-width: 0;
+}
+
+.legend-entry__topline,
+.legend-entry__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.legend-entry__topline {
+  justify-content: flex-start;
+}
+
+.legend-entry__toxic {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 4px;
+  padding: 2px 7px 2px 5px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #2d7a3e;
+  background: rgba(74, 158, 92, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(74, 158, 92, 0.24);
+}
+
+.legend-entry__toxic .icon {
+  width: 12px;
+  height: 12px;
+}
+
+.legend-entry__title {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 650;
+  color: var(--on-surface);
+  overflow-wrap: anywhere;
+}
+
+.legend-entry__time {
+  flex: 0 0 auto;
+}
+
+.legend-entry:hover,
+.legend-entry:focus-within {
+  background: var(--legend-row-bg);
+  box-shadow: inset 3px 0 0 color-mix(in oklch, var(--legend-prio) 62%, transparent),
+              inset 0 0 0 1px rgba(22, 52, 34, 0.08),
+              0 10px 24px -22px rgba(22, 52, 34, 0.35);
+  transform: translateX(4px);
+}
+
+.legend-entry--frog:hover,
+.legend-entry--frog:focus-within {
+  box-shadow: inset 3px 0 0 rgba(74, 158, 92, 0.72),
+              inset 0 0 0 1px rgba(74, 158, 92, 0.18),
+              0 0 18px -12px rgba(74, 158, 92, 0.7);
+}
+
+.legend-entry--frog .legend-entry__mark {
+  color: #2d7a3e;
+  background: rgba(74, 158, 92, 0.13);
+  box-shadow: inset 0 0 0 1px rgba(74, 158, 92, 0.24);
+}
+
+.legend-entry--frog .legend-entry__title {
+  color: color-mix(in oklch, var(--on-surface) 82%, #2d7a3e);
+}
+
+.legend-entry:hover .legend-entry__mark,
+.legend-entry:focus-within .legend-entry__mark {
+  color: var(--primary);
+  background: color-mix(in oklch, var(--surface-container-lowest) 55%, var(--legend-prio));
+  transform: scale(1.08);
+}
+
+.legend-entry--frog:hover .legend-entry__mark,
+.legend-entry--frog:focus-within .legend-entry__mark {
+  color: #2d7a3e;
+  background: rgba(74, 158, 92, 0.2);
+}
+
+.legend-entry--frog:hover .legend-entry__toxic,
+.legend-entry--frog:focus-within .legend-entry__toxic {
+  background: rgba(74, 158, 92, 0.18);
+}
+
+.legend-entry__meta {
+  flex-wrap: wrap;
+  margin-top: 7px;
+}
+
+.legend-entry__artifacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(22, 52, 34, 0.12);
+}
+
+.legend-artifact {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: min(100%, 340px);
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 7px;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--on-surface-variant);
+  background: color-mix(in oklch, var(--surface-container-lowest) 70%, transparent);
+  box-shadow: inset 0 0 0 1px rgba(22, 52, 34, 0.09);
+  text-decoration: none;
+  transition: background 160ms var(--ease-natural),
+              box-shadow 160ms var(--ease-natural),
+              transform 160ms var(--ease-natural);
+}
+
+.legend-artifact__key {
+  flex: 0 0 auto;
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--on-surface-muted);
+}
+
+.legend-artifact__value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  color: var(--on-surface);
+}
+
+.legend-artifact--link {
+  color: var(--primary);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--primary) 24%, transparent);
+}
+
+.legend-artifact--link .legend-artifact__value,
+.legend-artifact--link .legend-artifact__icon {
+  color: var(--primary);
+}
+
+.legend-artifact__icon {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+}
+
+.legend-artifact:hover,
+.legend-artifact:focus-visible {
+  background: color-mix(in oklch, var(--surface-container-lowest) 56%, var(--legend-prio));
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--legend-prio) 28%, transparent);
+  transform: translateY(-1px);
+}
+
+.legend-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-2xl);
+  color: var(--on-surface-muted);
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 12px;
+}
+
+.legend-empty__icon {
+  width: 28px;
+  height: 28px;
+}
+
+@media (max-width: 640px) {
+  .legend-header,
+  .legend-day__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .legend-timeline {
+    max-height: none;
+  }
+
+  .legend-entry {
+    grid-template-columns: 1fr;
+  }
+
+  .legend-entry__mark {
+    display: none;
+  }
+
+  .legend-entry__topline {
+    flex-wrap: wrap;
+  }
+}
+
+@keyframes legend-day-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes legend-entry-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ── Disabled pomo button (another quest has an active pomo) ── */

@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import uuid
+from collections import defaultdict
+from datetime import date, datetime, timedelta, timezone
 from urllib.parse import parse_qs
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
-from core.config import VALID_SOURCES, PRIORITY_NAMES, PRIORITY_GLYPHS
+from core.config import VALID_SOURCES, PRIORITY_NAMES, PRIORITY_GLYPHS, USER_TZ
 from core.utils import (
     fantasy_date, format_duration, get_elapsed, today_local, to_local_date,
     quest_age_days, quest_age_bucket, label_hue, is_url,
@@ -108,6 +110,34 @@ def _sort_column_quests(quests: list[dict], sort_mode: str | None) -> list[dict]
     return quests
 
 
+def _completed_dt(quest: dict) -> datetime | None:
+    completed_at = quest.get("completed_at")
+    if not completed_at:
+        return None
+    try:
+        dt = datetime.fromisoformat(completed_at)
+    except (TypeError, ValueError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(USER_TZ)
+
+
+def _legend_date_label(date_key: str) -> str:
+    if date_key == "unknown":
+        return "Unknown date"
+    try:
+        day = date.fromisoformat(date_key)
+    except ValueError:
+        return "Unknown date"
+    today = today_local()
+    if day == today:
+        return "Today"
+    if day == today - timedelta(days=1):
+        return "Yesterday"
+    return f"{day.strftime('%B')} {day.day}, {day.year}"
+
+
 async def _build_board_context(
     quest_repo,
     pomo_repo,
@@ -128,6 +158,12 @@ async def _build_board_context(
         _enrich_quest(q, pomo_counts, today_str)
         for q in quests if q["status"] != "abandoned"
     ]
+    done_all = [q for q in enriched_all if q["status"] == "done"]
+    done_stats = {
+        "all_count": len(done_all),
+        "today_count": sum(1 for q in done_all if q.get("done_today")),
+        "archived_count": sum(1 for q in done_all if not q.get("done_today")),
+    }
 
     # Collect distinct projects and labels before filtering so dropdowns always show all options
     all_projects = sorted({q["project"] for q in enriched_all if q.get("project")})
@@ -145,9 +181,59 @@ async def _build_board_context(
 
     for status in ("log", "active", "blocked"):
         by_status[status] = _sort_column_quests(by_status[status], sort_mode)
+    by_status["done"] = sorted(
+        (q for q in by_status["done"] if q.get("done_today")),
+        key=lambda q: q.get("completed_at") or "",
+        reverse=True,
+    )
 
-    columns = [{**col_def, "quests": by_status[col_def["status"]]} for col_def in _COLUMNS]
+    columns = []
+    for col_def in _COLUMNS:
+        col = {**col_def, "quests": by_status[col_def["status"]]}
+        if col_def["status"] == "done":
+            col.update(done_stats)
+        columns.append(col)
     return columns, all_projects, all_labels_with_hue
+
+
+async def _build_legend_context(quest_repo) -> dict:
+    today_str = today_local().isoformat()
+    done_quests = [
+        _enrich_quest(q, {}, today_str)
+        for q in await quest_repo.load_all()
+        if q["status"] == "done"
+    ]
+    for quest in done_quests:
+        completed = _completed_dt(quest)
+        quest["_completed_dt"] = completed
+        quest["completed_time"] = completed.strftime("%H:%M") if completed else ""
+        quest["completed_date"] = completed.date().isoformat() if completed else "unknown"
+
+    done_quests.sort(
+        key=lambda q: (
+            q["_completed_dt"] is not None,
+            q["_completed_dt"] or datetime.min.replace(tzinfo=USER_TZ),
+        ),
+        reverse=True,
+    )
+
+    by_date: dict[str, list[dict]] = defaultdict(list)
+    for quest in done_quests:
+        by_date[quest["completed_date"]].append(quest)
+
+    def date_sort_key(date_key: str) -> tuple[int, str]:
+        return (0, "") if date_key == "unknown" else (1, date_key)
+
+    groups = [
+        {
+            "date": date_key,
+            "label": _legend_date_label(date_key),
+            "quests": grouped,
+            "count": len(grouped),
+        }
+        for date_key, grouped in sorted(by_date.items(), key=lambda item: date_sort_key(item[0]), reverse=True)
+    ]
+    return {"legend_groups": groups, "legend_total": len(done_quests)}
 
 
 def _parse_query_state(query: str) -> dict[str, str]:
@@ -261,6 +347,14 @@ async def quest_board(request: Request,
                       key_repo=Depends(get_artifact_key_repo)):
     f = await _parse_filter_params(request)
     return await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo)
+
+
+# ── Completed quest archive ─────────────────────────────────────────────
+
+@router.get("/quests/legend", response_class=HTMLResponse)
+async def quest_legend(request: Request,
+                       quest_repo=Depends(get_quest_repo)):
+    return _render(request, "quest_legend.html", await _build_legend_context(quest_repo))
 
 
 # ── Add quest ────────────────────────────────────────────────────────────
