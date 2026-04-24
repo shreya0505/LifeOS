@@ -13,6 +13,9 @@
     Chart.defaults.font.size   = 12;
     Chart.defaults.color       = '#74796c';
     Chart.defaults.plugins.legend.display = false;
+    Chart.defaults.plugins.legend.labels.boxWidth = 16;
+    Chart.defaults.plugins.legend.labels.boxHeight = 8;
+    Chart.defaults.plugins.legend.labels.padding = 10;
     Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(28,28,24,0.88)';
     Chart.defaults.plugins.tooltip.titleColor       = '#F3EDE3';
     Chart.defaults.plugins.tooltip.bodyColor        = '#c2c8c0';
@@ -56,6 +59,35 @@
     return config;
   }
 
+  function applyLegendPolish(config, canvas) {
+    if (!config.options || !config.options.plugins || !config.options.plugins.legend) return config;
+
+    if (canvas.id === 'chart-priority-burn-rate') {
+      config.options.plugins.legend.labels = Object.assign(
+        config.options.plugins.legend.labels || {},
+        {
+          boxWidth: 18,
+          boxHeight: 8,
+          generateLabels: function (chart) {
+            const base = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+            return base
+              .filter(function (item) {
+                return item.datasetIndex % 2 === 1;
+              })
+              .map(function (item) {
+                return Object.assign({}, item, {
+                  text: item.text.replace(' completed', ''),
+                });
+              });
+          },
+        }
+      );
+      config.options.plugins.legend.onClick = null;
+    }
+
+    return config;
+  }
+
   function initWarRoomCharts() {
     if (!window.Chart) return;
     applyGlobalDefaults();
@@ -78,6 +110,7 @@
       delete config._center;
 
       applyAnimation(config);
+      applyLegendPolish(config, canvas);
       new Chart(canvas, config);
     });
   }

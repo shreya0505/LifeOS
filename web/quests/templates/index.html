@@ -25,17 +25,83 @@
           const r = $el.getBoundingClientRect();
           const x = ($event.clientX - r.left) / r.width;
           const y = ($event.clientY - r.top) / r.height;
-          $el.style.transform = `perspective(800px) rotateY(${(x - 0.5) * 8}deg) rotateX(${(0.5 - y) * 6}deg)`;
-        " @mouseleave="$el.style.transform = 'perspective(800px) rotateY(0deg) rotateX(0deg)'">
-        <h2 class="inscribe-panel__heading">Inscribe Your Quest</h2>
-        <form class="add-quest-form" hx-post="/quests" hx-target="#quest-board" hx-swap="innerHTML"
+          $el.style.transform = `perspective(800px) rotateY(${(x - 0.5) * 6}deg) rotateX(${(0.5 - y) * 4}deg)`;
+        " @mouseleave="$el.style.transform = 'none'">
+
+        <p class="inscribe-panel__eyebrow">Quest Log</p>
+        <h2 class="inscribe-panel__heading">What will you conquer?</h2>
+
+        <form class="inscribe-form" hx-post="/quests" hx-target="#quest-board" hx-swap="innerHTML"
+          hx-include="[name='filter_state']"
           hx-on::after-request="this.reset()"
-          @htmx:after-request="tab = 'board'">
-          <input type="text" name="title" class="add-quest-form__input" placeholder="What will you conquer today?"
-            required minlength="1" autocomplete="off">
-          <button type="submit" class="btn btn--copper btn--zap">✨ Add</button>
+          @htmx:after-request="tab = 'board'"
+          x-data="{ selectedPrio: 4, moreOpen: false }">
+
+          <!-- ── Main input row ── -->
+          <div class="inscribe-input-wrap">
+            <input type="text" name="title" class="inscribe-input"
+              placeholder="Name your quest…"
+              required minlength="1" autocomplete="off">
+            <button type="submit" class="inscribe-submit btn btn--copper btn--zap">Inscribe</button>
+          </div>
+
+          <!-- ── Priority selector ── -->
+          <div class="inscribe-prio-row">
+            <span class="inscribe-prio-label">Priority</span>
+            {% for p in range(5) %}
+            <label class="prio-pill-label">
+              <input type="radio" name="priority" value="{{ p }}"
+                     {% if p == 4 %}checked{% endif %}
+                     @change="selectedPrio = {{ p }}" class="sr-only">
+              <span class="prio-pill prio-pill--p{{ p }}"
+                    :class="{ 'prio-pill--selected': selectedPrio === {{ p }} }"
+                    title="{{ priority_names[p] }}">
+                {{ icon(priority_glyphs[p], 'icon prio-icon prio-icon--p' ~ p) }}
+                <span class="prio-pill__name">{{ priority_names[p] }}</span>
+              </span>
+            </label>
+            {% endfor %}
+          </div>
+
+          <!-- ── Optional meta (details) ── -->
+          <details class="inscribe-more" :open="moreOpen" @toggle="moreOpen = $event.target.open">
+            <summary class="inscribe-more__toggle">
+              {{ icon('chevron-down', 'icon inscribe-more__chevron') }}
+              More options
+            </summary>
+            <div class="inscribe-more__body">
+              <div class="inscribe-meta-grid">
+                <div class="inscribe-meta-field">
+                  <label class="inscribe-meta-label" for="inscribe-project">Project</label>
+                  <input type="text" name="project" id="inscribe-project"
+                         class="inscribe-meta-input" list="projects-datalist" placeholder="e.g. Hackathon">
+                </div>
+                <div class="inscribe-meta-field">
+                  <label class="inscribe-meta-label" for="inscribe-labels">Labels</label>
+                  <input type="text" name="labels" id="inscribe-labels"
+                         class="inscribe-meta-input" placeholder="bug, urgent, …">
+                </div>
+              </div>
+              {% if artifact_keys %}
+              <div class="inscribe-artifacts-section">
+                <span class="inscribe-meta-label">Artifacts</span>
+                <div class="inscribe-artifacts">
+                  {% for ak in artifact_keys %}
+                  <div class="inscribe-artifact-row">
+                    <span class="inscribe-artifact-key">{{ ak.name }}</span>
+                    <input type="hidden" name="artifact_key[]" value="{{ ak.name }}">
+                    <input type="text" name="artifact_val[]" class="inscribe-meta-input"
+                           placeholder="value or URL" aria-label="{{ ak.name }}">
+                  </div>
+                  {% endfor %}
+                </div>
+              </div>
+              {% endif %}
+            </div>
+          </details>
         </form>
-        <p class="inscribe-panel__hint">Press <kbd>n</kbd> from any tab to jump here</p>
+
+        <p class="inscribe-panel__hint">Press <kbd>n</kbd> from anywhere to jump here</p>
       </div>
     </div>
   </section>

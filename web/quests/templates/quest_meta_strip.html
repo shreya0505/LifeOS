@@ -1,0 +1,112 @@
+{% from 'components/icons.html' import icon %}
+{% set labels = quest.labels_with_hue or [] %}
+{% set arts = quest.artifacts_display or [] %}
+{% set labels_visible = labels[:3] %}
+{% set labels_extra = labels[3:] %}
+<div class="quest-meta-strip" id="quest-meta-strip-{{ quest.id }}"
+     x-data="{ editing: false, overflow: false, labelsMore: false }">
+
+  <!-- ── Read-only view: single line ── -->
+  <div class="quest-meta-strip__view qms__line" x-show="!editing">
+
+    <span class="qms__state qms__state--{{ quest.status }}">{{ quest.status }}</span>
+    <span class="age-pill age-pill--{{ quest.age_bucket }}" title="{{ quest.age_days }} days old">{{ quest.age_days }}d</span>
+
+    {% if quest.project %}
+    <span class="project-chip" title="{{ quest.project }}">
+      {{ icon('folder', 'icon icon--chip') }}<span class="project-chip__name">{{ quest.project }}</span>
+    </span>
+    {% endif %}
+
+    {% for lbl in labels_visible %}
+    <span class="label-chip label-hue-{{ lbl.hue }}">{{ icon('tag', 'icon icon--chip') }}{{ lbl.name }}</span>
+    {% endfor %}
+    {% if labels_extra %}
+    <button type="button" class="label-overflow" @click="labelsMore = !labelsMore"
+            title="{{ labels_extra | map(attribute='name') | join(', ') }}">+{{ labels_extra|length }}</button>
+    {% endif %}
+
+    <span class="prio-badge prio-badge--p{{ quest.priority | default(4) }}"
+          title="Priority {{ quest.priority | default(4) }} &middot; {{ quest.priority_name }}">
+      <span class="prio-badge__dot" aria-hidden="true"></span>
+      <span class="prio-badge__text">P{{ quest.priority | default(4) }}</span>
+    </span>
+
+    {% if arts %}
+    <details class="qms__overflow-wrap qms__info-wrap qms__details">
+      <summary class="info-ico info-ico--toggle"
+              title="{{ arts|length }} artifact{{ 's' if arts|length != 1 else '' }}">
+        {{ icon('info', 'icon') }}
+        <span class="info-ico__count">{{ arts|length }}</span>
+      </summary>
+      <div class="qms__popover">
+        <div class="qms__popover-title">Artifacts</div>
+        {% for art in arts %}
+        <div class="qms__kv-row">
+          <span class="qms__kv-key">{{ art.key }}</span>
+          {% if art.is_url %}
+          <a class="qms__kv-val qms__kv-val--link" href="{{ art.value }}" target="_blank" rel="noopener">
+            {{ icon('external-link', 'icon icon--chip') }}<span>{{ art.value }}</span>
+          </a>
+          {% else %}
+          <span class="qms__kv-val">{{ art.value }}</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </details>
+    {% endif %}
+
+    {% if labels_extra %}
+    <span class="qms__overflow-wrap">
+      <div class="qms__popover qms__popover--labels" x-show="labelsMore" x-transition.opacity @click.outside="labelsMore = false" style="display:none">
+        {% for lbl in labels_extra %}
+        <span class="label-chip label-hue-{{ lbl.hue }}">{{ icon('tag', 'icon icon--chip') }}{{ lbl.name }}</span>
+        {% endfor %}
+      </div>
+    </span>
+    {% endif %}
+
+    <button class="meta-edit-btn qms__edit-btn" @click="editing = true" title="Edit quest meta">
+      {{ icon('edit-2', 'icon') }}
+    </button>
+  </div>
+
+  <!-- ── Edit panel (single line) ── -->
+  <div class="quest-meta-strip__edit qms__edit-line" x-show="editing" x-collapse>
+    <div class="quest-prio-selector qms__edit-prio">
+      {% for p in range(5) %}
+      <form class="inline-form"
+            hx-patch="/quests/{{ quest.id }}/priority?strip=1"
+            hx-target="#quest-meta-strip-{{ quest.id }}"
+            hx-swap="outerHTML">
+        <input type="hidden" name="priority" value="{{ p }}">
+        <button type="submit"
+                class="prio-btn prio-btn--p{{ p }}{% if quest.priority == p %} prio-btn--active{% endif %}"
+                title="P{{ p }}: {{ priority_names[p] }}">
+          <span class="prio-btn__dot" aria-hidden="true"></span>P{{ p }} {{ priority_names[p] }}
+        </button>
+      </form>
+      {% endfor %}
+    </div>
+    <form class="inline-form qms__edit-field"
+          hx-put="/quests/{{ quest.id }}/labels?strip=1"
+          hx-target="#quest-meta-strip-{{ quest.id }}"
+          hx-swap="outerHTML">
+      {{ icon('tag', 'icon qms__edit-ico') }}
+      <input type="text" name="labels" class="meta-input meta-input--sm"
+             value="{{ quest.labels | join(', ') }}" placeholder="labels">
+      <button type="submit" class="meta-save-btn">{{ icon('check', 'icon') }}</button>
+    </form>
+    <form class="inline-form qms__edit-field"
+          hx-patch="/quests/{{ quest.id }}/project?strip=1"
+          hx-target="#quest-meta-strip-{{ quest.id }}"
+          hx-swap="outerHTML">
+      {{ icon('folder', 'icon qms__edit-ico') }}
+      <input type="text" name="project" class="meta-input meta-input--sm"
+             value="{{ quest.project or '' }}" placeholder="project">
+      <button type="submit" class="meta-save-btn">{{ icon('check', 'icon') }}</button>
+    </form>
+    <button class="meta-edit-btn qms__edit-done" @click="editing = false" title="Close">{{ icon('x', 'icon') }}</button>
+  </div>
+</div>

@@ -32,9 +32,21 @@ class JsonQuestRepo:
         quests = self._load()
         for q in quests:
             q.setdefault("checklist", [])
+            q.setdefault("priority", 4)
+            q.setdefault("project", None)
+            q.setdefault("labels", [])
+            q.setdefault("artifacts", {})
         return quests
 
-    def add(self, title: str) -> dict:
+    def add(
+        self,
+        title: str,
+        *,
+        priority: int = 4,
+        project: str | None = None,
+        labels: list | None = None,
+        artifacts: dict | None = None,
+    ) -> dict:
         quests = self._load()
         quest = {
             "id": str(uuid.uuid4())[:8],
@@ -44,6 +56,10 @@ class JsonQuestRepo:
             "started_at": None,
             "completed_at": None,
             "checklist": [],
+            "priority": priority,
+            "project": project,
+            "labels": labels or [],
+            "artifacts": artifacts or {},
         }
         quests.append(quest)
         self._save(quests)
@@ -90,6 +106,99 @@ class JsonQuestRepo:
                 self._save(quests)
                 return quest
         return None
+
+    def update_priority(self, quest_id: str, priority: int) -> dict | None:
+        if not 0 <= priority <= 4:
+            return None
+        quests = self._load()
+        for quest in quests:
+            if quest["id"] == quest_id:
+                quest["priority"] = priority
+                self._save(quests)
+                return quest
+        return None
+
+    def update_project(self, quest_id: str, project: str | None) -> dict | None:
+        quests = self._load()
+        for quest in quests:
+            if quest["id"] == quest_id:
+                quest["project"] = project.strip() if project else None
+                self._save(quests)
+                return quest
+        return None
+
+    def update_labels(self, quest_id: str, labels: list[str]) -> dict | None:
+        quests = self._load()
+        for quest in quests:
+            if quest["id"] == quest_id:
+                quest["labels"] = labels
+                self._save(quests)
+                return quest
+        return None
+
+    def update_artifacts(self, quest_id: str, artifacts: dict) -> dict | None:
+        quests = self._load()
+        for quest in quests:
+            if quest["id"] == quest_id:
+                quest["artifacts"] = artifacts
+                self._save(quests)
+                return quest
+        return None
+
+
+class JsonArtifactKeyRepo:
+    """Artifact key registry backed by a JSON file."""
+
+    def __init__(self, path: Path) -> None:
+        self._path = path
+
+    def _load(self) -> list[dict]:
+        if not self._path.exists():
+            return [
+                {"name": "MR",     "icon": "git-pull-request", "sort_order": 10},
+                {"name": "Ticket", "icon": "tag",               "sort_order": 20},
+                {"name": "Doc",    "icon": "file-text",         "sort_order": 30},
+                {"name": "Slack",  "icon": "message-circle",    "sort_order": 40},
+            ]
+        with open(self._path) as f:
+            return json.load(f)
+
+    def _save(self, keys: list[dict]) -> None:
+        with open(self._path, "w") as f:
+            json.dump(keys, f, indent=2)
+
+    def list_keys(self) -> list[dict]:
+        return sorted(self._load(), key=lambda k: (k.get("sort_order", 0), k["name"]))
+
+    def add_key(self, name: str, icon: str | None = None) -> dict:
+        keys = self._load()
+        if any(k["name"] == name for k in keys):
+            return next(k for k in keys if k["name"] == name)
+        sort_order = max((k.get("sort_order", 0) for k in keys), default=0) + 10
+        entry = {"name": name, "icon": icon, "sort_order": sort_order}
+        keys.append(entry)
+        self._save(keys)
+        return entry
+
+    def rename_key(self, old: str, new: str) -> None:
+        keys = self._load()
+        for k in keys:
+            if k["name"] == old:
+                k["name"] = new.strip()
+                break
+        self._save(keys)
+
+    def delete_key(self, name: str) -> None:
+        keys = [k for k in self._load() if k["name"] != name]
+        self._save(keys)
+
+    def reorder(self, names_in_order: list[str]) -> None:
+        keys = self._load()
+        order = {n: (i + 1) * 10 for i, n in enumerate(names_in_order)}
+        for k in keys:
+            if k["name"] in order:
+                k["sort_order"] = order[k["name"]]
+        self._save(keys)
 
 
 class JsonPomoRepo:

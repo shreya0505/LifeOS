@@ -1,6 +1,6 @@
 """Trophy computation for the Hall of Valor.
 
-8 trophies: 2 tiered (Forge Master, Frog Slayer) + 6 flat unlocks.
+13 trophies: 3 tiered + 10 flat unlocks.
 All reset daily. Pure computation — no I/O.
 """
 
@@ -10,7 +10,7 @@ from collections import defaultdict
 from datetime import datetime
 
 from core.config import USER_TZ
-from core.utils import today_local, to_local_date
+from core.utils import quest_age_bucket, quest_age_days, today_local, to_local_date
 from core.trophy_defs import TROPHY_DEFS
 
 
@@ -20,6 +20,10 @@ def compute_trophies(
     prs: dict,
 ) -> tuple[dict, dict]:
     today_str = today_local().isoformat()
+    quest_by_id = {q.get("id"): q for q in quests if q.get("id")}
+    quests_by_title: dict[str, list[dict]] = defaultdict(list)
+    for q in quests:
+        quests_by_title[q.get("title", "")].append(q)
 
     # ── Scan today's segments ────────────────────────────────────────────
     today_pomos = 0
@@ -27,10 +31,15 @@ def compute_trophies(
     any_long_break = False
     all_clean = True          # ghost_mode: no interruptions on any non-hollow work seg
     first_pomo_time = None
+    priority_pomos_today = 0
     pomos_per_quest: dict[str, int] = defaultdict(int)
 
     for s in sessions:
         quest_title = s.get("quest_title", "")
+        quest = quest_by_id.get(s.get("quest_id"))
+        if quest is None:
+            matches = quests_by_title.get(quest_title, [])
+            quest = matches[0] if len(matches) == 1 else None
         for seg in s.get("segments", []):
             seg_date = to_local_date(seg.get("started_at", ""))
             if seg_date != today_str:
@@ -41,6 +50,9 @@ def compute_trophies(
                     continue  # hollow never count
                 today_pomos += 1
                 pomos_per_quest[quest_title] += 1
+
+                if quest and quest.get("priority", 4) <= 1:
+                    priority_pomos_today += 1
 
                 if seg.get("forge_type") == "berserker":
                     any_berserker = True
@@ -84,6 +96,29 @@ def compute_trophies(
                     pass
 
     frogs_eaten = len(frog_quests_done)
+    p0_done_today = sum(1 for q in all_quests_done_today if q.get("priority", 4) == 0)
+    old_done_today = [
+        q for q in all_quests_done_today
+        if quest_age_bucket(quest_age_days(q)) in ("ancient", "fossil")
+    ]
+    sorted_done_today = sorted(
+        (q for q in all_quests_done_today if q.get("completed_at")),
+        key=lambda q: q["completed_at"],
+    )
+    first_strike_earned = (
+        bool(sorted_done_today)
+        and sorted_done_today[0].get("priority", 4) <= 1
+    )
+    open_high_priority = [
+        q for q in quests
+        if q.get("status") in ("log", "active", "blocked") and q.get("priority", 4) <= 1
+    ]
+    triage_rite_earned = bool(open_high_priority) and all(
+        quest_age_bucket(quest_age_days(q)) in ("fresh", "aging")
+        for q in open_high_priority
+    )
+    ancient_bane_earned = bool(old_done_today)
+    deep_priority_earned = priority_pomos_today >= 2
     frog_before_noon = False
     frog_eaten_first = False
 
@@ -145,7 +180,17 @@ def compute_trophies(
         "progress_label": fs_labels[fs_tier],
     })
 
-    # 3–8. Flat trophies
+    # 3. Doomfire Slayer (tiered)
+    ds_tier, ds_prog, ds_target = _tier(p0_done_today, 1, 2, 3)
+    results.append({
+        "id": "doomfire_slayer",
+        "tier": ds_tier,
+        "progress": ds_prog,
+        "target": ds_target,
+        "progress_label": f"{p0_done_today}/3 P0 quests",
+    })
+
+    # 4–13. Flat trophies
     flat_results = [
         ("dawn_forge",  dawn_forge_earned,   "before 9am" if dawn_forge_earned else "first pomo after 9am"),
         ("berserker",   any_berserker,        "flow state" if any_berserker else "no berserker yet"),
@@ -153,6 +198,10 @@ def compute_trophies(
         ("deep_siege",  deep_siege_earned,    "4+ on one quest" if deep_siege_earned else f"max {max(pomos_per_quest.values(), default=0)}/4 on one quest"),
         ("sabbath",     any_long_break,       "long break taken" if any_long_break else "no long break yet"),
         ("zero_debt",   zero_debt_earned,     f"{quests_closed_today} closed / {quests_created_today} opened" if quests_created_today > 0 else "no quests opened today"),
+        ("ancient_bane", ancient_bane_earned,  f"{len(old_done_today)} old quest closed" if ancient_bane_earned else "no ancient/fossil closed"),
+        ("first_strike", first_strike_earned,  "high priority first" if first_strike_earned else "first quest was lower priority"),
+        ("triage_rite",  triage_rite_earned,   "high priority is fresh" if triage_rite_earned else "stale high priority remains"),
+        ("deep_priority", deep_priority_earned, f"{priority_pomos_today}/2 priority pomos" if not deep_priority_earned else "2+ priority pomos"),
     ]
 
     for tid, earned, label in flat_results:
@@ -168,23 +217,33 @@ def compute_trophies(
     pr_values = {
         "forge_master": today_pomos,
         "frog_slayer": first_frog_time.astimezone(USER_TZ).strftime("%H:%M") if first_frog_time else None,
+        "doomfire_slayer": p0_done_today,
         "dawn_forge":  1 if dawn_forge_earned else 0,
         "berserker":   1 if any_berserker else 0,
         "ghost_mode":  1 if ghost_mode_earned else 0,
         "deep_siege":  1 if deep_siege_earned else 0,
         "sabbath":     1 if any_long_break else 0,
         "zero_debt":   1 if zero_debt_earned else 0,
+        "ancient_bane": 1 if ancient_bane_earned else 0,
+        "first_strike": 1 if first_strike_earned else 0,
+        "triage_rite":  1 if triage_rite_earned else 0,
+        "deep_priority": 1 if deep_priority_earned else 0,
     }
 
     pr_display = {
         "forge_master": f"{today_pomos} pomos" if today_pomos else None,
         "frog_slayer":  first_frog_time.astimezone(USER_TZ).strftime("%H:%M") if first_frog_time else None,
+        "doomfire_slayer": f"{p0_done_today} P0 quests" if p0_done_today else None,
         "dawn_forge":   "before 9am" if dawn_forge_earned else None,
         "berserker":    "flow state" if any_berserker else None,
         "ghost_mode":   "zero interruptions" if ghost_mode_earned else None,
         "deep_siege":   "4+ on one quest" if deep_siege_earned else None,
         "sabbath":      "long break taken" if any_long_break else None,
         "zero_debt":    "zero debt day" if zero_debt_earned else None,
+        "ancient_bane": f"{len(old_done_today)} old quest closed" if ancient_bane_earned else None,
+        "first_strike": "high priority first" if first_strike_earned else None,
+        "triage_rite":  "high priority fresh" if triage_rite_earned else None,
+        "deep_priority": "2+ priority pomos" if deep_priority_earned else None,
     }
 
     for trophy_id, val in pr_values.items():

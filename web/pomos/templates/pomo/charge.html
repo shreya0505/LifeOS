@@ -8,7 +8,7 @@
   <!-- Single glass pane -->
   <div class="charge-ritual__pane">
 
-    <!-- Identity Zone ??? the artifact header -->
+    <!-- Identity Zone — the artifact header -->
     <div class="ritual__identity">
       <h1 class="ritual__task-name">{{ quest_title }}</h1>
       {% if engine.is_resume %}
@@ -16,14 +16,21 @@
       {% elif engine.streak > 1 %}
       <span class="ritual__meta">Streak &#x1F525; &times; {{ engine.streak }}</span>
       {% endif %}
+      <!-- Ghost meta strip — quest context, no box -->
+      <div class="pomo-quest-meta"
+           hx-get="/quests/{{ engine.session.quest_id }}/meta-strip"
+           hx-trigger="load"
+           hx-swap="innerHTML">
+      </div>
     </div>
 
-    <form class="charge-ritual__form"
+    <form id="charge-form"
+          class="charge-ritual__form"
           hx-post="/pomos/charge"
           hx-target="#pomo-panel"
           hx-swap="outerHTML">
 
-      <!-- Intent Zone ??? the moment of commitment -->
+      <!-- Intent Zone — the moment of commitment -->
       <div class="ritual__intent">
         <h2 class="ritual__action">Declare your intent</h2>
         <p class="ritual__supporting">Name the one thing you will have forged when this pomo ends.</p>
@@ -45,13 +52,6 @@
         </div>
       </div>
 
-      <!-- Action Zone ??? separate decision from thought -->
-      <div class="ritual__action-zone">
-        <button type="submit" class="charge-ritual__seal">
-          <span class="charge-ritual__seal-text">Begin Forging</span>
-        </button>
-      </div>
-
     </form>
 
     <!-- Quest checklist — lazy-loaded, persists across pomos -->
@@ -59,6 +59,13 @@
          hx-get="/quests/{{ engine.session.quest_id }}/checklist"
          hx-trigger="load"
          hx-swap="outerHTML">
+    </div>
+
+    <!-- Action Zone — finality anchor at bottom -->
+    <div class="ritual__action-zone">
+      <button type="submit" form="charge-form" class="charge-ritual__seal">
+        <span class="charge-ritual__seal-text">Begin Forging</span>
+      </button>
     </div>
   </div>
 </div>

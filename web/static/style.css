@@ -317,7 +317,16 @@ body::before {
   justify-content: center;
   min-height: 65vh;
   padding: var(--space-3xl) var(--space-xl) var(--space-2xl);
-  text-align: center;
+}
+
+.inscribe-panel__eyebrow {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--on-surface-muted);
+  opacity: 0.5;
+  margin-bottom: var(--space-sm);
 }
 
 /* ── Giant frosted glass card ──────────────────────────────── */
@@ -401,73 +410,65 @@ body::before {
   font-family: var(--font-display);
   font-size: var(--text-4xl);
   font-weight: 700;
-  font-style: normal;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   color: var(--on-surface);
   margin-bottom: var(--space-2xl);
+  text-align: center;
 }
 
-/* ── Form inside glass card ──────────────────────────────── */
-.inscribe-panel .add-quest-form {
-  position: relative;
-  max-width: 100%;
+/* ── Inscribe form (new structure) ───────────────────────── */
+.inscribe-form {
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
   margin-bottom: var(--space-lg);
-  padding: 0;
-  background: transparent;
-  border-radius: var(--radius-xl);
-  box-shadow: none;
 }
 
-.inscribe-panel .add-quest-form:hover,
-.inscribe-panel .add-quest-form:focus-within {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  background: transparent;
-  box-shadow: none;
+/* Main input row */
+.inscribe-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid rgba(0,0,0,0.1);
+  padding-bottom: var(--space-md);
+  margin-bottom: var(--space-lg);
 }
 
-/* ── Input: flush with glass surface ─────────────────────── */
-.inscribe-panel .add-quest-form__input {
-  padding: var(--space-md) var(--space-lg);
+.inscribe-input {
+  flex: 1;
+  padding: var(--space-sm) 0;
+  font-family: var(--font-body);
   font-size: var(--text-lg);
-  border: none;
+  font-weight: 500;
+  color: var(--on-surface);
   background: transparent;
-  box-shadow: none;
-  transition: box-shadow 260ms var(--ease-natural);
+  border: none;
+  outline: none;
+  min-width: 0;
+}
+.inscribe-input::placeholder {
+  color: var(--on-surface-muted);
+  opacity: 0.45;
 }
 
-.inscribe-panel .add-quest-form__input:focus {
-  box-shadow:
-    0 0 0 2px rgba(255, 255, 255, 0.2),
-    0 0 12px rgba(22, 52, 34, 0.05);
+.inscribe-submit {
+  flex-shrink: 0;
+  padding: var(--space-sm) var(--space-xl);
+  font-size: var(--text-sm);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), 0 3px 8px rgba(0,0,0,0.08);
+  transition: box-shadow 200ms ease, transform 200ms ease, filter 200ms ease;
 }
-
-/* ── CTA button: solid elevated ──────────────────────────── */
-.inscribe-panel .btn--zap {
-  position: relative;
-  padding: var(--space-md) var(--space-xl);
-  font-size: var(--text-base);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
-    0 4px 10px rgba(0, 0, 0, 0.08);
-  transition:
-    box-shadow 200ms ease,
-    transform 200ms ease,
-    filter 200ms ease;
-}
-
-.inscribe-panel .btn--zap:hover {
+.inscribe-submit:hover {
   filter: brightness(1.06);
   transform: translateY(-1px);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.25),
-    0 6px 14px rgba(0, 0, 0, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 14px rgba(0,0,0,0.1);
 }
+.inscribe-submit:active { transform: translateY(0); filter: brightness(1); }
 
-.inscribe-panel .btn--zap:active {
-  transform: translateY(0);
-  filter: brightness(1);
+/* ── CTA button fallback (keep for other uses) ─────────────── */
+.inscribe-panel .btn--zap {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 4px 10px rgba(0, 0, 0, 0.08);
 }
 
 /* ── Hint text ───────────────────────────────────────────── */
@@ -610,6 +611,8 @@ body::before {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--space-xl);
+  position: relative;
+  z-index: 1;
 }
 
 @media (min-width: 1024px) {
@@ -782,6 +785,11 @@ body::before {
 
 /* ── Quest Card (ledger row model) ──────────────────── */
 .quest-card {
+  --card-prio: var(--outline-variant);
+  --card-bg: color-mix(in oklch, var(--surface-container-lowest) 94%, var(--card-prio));
+  --card-bg-edge: color-mix(in oklch, var(--card-bg) 86%, var(--card-prio));
+  --card-hover-bg: color-mix(in oklch, var(--surface-container-lowest) 88%, var(--card-prio));
+  --card-hover-edge: color-mix(in oklch, var(--card-hover-bg) 82%, var(--card-prio));
   position: relative;
   z-index: 1;
   padding: 14px 14px 14px 16px;
@@ -789,16 +797,82 @@ body::before {
   margin: 0;
   max-width: 100%;
   width: 100%;
-  background: rgba(255, 255, 255, 0.55);
+  background:
+    linear-gradient(90deg, var(--card-bg-edge) 0%, var(--card-bg) 68%);
   color: var(--on-surface);
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06), 0 1px 0 rgba(28, 28, 24, 0.04);
   transition: background 200ms cubic-bezier(0.4, 0, 0.2, 1),
     transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.quest-card::before {
+  content: '';
+  position: absolute;
+  top: 9px;
+  bottom: 9px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--card-prio);
+  opacity: 0.78;
+  z-index: 1;
+}
+
+.quest-card[data-priority="0"] {
+  --card-prio: var(--prio-p0);
+  --card-bg: color-mix(in oklch, var(--surface-container-lowest) 82%, var(--prio-p0));
+  --card-bg-edge: color-mix(in oklch, var(--surface-container-lowest) 68%, var(--prio-p0));
+  --card-hover-bg: color-mix(in oklch, var(--surface-container-lowest) 78%, var(--prio-p0));
+  --card-hover-edge: color-mix(in oklch, var(--surface-container-lowest) 62%, var(--prio-p0));
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--prio-p0) 34%, transparent),
+    inset 4px 0 0 color-mix(in oklch, var(--prio-p0) 72%, transparent),
+    0 1px 0 rgba(28, 28, 24, 0.04);
+}
+
+.quest-card[data-priority="1"] {
+  --card-prio: var(--prio-p1);
+  --card-bg: color-mix(in oklch, var(--surface-container-lowest) 85%, var(--prio-p1));
+  --card-bg-edge: color-mix(in oklch, var(--surface-container-lowest) 72%, var(--prio-p1));
+  --card-hover-bg: color-mix(in oklch, var(--surface-container-lowest) 80%, var(--prio-p1));
+  --card-hover-edge: color-mix(in oklch, var(--surface-container-lowest) 66%, var(--prio-p1));
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--prio-p1) 28%, transparent),
+    inset 4px 0 0 color-mix(in oklch, var(--prio-p1) 60%, transparent),
+    0 1px 0 rgba(28, 28, 24, 0.04);
+}
+
+.quest-card[data-priority="2"] {
+  --card-prio: var(--prio-p2);
+  --card-bg: color-mix(in oklch, var(--surface-container-lowest) 88%, var(--prio-p2));
+  --card-bg-edge: color-mix(in oklch, var(--surface-container-lowest) 78%, var(--prio-p2));
+  --card-hover-bg: color-mix(in oklch, var(--surface-container-lowest) 84%, var(--prio-p2));
+  --card-hover-edge: color-mix(in oklch, var(--surface-container-lowest) 72%, var(--prio-p2));
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--prio-p2) 22%, transparent),
+    inset 3px 0 0 color-mix(in oklch, var(--prio-p2) 48%, transparent),
+    0 1px 0 rgba(28, 28, 24, 0.04);
+}
+
+.quest-card[data-priority="3"] {
+  --card-prio: var(--prio-p3);
+  --card-bg: color-mix(in oklch, var(--surface-container-lowest) 92%, var(--prio-p3));
+  --card-bg-edge: color-mix(in oklch, var(--surface-container-lowest) 84%, var(--prio-p3));
+  --card-hover-bg: color-mix(in oklch, var(--surface-container-lowest) 88%, var(--prio-p3));
+  --card-hover-edge: color-mix(in oklch, var(--surface-container-lowest) 80%, var(--prio-p3));
+}
+
+.quest-card[data-priority="4"] {
+  --card-prio: color-mix(in oklch, var(--prio-p4) 58%, transparent);
+  --card-bg: color-mix(in oklch, var(--surface-container-lowest) 96%, var(--prio-p4));
+  --card-bg-edge: color-mix(in oklch, var(--surface-container-lowest) 91%, var(--prio-p4));
+  --card-hover-bg: color-mix(in oklch, var(--surface-container-lowest) 92%, var(--prio-p4));
+  --card-hover-edge: color-mix(in oklch, var(--surface-container-lowest) 87%, var(--prio-p4));
+}
+
 /* ── Status tints ────────────────────────────────────── */
 .quest-card[data-status="active"] {
-  background: rgba(22, 52, 34, 0.06);
+  --card-bg: color-mix(in oklch, var(--surface-container-lowest) 88%, var(--primary));
+  --card-bg-edge: color-mix(in oklch, var(--card-bg) 86%, var(--card-prio));
+  --card-hover-bg: color-mix(in oklch, var(--surface-container-lowest) 82%, var(--primary));
+  --card-hover-edge: color-mix(in oklch, var(--card-hover-bg) 82%, var(--card-prio));
 }
 
 .quest-card[data-status="blocked"] {
@@ -812,7 +886,10 @@ body::before {
 /* ── Active pomo: top accent + separator + float to top ─── */
 .quest-card--pomo-active {
   order: -1;
-  background: rgba(22, 52, 34, 0.08) !important;
+  --card-bg: color-mix(in oklch, var(--surface-container-lowest) 84%, var(--primary));
+  --card-bg-edge: color-mix(in oklch, var(--card-bg) 82%, var(--card-prio));
+  --card-hover-bg: color-mix(in oklch, var(--surface-container-lowest) 78%, var(--primary));
+  --card-hover-edge: color-mix(in oklch, var(--card-hover-bg) 78%, var(--card-prio));
   border-radius: 0 0 10px 10px;
   border-top: 2px solid rgba(22, 52, 34, 0.55);
   box-shadow: inset 0 0 0 1px rgba(22, 52, 34, 0.14);
@@ -830,7 +907,6 @@ body::before {
 }
 
 .quest-card--pomo-active:hover {
-  background: rgba(22, 52, 34, 0.11) !important;
   transform: translateX(-2px);
 }
 
@@ -861,12 +937,9 @@ body::before {
 
 /* ── Hover: selection drift, not lift ────────────────── */
 .quest-card:hover {
-  background: rgba(255, 255, 255, 0.72);
+  background:
+    linear-gradient(90deg, var(--card-hover-edge) 0%, var(--card-hover-bg) 68%);
   transform: translateX(3px);
-}
-
-.quest-card[data-status="active"]:hover {
-  background: rgba(22, 52, 34, 0.09);
 }
 
 .quest-card[data-status="done"]:hover {
@@ -5212,3 +5285,1186 @@ body::before {
 }
 .test-mode-bar__btn:hover { background: rgba(0,0,0,0.45); }
 .test-mode-bar__btn--reset { opacity: 0.8; }
+
+
+/* ══════════════════════════════════════════════════════════════
+   Quest Meta: Age, Priority, Labels, Project, Artifacts, Filters
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Age pill ──────────────────────────────────────────────── */
+.age-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+}
+.age-pill--fresh   { background: var(--age-fresh); }
+.age-pill--aging   { background: var(--age-aging); color: var(--on-surface); }
+.age-pill--stale   { background: var(--age-stale); }
+.age-pill--ancient { background: var(--age-ancient); }
+.age-pill--fossil  { background: var(--age-fossil); animation: slow-pulse 4s ease-in-out infinite; }
+
+@keyframes slow-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
+
+/* Fossil card accent */
+.quest-card[data-age="fossil"] {
+  border-bottom: 2px solid color-mix(in oklch, var(--age-fossil) 62%, transparent);
+}
+.quest-card[data-age="fossil"] .quest-card__title {
+  filter: saturate(0.5);
+}
+
+/* ── Priority rune ─────────────────────────────────────────── */
+.prio-rune {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.prio-rune .icon { width: 13px; height: 13px; }
+.prio-rune--p0 { color: var(--prio-p0); }
+.prio-rune--p1 { color: var(--prio-p1); }
+.prio-rune--p2 { color: var(--prio-p2); }
+.prio-rune--p3 { color: var(--prio-p3); }
+.prio-rune--p4 { color: var(--prio-p4); opacity: 0.45; }
+
+/* ── Priority icon sizing (filter pills, prio-btn, inscribe) ─ */
+.prio-icon { width: 11px; height: 11px; flex-shrink: 0; }
+.prio-btn__icon { width: 12px; height: 12px; flex-shrink: 0; }
+
+/* ── Chip icon — tiny icon inside pills ────────────────────── */
+.icon--chip { width: 9px; height: 9px; flex-shrink: 0; opacity: 0.75; margin-right: 3px; }
+
+/* ── Label dots (peek) ─────────────────────────────────────── */
+.label-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  margin-right: 2px;
+  vertical-align: middle;
+}
+.label-dot-overflow {
+  font-size: var(--text-xs);
+  color: var(--on-surface-muted);
+  margin-right: 4px;
+}
+
+/* ── Label chips ───────────────────────────────────────────── */
+.label-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px 2px 6px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: #fff;
+  margin-right: 3px;
+  white-space: nowrap;
+}
+
+/* Label hue classes — dot + chip both use these */
+.label-hue-1, .label-dot.label-hue-1 { background: var(--label-hue-1); }
+.label-hue-2, .label-dot.label-hue-2 { background: var(--label-hue-2); color: var(--on-surface); }
+.label-hue-3, .label-dot.label-hue-3 { background: var(--label-hue-3); color: var(--on-surface); }
+.label-hue-4, .label-dot.label-hue-4 { background: var(--label-hue-4); color: var(--on-surface); }
+.label-hue-5, .label-dot.label-hue-5 { background: var(--label-hue-5); }
+.label-hue-6, .label-dot.label-hue-6 { background: var(--label-hue-6); }
+.label-hue-7, .label-dot.label-hue-7 { background: var(--label-hue-7); }
+.label-hue-8, .label-dot.label-hue-8 { background: var(--label-hue-8); }
+
+/* ── Project pill ──────────────────────────────────────────── */
+.project-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px 2px 6px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  background: var(--surface-container-low);
+  color: var(--on-surface-variant);
+  border: 1px solid var(--outline-variant);
+  white-space: nowrap;
+}
+
+/* ── Card header end / chevron ─────────────────────────────── */
+.quest-card__header-end {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.quest-card__chevron {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  color: var(--on-surface-muted);
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  transition: color 0.15s;
+}
+.quest-card__chevron:hover { color: var(--on-surface); }
+
+/* ── Card peek row ─────────────────────────────────────────── */
+.quest-card__peek {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 2px var(--space-sm) 0;
+  min-height: 14px;
+}
+
+/* ── Card expanded body ────────────────────────────────────── */
+.quest-card__expanded {
+  padding: 6px 2px 0;
+  border-top: 1px solid rgba(0,0,0,0.07);
+  margin-top: 6px;
+}
+
+/* ── Card collapsed actions ────────────────────────────────── */
+.quest-card__actions-collapsed {
+  padding: var(--space-xs) var(--space-sm) var(--space-sm);
+}
+.quest-card__actions-collapsed .segmented-control {
+  margin: 0;
+}
+
+/* ── Quest meta rows (inside expanded) ─────────────────────── */
+.quest-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: var(--text-sm);
+}
+.quest-meta-row--artifacts { flex-direction: column; align-items: flex-start; }
+.quest-meta-label {
+  color: var(--on-surface-muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  min-width: 52px;
+  opacity: 0.55;
+  flex-shrink: 0;
+}
+.quest-meta-value {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1;
+}
+
+/* ── Inline form ───────────────────────────────────────────── */
+.inline-form {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── Meta inputs ───────────────────────────────────────────── */
+.meta-input {
+  padding: 2px 4px;
+  border: none;
+  border-bottom: 1px solid var(--outline-variant);
+  border-radius: 0;
+  background: transparent;
+  color: var(--on-surface);
+  font: inherit;
+  font-size: var(--text-sm);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.meta-input:focus {
+  border-bottom-color: var(--primary);
+}
+.meta-input::placeholder { color: var(--on-surface-muted); opacity: 0.45; }
+.meta-input--sm { width: 150px; }
+.meta-input--artifact { flex: 1; min-width: 0; width: 100%; }
+
+.meta-save-btn {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: var(--on-surface-muted);
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  opacity: 0.5;
+  transition: color 0.15s, opacity 0.15s;
+}
+.meta-save-btn:hover { color: var(--primary); opacity: 1; }
+
+.meta-link {
+  font-size: var(--text-xs);
+  color: var(--on-surface-muted);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.meta-edit-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--on-surface-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--text-xs);
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  transition: color 0.15s;
+}
+.meta-edit-btn:hover { color: var(--primary); }
+
+/* ── Priority selector (in expanded card) ──────────────────── */
+.quest-prio-selector {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+.prio-btn {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 9px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--on-surface-muted);
+  transition: background 0.12s, color 0.12s;
+}
+.prio-btn:hover { background: rgba(0,0,0,0.06); color: var(--on-surface); }
+.prio-btn--active {
+  background: var(--surface-tint);
+  color: var(--on-surface);
+  font-weight: 700;
+}
+.prio-btn--p0 .prio-btn__icon { color: var(--prio-p0); }
+.prio-btn--p1 .prio-btn__icon { color: var(--prio-p1); }
+.prio-btn--p2 .prio-btn__icon { color: var(--prio-p2); }
+.prio-btn--p3 .prio-btn__icon { color: var(--prio-p3); }
+.prio-btn--p4 .prio-btn__icon { color: var(--prio-p4); }
+.prio-btn__label { font-size: 0.68rem; color: var(--on-surface-muted); }
+
+/* ── Artifacts ─────────────────────────────────────────────── */
+.artifacts-form { width: 100%; }
+.artifact-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+.artifact-row--actions {
+  margin-top: 6px;
+  gap: 12px;
+  padding-top: 4px;
+}
+.artifact-key {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--on-surface-muted);
+  min-width: 52px;
+  opacity: 0.55;
+  flex-shrink: 0;
+}
+.artifact-link {
+  font-size: var(--text-xs);
+  color: var(--primary);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.artifact-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px 2px 6px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  background: var(--surface-container-low);
+  border: 1px solid var(--outline-variant);
+  color: var(--on-surface-variant);
+  text-decoration: none;
+}
+/* URL artifact — subtle teal tint to signal clickable external link */
+a.artifact-chip,
+.artifact-chip--link {
+  border-color: color-mix(in oklch, var(--primary) 30%, var(--outline-variant));
+  color: var(--primary);
+}
+a.artifact-chip:hover { background: color-mix(in oklch, var(--primary) 8%, var(--surface-container-low)); }
+/* Data artifact — neutral, distinct from label */
+.artifact-chip--data {
+  font-family: var(--font-mono);
+  letter-spacing: -0.01em;
+}
+
+.btn--xs {
+  padding: 3px 10px;
+  font-size: var(--text-xs);
+}
+
+/* ── Filter bar ────────────────────────────────────────────── */
+.filter-bar {
+  padding: 0 0 12px;
+  margin-bottom: 4px;
+  position: relative;
+  z-index: 20;
+}
+
+.filter-bar__glass {
+  max-width: fit-content;
+  margin: 0 auto;
+  background: rgba(255,255,255,0.04);
+  backdrop-filter: blur(12px) saturate(110%);
+  -webkit-backdrop-filter: blur(12px) saturate(110%);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: var(--radius-xl);
+  padding: 8px 12px;
+  box-shadow: none;
+}
+
+.filter-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  row-gap: 4px;
+}
+
+.filter-group--dropdowns {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* ── Filter dropdown ────────────────────────────────────────── */
+.filter-dropdown {
+  position: relative;
+}
+
+.filter-dropdown__panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 180px;
+  max-height: 260px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in oklch, var(--surface) 96%, var(--primary));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06);
+  z-index: 100;
+  animation: dropdown-enter 150ms var(--ease-decelerate) both;
+}
+
+@keyframes dropdown-enter {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.filter-dropdown__search {
+  padding: 8px 12px;
+  border: none;
+  border-bottom: 1px solid var(--outline-variant);
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--on-surface);
+  outline: none;
+  flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+.filter-dropdown__search::placeholder { color: var(--on-surface-muted); opacity: 0.45; }
+.filter-dropdown__search:focus { border-bottom-color: var(--primary); }
+
+.filter-dropdown__list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 4px;
+}
+
+.filter-dropdown__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--on-surface);
+  text-align: left;
+  transition: background 0.1s;
+}
+.filter-dropdown__item:hover { background: rgba(0,0,0,0.05); }
+.filter-dropdown__item.is-active { background: color-mix(in oklch, var(--primary) 10%, transparent); }
+
+.filter-dropdown__check {
+  width: 13px;
+  height: 13px;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+.filter-dropdown__check .icon { width: 11px; height: 11px; }
+.filter-dropdown__check-placeholder { width: 13px; flex-shrink: 0; }
+
+.filter-dropdown__empty {
+  padding: 10px 12px;
+  font-size: var(--text-xs);
+  color: var(--on-surface-muted);
+  opacity: 0.5;
+  text-align: center;
+  margin: 0;
+}
+
+/* Chevron on dropdown trigger pills */
+.filter-pill__chevron { width: 10px; height: 10px; opacity: 0.45; margin-left: 1px; }
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.filter-group--inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-group--sort {
+  padding: 2px;
+  border-radius: var(--radius-full);
+  background: rgba(0,0,0,0.035);
+}
+
+.filter-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--outline-variant);
+  opacity: 0.5;
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+
+/* ── Filter pill (base) ────────────────────────────────────── */
+.filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--on-surface-muted);
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+  user-select: none;
+}
+.filter-pill__label { letter-spacing: 0.02em; }
+.filter-pill:hover { background: rgba(0,0,0,0.06); color: var(--on-surface); }
+.filter-pill.is-active {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.filter-pill.is-active .fpi { color: var(--on-primary) !important; }
+
+.filter-pill--sort {
+  padding-inline: 9px;
+}
+
+.filter-pill--sort:not(.is-active) .fpi {
+  color: var(--on-surface-muted);
+}
+
+/* Priority pills — semantic color active background */
+.filter-pill--p0:not(.is-active) .fpi { color: var(--prio-p0); }
+.filter-pill--p1:not(.is-active) .fpi { color: var(--prio-p1); }
+.filter-pill--p2:not(.is-active) .fpi { color: var(--prio-p2); }
+.filter-pill--p3:not(.is-active) .fpi { color: var(--prio-p3); }
+.filter-pill--p4:not(.is-active) { opacity: 0.6; }
+
+.filter-pill--p0.is-active { background: var(--prio-p0); color: #fff; }
+.filter-pill--p1.is-active { background: var(--prio-p1); color: #fff; }
+.filter-pill--p2.is-active { background: var(--prio-p2); color: #fff; }
+.filter-pill--p3.is-active { background: var(--prio-p3); color: #fff; }
+.filter-pill--p4.is-active { background: var(--prio-p4); color: #fff; opacity: 1; }
+.filter-pill--p0.is-active .fpi,
+.filter-pill--p1.is-active .fpi,
+.filter-pill--p2.is-active .fpi,
+.filter-pill--p3.is-active .fpi,
+.filter-pill--p4.is-active .fpi { color: #fff !important; }
+
+/* Age pills — semantic color when inactive + active */
+.filter-age--fresh:not(.is-active)   { color: var(--age-fresh); }
+.filter-age--aging:not(.is-active)   { color: var(--age-aging); }
+.filter-age--stale:not(.is-active)   { color: var(--age-stale); }
+.filter-age--ancient:not(.is-active) { color: var(--age-ancient); }
+.filter-age--fossil:not(.is-active)  { color: var(--age-fossil); }
+
+.filter-age--fresh.is-active   { background: var(--age-fresh);   color: #fff; }
+.filter-age--aging.is-active   { background: var(--age-aging);   color: #fff; }
+.filter-age--stale.is-active   { background: var(--age-stale);   color: #fff; }
+.filter-age--ancient.is-active { background: var(--age-ancient); color: #fff; }
+.filter-age--fossil.is-active  { background: var(--age-fossil);  color: #fff; }
+
+/* ── Filter text fields ────────────────────────────────────── */
+.filter-text-field {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  cursor: text;
+}
+.filter-text-field__hint {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--on-surface-muted);
+  opacity: 0.45;
+  white-space: nowrap;
+}
+.filter-text-field input {
+  padding: 0;
+  border: none;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-xs);
+  width: 90px;
+  color: var(--on-surface);
+  outline: none;
+  transition: border-color 0.15s, width 0.2s;
+}
+.filter-text-field input:focus,
+.filter-text-field input:not(:placeholder-shown) {
+  border-bottom-color: var(--outline-variant);
+  width: 120px;
+}
+.filter-text-field input:focus { border-bottom-color: var(--primary); }
+.filter-text-field input::placeholder { color: var(--on-surface-muted); opacity: 0.4; }
+
+/* ── Clear button ──────────────────────────────────────────── */
+.filter-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--on-surface-muted);
+  opacity: 0.5;
+  transition: opacity 0.12s, background 0.12s, color 0.12s;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+.filter-clear-btn:hover { opacity: 1; background: rgba(181,73,58,0.1); color: var(--error); }
+.filter-clear-btn .icon { width: 13px; height: 13px; }
+
+/* prio icon sizes in filter context */
+.fpi { width: 12px; height: 12px; flex-shrink: 0; }
+
+/* ── Inscribe form: priority pills ─────────────────────────── */
+.add-quest-form__main-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.inscribe-prio-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-bottom: var(--space-sm);
+}
+
+.inscribe-prio-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--on-surface-muted);
+  opacity: 0.45;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.prio-pill-label { cursor: pointer; }
+.prio-pill-label .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+
+.prio-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s;
+  user-select: none;
+  color: var(--on-surface-muted);
+}
+.prio-pill__name { font-size: 0.7rem; letter-spacing: 0.02em; }
+.prio-pill:hover { background: rgba(0,0,0,0.05); }
+.prio-pill--selected {
+  color: var(--on-primary) !important;
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+}
+.prio-pill--selected .prio-icon { color: var(--on-primary) !important; }
+.prio-pill--p0.prio-pill--selected { background: var(--prio-p0); }
+.prio-pill--p1.prio-pill--selected { background: var(--prio-p1); }
+.prio-pill--p2.prio-pill--selected { background: var(--prio-p2); }
+.prio-pill--p3.prio-pill--selected { background: var(--prio-p3); }
+.prio-pill--p4.prio-pill--selected { background: var(--primary); }
+/* Inactive: icon color only, border hint */
+.prio-pill--p0:not(.prio-pill--selected) { color: var(--prio-p0); }
+.prio-pill--p1:not(.prio-pill--selected) { color: var(--prio-p1); }
+.prio-pill--p2:not(.prio-pill--selected) { color: var(--prio-p2); }
+.prio-pill--p3:not(.prio-pill--selected) { color: var(--prio-p3); }
+.prio-pill--p4:not(.prio-pill--selected) { color: var(--prio-p4); opacity: 0.6; }
+.prio-pill--p0:not(.prio-pill--selected) .prio-icon { color: var(--prio-p0); }
+.prio-pill--p1:not(.prio-pill--selected) .prio-icon { color: var(--prio-p1); }
+.prio-pill--p2:not(.prio-pill--selected) .prio-icon { color: var(--prio-p2); }
+.prio-pill--p3:not(.prio-pill--selected) .prio-icon { color: var(--prio-p3); }
+.prio-pill--p4:not(.prio-pill--selected) .prio-icon { color: var(--prio-p4); }
+
+.inscribe-more { margin-top: 4px; }
+.inscribe-more__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--on-surface-muted);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  opacity: 0.45;
+  transition: opacity 0.15s;
+  padding: 4px 0;
+}
+.inscribe-more__toggle::-webkit-details-marker { display: none; }
+.inscribe-more__toggle:hover { opacity: 0.8; }
+.inscribe-more__chevron { width: 12px; height: 12px; transition: transform 0.2s; }
+details[open] .inscribe-more__chevron { transform: rotate(180deg); }
+
+.inscribe-more__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 16px;
+}
+
+/* 2-col meta grid for project + labels */
+.inscribe-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.inscribe-meta-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inscribe-meta-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--on-surface-muted);
+  opacity: 0.5;
+}
+
+.inscribe-meta-input {
+  padding: 4px 0;
+  border: none;
+  border-bottom: 1px solid var(--outline-variant);
+  background: transparent;
+  color: var(--on-surface);
+  font: inherit;
+  font-size: var(--text-sm);
+  outline: none;
+  width: 100%;
+  transition: border-color 0.15s;
+}
+.inscribe-meta-input:focus { border-bottom-color: var(--primary); }
+.inscribe-meta-input::placeholder { color: var(--on-surface-muted); opacity: 0.4; }
+
+/* Artifacts in inscribe */
+.inscribe-artifacts-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+}
+.inscribe-artifacts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.inscribe-artifact-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.inscribe-artifact-key {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--on-surface-muted);
+  opacity: 0.5;
+  min-width: 60px;
+  flex-shrink: 0;
+}
+/* Legacy field row (keep for compat) */
+.inscribe-field-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.inscribe-field-row--artifacts { align-items: flex-start; }
+.inscribe-field-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--on-surface-muted);
+  min-width: 52px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.55;
+}
+.inscribe-artifacts-legacy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+/* ── Artifact keys panel ───────────────────────────────────── */
+.artifact-keys-panel {
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-xl);
+  padding: var(--space-md);
+  margin-top: var(--space-sm);
+  max-width: 400px;
+}
+.artifact-keys-panel__title {
+  font-size: var(--text-base);
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+.artifact-keys-panel__hint {
+  font-size: var(--text-xs);
+  color: var(--on-surface-muted);
+  margin: 0 0 12px;
+}
+.artifact-keys-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.artifact-keys-list__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.artifact-key-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--on-surface-variant);
+  min-width: 60px;
+}
+.artifact-key-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.artifact-keys-list__empty {
+  font-size: var(--text-sm);
+  color: var(--on-surface-muted);
+}
+.artifact-keys-add {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 1px solid var(--outline-variant);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Quest meta strip (pomo screens) — single line
+   [state] [age] [project] [labels] [+N] [priority] [info icons] [edit]
+   ══════════════════════════════════════════════════════════════ */
+.quest-meta-strip {
+  display: block;
+  position: relative;
+  z-index: 60;
+  max-width: 720px;
+  margin: 8px auto 16px;
+  text-align: left;
+  font-size: var(--text-xs);
+  overflow: visible;
+}
+
+.quest-meta-strip__view.qms__line {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow: visible;
+  padding: 4px 2px;
+}
+.qms__line > .label-chip,
+.qms__line > .project-chip,
+.qms__line > .prio-badge,
+.qms__line > .age-pill,
+.qms__line > .label-overflow { flex-shrink: 0; }
+.qms__line > .qms__info { margin-left: auto; flex-shrink: 0; display: inline-flex; gap: 2px; align-items: center; }
+.qms__line > .qms__overflow-wrap { position: relative; flex-shrink: 0; }
+
+.qms__state {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--on-surface-muted);
+  opacity: 0.7;
+}
+.qms__state--active { color: var(--primary); opacity: 0.85; }
+.qms__state--done   { color: var(--age-fresh); opacity: 0.7; }
+.qms__state--blocked { color: var(--prio-p1); opacity: 0.85; }
+.qms__state--log    { color: var(--on-surface-muted); }
+.qms__dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--on-surface-muted);
+  opacity: 0.3;
+  flex-shrink: 0;
+}
+.qms__edit-btn { flex-shrink: 0; }
+
+/* ── Project chip (rectangular, identity anchor) ───────────── */
+.project-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--surface-container);
+  border: 1px solid var(--outline-variant);
+  color: var(--on-surface);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  max-width: 180px;
+}
+.project-chip .icon { width: 11px; height: 11px; opacity: 0.7; }
+.project-chip__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Label overflow chip ───────────────────────────────────── */
+.label-overflow {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  background: transparent;
+  border: 1px dashed var(--outline-variant);
+  color: var(--on-surface-muted);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.label-overflow:hover { color: var(--on-surface); border-color: var(--on-surface-muted); }
+
+/* ── Priority badge (compact, color-coded, not pill) ───────── */
+.prio-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  background: color-mix(in oklch, var(--surface-container) 70%, transparent);
+  border: 1px solid var(--outline-variant);
+  color: var(--on-surface);
+  margin-left: 2px;
+}
+.prio-badge__dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.prio-badge__text { line-height: 1; }
+.prio-badge--p0 { color: var(--prio-p0); border-color: color-mix(in oklch, var(--prio-p0) 40%, var(--outline-variant)); background: color-mix(in oklch, var(--prio-p0) 10%, transparent); }
+.prio-badge--p1 { color: var(--prio-p1); border-color: color-mix(in oklch, var(--prio-p1) 35%, var(--outline-variant)); background: color-mix(in oklch, var(--prio-p1) 8%, transparent); }
+.prio-badge--p2 { color: var(--prio-p2); border-color: color-mix(in oklch, var(--prio-p2) 30%, var(--outline-variant)); background: color-mix(in oklch, var(--prio-p2) 6%, transparent); }
+.prio-badge--p3 { color: var(--prio-p3); border-color: color-mix(in oklch, var(--prio-p3) 25%, var(--outline-variant)); }
+.prio-badge--p4 { color: var(--on-surface-muted); opacity: 0.65; }
+
+/* ── Info KV icons (monochrome, icon-only) ─────────────────── */
+.info-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px; height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--on-surface-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+.info-ico:hover {
+  opacity: 1;
+  color: var(--on-surface);
+  background: color-mix(in oklch, var(--on-surface) 6%, transparent);
+}
+.info-ico .icon { width: 13px; height: 13px; }
+.info-ico--link:hover { color: var(--primary); }
+.info-ico--open {
+  opacity: 1;
+  color: var(--on-surface);
+  background: color-mix(in oklch, var(--on-surface) 6%, transparent);
+}
+.qms__details {
+  display: inline-flex;
+}
+.qms__details > summary {
+  list-style: none;
+}
+.qms__details > summary::-webkit-details-marker {
+  display: none;
+}
+.qms__details[open] > .info-ico {
+  opacity: 1;
+  color: var(--on-surface);
+  background: color-mix(in oklch, var(--on-surface) 6%, transparent);
+}
+.info-ico__count {
+  margin-left: 2px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ── Priority parity: active priority button uses priority color ── */
+.prio-btn__dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  margin-right: 4px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.prio-btn--p0 { color: var(--prio-p0); }
+.prio-btn--p1 { color: var(--prio-p1); }
+.prio-btn--p2 { color: var(--prio-p2); }
+.prio-btn--p3 { color: var(--prio-p3); }
+.prio-btn--p4 { color: var(--prio-p4); }
+.prio-btn--active.prio-btn--p0 { background: color-mix(in oklch, var(--prio-p0) 14%, transparent); color: var(--prio-p0); }
+.prio-btn--active.prio-btn--p1 { background: color-mix(in oklch, var(--prio-p1) 14%, transparent); color: var(--prio-p1); }
+.prio-btn--active.prio-btn--p2 { background: color-mix(in oklch, var(--prio-p2) 14%, transparent); color: var(--prio-p2); }
+.prio-btn--active.prio-btn--p3 { background: color-mix(in oklch, var(--prio-p3) 14%, transparent); color: var(--prio-p3); }
+.prio-btn--active.prio-btn--p4 { background: color-mix(in oklch, var(--prio-p4) 14%, transparent); color: var(--prio-p4); }
+
+/* ── Edit line (single row) ───────────────────────────────── */
+.quest-meta-strip__edit.qms__edit-line {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 6px 2px;
+  border-top: 1px solid rgba(255,255,255,0.07);
+  margin-top: 4px;
+  overflow-x: auto;
+}
+.qms__edit-prio {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.qms__edit-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.qms__edit-ico {
+  width: 12px; height: 12px;
+  color: var(--on-surface-muted);
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+.qms__edit-line .meta-input--sm { width: 110px; }
+.qms__edit-done { margin-left: auto; flex-shrink: 0; }
+
+/* ── Overflow row ──────────────────────────────────────────── */
+.qms__overflow-row {
+  position: relative;
+  padding: 0 2px;
+}
+.qms__more {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  background: transparent;
+  border: none;
+  color: var(--on-surface-muted);
+  opacity: 0.6;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.qms__more:hover { opacity: 1; color: var(--on-surface); }
+.qms__more--open { opacity: 1; color: var(--primary); }
+
+.qms__popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(420px, calc(100vh - 120px));
+  overflow-y: auto;
+  background: var(--surface-container-high);
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.22);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.qms__popover-title {
+  padding-bottom: 4px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--outline-variant);
+  color: var(--on-surface-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.qms__popover--labels {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.qms__kv-row {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 8px;
+  align-items: baseline;
+  font-size: var(--text-xs);
+}
+.qms__kv-key {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--on-surface-muted);
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qms__kv-val {
+  color: var(--on-surface);
+  word-break: break-word;
+}
+.qms__kv-val--link {
+  color: var(--primary);
+  text-decoration: none;
+}
+.qms__kv-val--link:hover { text-decoration: underline; }
+
+/* ── Edit panel ────────────────────────────────────────────── */
+.quest-meta-strip__edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.07);
+  margin-top: 4px;
+}
+.quest-meta-strip__edit-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ── Pomo meta strip wrapper ───────────────────────────────── */
+#pomo-meta-strip-wrapper {
+  margin-bottom: 4px;
+}
+
+/* Ensure meta strip renders cleanly inside pomo screen headers */
+.pomo-quest-meta { display: block; }
+.pomo-quest-meta:empty { display: none; }

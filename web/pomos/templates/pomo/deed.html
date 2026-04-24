@@ -5,6 +5,11 @@
     <span class="deed-screen__badge">Swiftblade</span>
     {% endif %}
     <h1 class="deed-screen__quest">{{ quest_title }}</h1>
+    <div class="pomo-quest-meta"
+         hx-get="/quests/{{ engine.session.quest_id }}/meta-strip"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+    </div>
     {% if engine.streak > 1 %}
     <p class="deed-screen__streak">Streak &times; {{ engine.streak }}</p>
     {% endif %}

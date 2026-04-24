@@ -9,10 +9,11 @@ from __future__ import annotations
 from datetime import datetime, timezone, timedelta
 from core import clock
 
-from core.config import POMO_CONFIG
+from core.config import POMO_CONFIG, PRIORITY_NAMES
 from core.utils import (
     parse_dt, fmt_compact, fmt_delta_duration, fmt_delta_count,
     delta_arrow, classify_delta, segment_duration, to_local_date,
+    quest_age_bucket, quest_age_days,
 )
 
 
@@ -66,6 +67,48 @@ def compute_metrics(quests: list[dict]) -> list[dict]:
     cr_prev = _rate(by_created[-20:-10])
     cr_d    = (cr_cur - cr_prev) if None not in (cr_cur, cr_prev) else None
 
+    open_qs = [q for q in quests if q["status"] in ("log", "active", "blocked")]
+    high_open = [q for q in open_qs if q.get("priority", 4) <= 1]
+    stale_high = [
+        q for q in high_open
+        if quest_age_bucket(quest_age_days(q, now)) in ("stale", "ancient", "fossil")
+    ]
+
+    age_scores = {"fresh": 0, "aging": 1, "stale": 2, "ancient": 4, "fossil": 6}
+    priority_scores = {0: 5, 1: 3, 2: 2, 3: 1, 4: 0}
+    neglect = sum(
+        priority_scores.get(q.get("priority", 4), 0)
+        * age_scores.get(quest_age_bucket(quest_age_days(q, now)), 0)
+        for q in open_qs
+    )
+
+    priority_this = sum(
+        1 for q in done_qs
+        if q.get("priority", 4) <= 1 and parse_dt(q["completed_at"]) >= week_ago
+    )
+    priority_last = sum(
+        1 for q in done_qs
+        if q.get("priority", 4) <= 1
+        and two_wks_ago <= parse_dt(q["completed_at"]) < week_ago
+    )
+    priority_d = priority_this - priority_last
+
+    def _age_at_completion(q: dict) -> str:
+        completed = parse_dt(q.get("completed_at"))
+        return quest_age_bucket(quest_age_days(q, completed)) if completed else "fresh"
+
+    old_this = sum(
+        1 for q in done_qs
+        if _age_at_completion(q) in ("ancient", "fossil")
+        and parse_dt(q["completed_at"]) >= week_ago
+    )
+    old_last = sum(
+        1 for q in done_qs
+        if _age_at_completion(q) in ("ancient", "fossil")
+        and two_wks_ago <= parse_dt(q["completed_at"]) < week_ago
+    )
+    old_d = old_this - old_last
+
     return [
         {
             "icon": "⚔", "name": "Battle Tempo",
@@ -106,6 +149,38 @@ def compute_metrics(quests: list[dict]) -> list[dict]:
             "delta": fmt_delta_count(cr_d, "vs prev 10", unit="%") if cr_d is not None else "not enough data",
             "arrow": delta_arrow(cr_d),
             "color": classify_delta(cr_d, "up"),
+        },
+        {
+            "icon": "🔥", "name": "Doomfire Pressure",
+            "value": f"{len(high_open)} open",
+            "context": "P0/P1 quests on the board",
+            "delta": f"{len(stale_high)} stale+ high priority",
+            "arrow": "▲" if stale_high else "→",
+            "color": "bad" if stale_high else ("good" if high_open else "neutral"),
+        },
+        {
+            "icon": "⌛", "name": "Neglect Index",
+            "value": str(neglect),
+            "context": "priority-weighted aging risk",
+            "delta": "snapshot",
+            "arrow": "→",
+            "color": "bad" if neglect >= 20 else ("neutral" if neglect else "good"),
+        },
+        {
+            "icon": "🎯", "name": "Priority Burn",
+            "value": f"{priority_this} slain",
+            "context": "P0/P1 conquered this week",
+            "delta": fmt_delta_count(priority_d, "vs last week"),
+            "arrow": delta_arrow(priority_d),
+            "color": classify_delta(priority_d, "up"),
+        },
+        {
+            "icon": "🕯", "name": "Old Debt Cleared",
+            "value": f"{old_this} slain",
+            "context": "ancient/fossil quests this week",
+            "delta": fmt_delta_count(old_d, "vs last week"),
+            "arrow": delta_arrow(old_d),
+            "color": classify_delta(old_d, "up"),
         },
     ]
 
@@ -336,6 +411,15 @@ def _base_opts(index_axis: str | None = None, stacked: bool = False) -> dict:
     return opts
 
 
+def _count_opts(index_axis: str | None = None, stacked: bool = False) -> dict:
+    """Chart.js options for discrete counts: no fractional task ticks."""
+    opts = _base_opts(index_axis=index_axis, stacked=stacked)
+    value_axis = "x" if index_axis == "y" else "y"
+    opts["scales"][value_axis]["ticks"]["stepSize"] = 1
+    opts["scales"][value_axis]["ticks"]["precision"] = 0
+    return opts
+
+
 def _week_ranges(now: datetime, n: int) -> list[tuple[datetime, datetime]]:
     """Last n rolling 7-day windows, oldest first."""
     return [
@@ -376,90 +460,182 @@ def compute_war_room(quests: list[dict], sessions: list[dict]) -> dict:
     day_labels = [d.strftime("%-d %b") for d in day_dates]
 
     done_qs = [q for q in quests if q["status"] == "done" and q.get("completed_at")]
+    open_qs = [q for q in quests if q["status"] in ("log", "active", "blocked")]
+    age_names = ["fresh", "aging", "stale", "ancient", "fossil"]
+    age_labels = ["Fresh", "Aging", "Stale", "Ancient", "Fossil"]
 
-    # ── Quest Chart 1: Weekly Throughput (bar + trend line) ──────────────────
-    throughput = [
-        sum(1 for q in done_qs if ws <= parse_dt(q["completed_at"]) < we)
-        for ws, we in wranges
+    def _bucket_now(q: dict) -> str:
+        return quest_age_bucket(quest_age_days(q, now))
+
+    def _bucket_at_completion(q: dict) -> str:
+        completed = parse_dt(q.get("completed_at"))
+        return quest_age_bucket(quest_age_days(q, completed)) if completed else "fresh"
+
+    age_scores = {"fresh": 0, "aging": 1, "stale": 2, "ancient": 4, "fossil": 6}
+    priority_scores = {0: 5, 1: 3, 2: 2, 3: 1, 4: 0}
+    neglect = sum(
+        priority_scores.get(q.get("priority", 4), 0)
+        * age_scores.get(_bucket_now(q), 0)
+        for q in open_qs
+    )
+
+    # ── Quest Chart 1: Priority Loadout (snapshot) ───────────────────────────
+    priority_counts = [
+        sum(1 for q in open_qs if q.get("priority", 4) == p)
+        for p in range(5)
     ]
     qc1 = {
         "type": "bar",
         "data": {
-            "labels": wlabels,
-            "datasets": [
-                {
-                    "type": "bar", "label": "Completed", "data": throughput,
-                    "backgroundColor": _C_TERRA, "borderRadius": 4, "order": 2,
-                },
-                {
-                    "type": "line", "label": "Trend", "data": _trend_line(throughput),
-                    "borderColor": _C_GREEN, "borderWidth": 2,
-                    "pointRadius": 3, "pointBackgroundColor": _C_GREEN,
-                    "fill": False, "tension": 0.4, "order": 1,
-                },
-            ],
-        },
-        "options": _base_opts(),
-    }
-
-    # ── Quest Chart 2: Added vs Completed (grouped bar) ──────────────────────
-    added = [
-        sum(1 for q in quests if ws <= parse_dt(q["created_at"]) < we)
-        for ws, we in wranges
-    ]
-    qc2 = {
-        "type": "bar",
-        "data": {
-            "labels": wlabels,
-            "datasets": [
-                {"label": "Added",     "data": added,      "backgroundColor": _C_AMBER, "borderRadius": 4},
-                {"label": "Completed", "data": throughput, "backgroundColor": _C_SAGE,  "borderRadius": 4},
-            ],
-        },
-        "options": _base_opts(),
-    }
-
-    # ── Quest Chart 3: Backlog Age (histogram, snapshot) ─────────────────────
-    open_qs = [q for q in quests if q["status"] in ("log", "active", "blocked")]
-    buckets: list[int] = [0, 0, 0, 0, 0]
-    for q in open_qs:
-        age = (now - parse_dt(q["created_at"])).days
-        if   age <= 3:  buckets[0] += 1
-        elif age <= 7:  buckets[1] += 1
-        elif age <= 14: buckets[2] += 1
-        elif age <= 28: buckets[3] += 1
-        else:           buckets[4] += 1
-
-    qc3 = {
-        "type": "bar",
-        "data": {
-            "labels": ["0–3d", "4–7d", "1–2w", "2–4w", ">4w"],
+            "labels": [f"P{p} {PRIORITY_NAMES.get(p, '')}" for p in range(5)],
             "datasets": [{
                 "label": "Open quests",
-                "data": buckets,
-                "backgroundColor": [_C_SAGE, _C_AMBER, _C_TERRA, _C_EMBER, "#7a1a12"],
+                "data": priority_counts,
+                "backgroundColor": [_C_EMBER, _C_TERRA, _C_AMBER, _C_SAGE, _C_EMPTY],
                 "borderRadius": 4,
             }],
         },
-        "options": _base_opts(),
+        "options": _count_opts(),
     }
 
-    # ── Quest Chart 4: Abandon Rate (stacked bar, WEEK_N weeks) ──────────────
-    abandoned_qs = [q for q in quests if q["status"] == "abandoned" and q.get("abandoned_at")]
-    abandoned_weekly = [
-        sum(1 for q in abandoned_qs if ws <= parse_dt(q["abandoned_at"]) < we)
-        for ws, we in wranges
+    # ── Quest Chart 2: High-Priority Pressure (snapshot by age) ──────────────
+    qc2 = {
+        "type": "bar",
+        "data": {
+            "labels": age_labels,
+            "datasets": [
+                {
+                    "label": "P0",
+                    "data": [
+                        sum(1 for q in open_qs if q.get("priority", 4) == 0 and _bucket_now(q) == age)
+                        for age in age_names
+                    ],
+                    "backgroundColor": _C_EMBER,
+                    "borderRadius": 4,
+                },
+                {
+                    "label": "P1",
+                    "data": [
+                        sum(1 for q in open_qs if q.get("priority", 4) == 1 and _bucket_now(q) == age)
+                        for age in age_names
+                    ],
+                    "backgroundColor": _C_TERRA,
+                    "borderRadius": 4,
+                },
+            ],
+        },
+        "options": _count_opts(stacked=True),
+    }
+
+    # ── Quest Chart 3: Priority Burn Rate (added vs completed by week) ───────
+    priority_groups = [
+        ("P0", lambda q: q.get("priority", 4) == 0, "rgba(181,73,58,0.35)", _C_EMBER),
+        ("P1", lambda q: q.get("priority", 4) == 1, "rgba(149,72,43,0.35)", _C_TERRA),
+        ("P2", lambda q: q.get("priority", 4) == 2, "rgba(212,148,58,0.35)", _C_AMBER),
+        ("P3-P4", lambda q: q.get("priority", 4) >= 3, "rgba(122,158,126,0.35)", _C_SAGE),
     ]
+    qc3 = {
+        "type": "bar",
+        "data": {
+            "labels": wlabels,
+            "datasets": [
+                dataset
+                for label, matcher, added_color, completed_color in priority_groups
+                for dataset in (
+                    {
+                        "label": f"{label} added",
+                        "stack": "Added",
+                        "data": [
+                            sum(
+                                1 for q in quests
+                                if matcher(q) and ws <= parse_dt(q["created_at"]) < we
+                            )
+                            for ws, we in wranges
+                        ],
+                        "backgroundColor": added_color,
+                        "borderRadius": 4,
+                    },
+                    {
+                        "label": f"{label} completed",
+                        "stack": "Completed",
+                        "data": [
+                            sum(
+                                1 for q in done_qs
+                                if matcher(q) and ws <= parse_dt(q["completed_at"]) < we
+                            )
+                            for ws, we in wranges
+                        ],
+                        "backgroundColor": completed_color,
+                        "borderRadius": 4,
+                    },
+                )
+            ],
+        },
+        "options": _count_opts(stacked=True),
+    }
+
+    # ── Quest Chart 4: Age Burn Rate (stacked by week) ───────────────────────
     qc4 = {
         "type": "bar",
         "data": {
             "labels": wlabels,
             "datasets": [
-                {"label": "Completed",  "data": throughput,       "backgroundColor": _C_SAGE,  "borderRadius": 4},
-                {"label": "Abandoned",  "data": abandoned_weekly, "backgroundColor": _C_EMBER, "borderRadius": 4},
+                {
+                    "label": label,
+                    "data": [
+                        sum(
+                            1 for q in done_qs
+                            if _bucket_at_completion(q) == age
+                            and ws <= parse_dt(q["completed_at"]) < we
+                        )
+                        for ws, we in wranges
+                    ],
+                    "backgroundColor": color,
+                    "borderRadius": 4,
+                }
+                for age, label, color in zip(
+                    age_names,
+                    age_labels,
+                    [_C_SAGE, _C_AMBER, _C_TERRA, _C_EMBER, "#7a1a12"],
+                )
             ],
         },
-        "options": _base_opts(stacked=True),
+        "options": _count_opts(stacked=True),
+    }
+
+    # ── Quest Chart 5: Neglect Index (priority weight × age weight) ──────────
+    opts_qc5 = _count_opts(index_axis="y")
+    opts_qc5["scales"]["x"]["suggestedMax"] = max(10, neglect)
+    neglect_priority_groups = [
+        ("P0 x5", 0, _C_EMBER),
+        ("P1 x3", 1, _C_TERRA),
+        ("P2 x2", 2, _C_AMBER),
+        ("P3 x1", 3, _C_SAGE),
+    ]
+    neglect_age_names = ["aging", "stale", "ancient", "fossil"]
+    neglect_age_labels = ["Aging x1", "Stale x2", "Ancient x4", "Fossil x6"]
+    qc5 = {
+        "type": "bar",
+        "data": {
+            "labels": neglect_age_labels,
+            "datasets": [
+                {
+                    "label": label,
+                    "data": [
+                        sum(
+                            priority_scores.get(priority, 0) * age_scores.get(age, 0)
+                            for q in open_qs
+                            if q.get("priority", 4) == priority and _bucket_now(q) == age
+                        )
+                        for age in neglect_age_names
+                    ],
+                    "backgroundColor": color,
+                    "borderRadius": 4,
+                }
+                for label, priority, color in neglect_priority_groups
+            ],
+        },
+        "options": opts_qc5,
     }
 
     # ── All completed work segments ───────────────────────────────────────────
@@ -685,32 +861,39 @@ def compute_war_room(quests: list[dict], sessions: list[dict]) -> dict:
     return {
         "quest_charts": [
             {
-                "id": "weekly-throughput", "icon": "sword", "name": "Throughput",
-                "sub": f"{WEEK_N} weeks",
-                "desc": "Completed per week + trend line.",
-                "tip": "Falling bars + growing backlog = execution gap.",
+                "id": "priority-loadout", "icon": "flame", "name": "Priority Loadout",
+                "sub": "snapshot",
+                "desc": "Open quests by priority.",
+                "tip": "P0/P1 should stay small enough to act on.",
                 "config": qc1,
             },
             {
-                "id": "added-vs-completed", "icon": "scroll", "name": "Intake vs Output",
-                "sub": f"{WEEK_N} weeks",
-                "desc": "Added (amber) vs completed (sage) weekly.",
-                "tip": "Amber above sage = backlog growing.",
+                "id": "high-priority-pressure", "icon": "triangle-alert", "name": "High-Priority Pressure",
+                "sub": "snapshot",
+                "desc": "Open P0/P1 quests split by age.",
+                "tip": "Stale high priority means the board is lying.",
                 "config": qc2,
             },
             {
-                "id": "backlog-age", "icon": "hourglass", "name": "Backlog Age",
-                "sub": "snapshot",
-                "desc": "Age distribution of open quests.",
-                "tip": "Past 2 weeks? Kill or timebox.",
+                "id": "priority-burn-rate", "icon": "target", "name": "Priority Burn Rate",
+                "sub": f"{WEEK_N} weeks",
+                "desc": "Added vs completed quests by priority group.",
+                "tip": "Completed stack below added stack = backlog pressure.",
                 "config": qc3,
             },
             {
-                "id": "abandon-rate", "icon": "skull", "name": "Abandon Rate",
+                "id": "age-burn-rate", "icon": "hourglass", "name": "Age Burn Rate",
                 "sub": f"{WEEK_N} weeks",
-                "desc": "Completed (sage) vs abandoned (ember) per week.",
-                "tip": "Rising abandons = scope or prioritisation problem.",
+                "desc": "Completed quests by age at completion.",
+                "tip": "Old debt cleared is real maintenance work.",
                 "config": qc4,
+            },
+            {
+                "id": "neglect-index", "icon": "shield", "name": "Neglect Index",
+                "sub": f"score {neglect}",
+                "desc": "Open quests: priority weight x age weight.",
+                "tip": "P0=5, P1=3, P2=2, P3=1; aging=1, stale=2, ancient=4, fossil=6.",
+                "config": qc5,
             },
         ],
         "focus_charts": [

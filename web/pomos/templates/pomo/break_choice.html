@@ -11,6 +11,13 @@
   <div class="chrono-timer__header">
     <span class="chrono-timer__chapter-label">Forge Cools</span>
     <h2 class="chrono-timer__chapter-title">Choose Your Rest</h2>
+    {% if engine and engine.session %}
+    <div class="pomo-quest-meta"
+         hx-get="/quests/{{ engine.session.quest_id }}/meta-strip"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+    </div>
+    {% endif %}
   </div>
 
   <!-- 3-column ritual grid -->

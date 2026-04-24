@@ -11,6 +11,11 @@
   <div class="chrono-timer__header">
     <span class="chrono-timer__chapter-label">Current Chapter</span>
     <h2 class="chrono-timer__chapter-title">{{ quest_title }}</h2>
+    <div class="pomo-quest-meta"
+         hx-get="/quests/{{ engine.session.quest_id }}/meta-strip"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+    </div>
   </div>
 
   <!-- 3-column ritual grid -->

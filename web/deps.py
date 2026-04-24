@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import Request
 
 from core.storage.sqlite_backend import (
+    SqliteArtifactKeyRepo,
     SqliteQuestRepo,
     SqlitePomoRepo,
     SqliteTrophyPRRepo,
@@ -43,3 +44,7 @@ def get_challenge_entry_repo(request: Request) -> SqliteChallengeEntryRepo:
 
 def get_challenge_era_repo(request: Request) -> SqliteChallengeEraRepo:
     return SqliteChallengeEraRepo(request.app.state.db)
+
+
+def get_artifact_key_repo(request: Request) -> SqliteArtifactKeyRepo:
+    return SqliteArtifactKeyRepo(request.app.state.db)

@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import uuid
+from urllib.parse import parse_qs
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
-from core.config import VALID_SOURCES
-from core.utils import fantasy_date, format_duration, get_elapsed, today_local, to_local_date
+from core.config import VALID_SOURCES, PRIORITY_NAMES, PRIORITY_GLYPHS
+from core.utils import (
+    fantasy_date, format_duration, get_elapsed, today_local, to_local_date,
+    quest_age_days, quest_age_bucket, label_hue, is_url,
+)
 from core.pomo_queries import get_all_pomo_counts_today
-from web.deps import get_quest_repo, get_pomo_repo
+from web.deps import get_quest_repo, get_pomo_repo, get_artifact_key_repo
 from web.pomos.engine import get_engine as _get_pomo_engine
 
 router = APIRouter()
@@ -24,6 +28,8 @@ _COLUMNS = [
     {"status": "done",    "label": "Conquered",     "icon": "check-circle", "empty_text": "No victories yet."},
 ]
 
+_SORT_MODES = {"priority", "age"}
+
 
 def _active_pomo_quest_id() -> str | None:
     engine = _get_pomo_engine()
@@ -32,30 +38,159 @@ def _active_pomo_quest_id() -> str | None:
     return None
 
 
-async def _build_board_context(quest_repo, pomo_repo) -> list[dict]:
-    """Build column data with enriched quest cards."""
+def _enrich_quest(q: dict, pomo_counts: dict, today_str: str) -> dict:
+    enriched = dict(q)
+    elapsed = get_elapsed(q)
+    enriched["elapsed"] = format_duration(elapsed).lstrip("⏱ ") if elapsed and elapsed > 0 else None
+    enriched["pomo_count"] = pomo_counts.get(q["id"], 0) or None
+    enriched["done_today"] = (
+        q["status"] == "done" and to_local_date(q.get("completed_at", "")) == today_str
+    )
+    days = quest_age_days(q)
+    enriched["age_days"] = days
+    enriched["age_bucket"] = quest_age_bucket(days)
+    enriched["priority_name"] = PRIORITY_NAMES.get(q.get("priority", 4), "Whisper")
+    enriched["priority_glyph"] = PRIORITY_GLYPHS.get(q.get("priority", 4), "·")
+    # Annotate labels with hue for coloring
+    enriched["labels_with_hue"] = [
+        {"name": lbl, "hue": label_hue(lbl)} for lbl in q.get("labels", [])
+    ]
+    # Annotate artifacts — mark URL values
+    enriched["artifacts_display"] = [
+        {"key": k, "value": v, "is_url": is_url(v)}
+        for k, v in (q.get("artifacts") or {}).items()
+    ]
+    return enriched
+
+
+def _apply_filters(
+    quests: list[dict],
+    filter_priority: list[int] | None,
+    filter_labels: list[str] | None,
+    filter_project: str | None,
+    filter_age: list[str] | None,
+) -> list[dict]:
+    result = []
+    for q in quests:
+        if filter_priority and q.get("priority", 4) not in filter_priority:
+            continue
+        if filter_labels and not set(filter_labels).issubset(set(q.get("labels", []))):
+            continue
+        if filter_project and q.get("project") != filter_project:
+            continue
+        if filter_age and q.get("age_bucket") not in filter_age:
+            continue
+        result.append(q)
+    return result
+
+
+def _sort_column_quests(quests: list[dict], sort_mode: str | None) -> list[dict]:
+    if sort_mode == "age":
+        return sorted(
+            quests,
+            key=lambda q: (
+                not q.get("frog", False),
+                -q.get("age_days", 0),
+                q.get("priority", 4),
+                q.get("created_at", ""),
+            ),
+        )
+    if sort_mode == "priority":
+        return sorted(
+            quests,
+            key=lambda q: (
+                not q.get("frog", False),
+                q.get("priority", 4),
+                -q.get("age_days", 0),
+                q.get("created_at", ""),
+            ),
+        )
+    return quests
+
+
+async def _build_board_context(
+    quest_repo,
+    pomo_repo,
+    *,
+    filter_priority: list[int] | None = None,
+    filter_labels: list[str] | None = None,
+    filter_project: str | None = None,
+    filter_age: list[str] | None = None,
+    sort_mode: str | None = None,
+) -> tuple[list[dict], list[str], list[dict]]:
+    """Build column data with enriched quest cards. Returns (columns, all_projects, all_labels_with_hue)."""
     quests = await quest_repo.load_all()
     sessions = await pomo_repo.load_all()
     pomo_counts = get_all_pomo_counts_today(sessions)
 
     today_str = today_local().isoformat()
+    enriched_all = [
+        _enrich_quest(q, pomo_counts, today_str)
+        for q in quests if q["status"] != "abandoned"
+    ]
+
+    # Collect distinct projects and labels before filtering so dropdowns always show all options
+    all_projects = sorted({q["project"] for q in enriched_all if q.get("project")})
+    all_label_names = sorted({lbl for q in enriched_all for lbl in q.get("labels", [])})
+    all_labels_with_hue = [{"name": lbl, "hue": label_hue(lbl)} for lbl in all_label_names]
+
+    if any([filter_priority, filter_labels, filter_project, filter_age]):
+        enriched_all = _apply_filters(enriched_all, filter_priority, filter_labels, filter_project, filter_age)
+
     by_status: dict[str, list[dict]] = {c["status"]: [] for c in _COLUMNS}
-    for q in (q for q in quests if q["status"] != "abandoned"):
-        enriched = dict(q)
-        elapsed = get_elapsed(q)
-        enriched["elapsed"] = format_duration(elapsed).lstrip("⏱ ") if elapsed and elapsed > 0 else None
-        enriched["pomo_count"] = pomo_counts.get(q["id"], 0) or None
-        enriched["done_today"] = (
-            q["status"] == "done" and to_local_date(q.get("completed_at", "")) == today_str
-        )
-        status = q["status"]
+    for enriched in enriched_all:
+        status = enriched["status"]
         if status in by_status:
             by_status[status].append(enriched)
 
-    columns = []
-    for col_def in _COLUMNS:
-        columns.append({**col_def, "quests": by_status[col_def["status"]]})
-    return columns
+    for status in ("log", "active", "blocked"):
+        by_status[status] = _sort_column_quests(by_status[status], sort_mode)
+
+    columns = [{**col_def, "quests": by_status[col_def["status"]]} for col_def in _COLUMNS]
+    return columns, all_projects, all_labels_with_hue
+
+
+def _parse_query_state(query: str) -> dict[str, str]:
+    return {
+        key: values[-1]
+        for key, values in parse_qs(query, keep_blank_values=True).items()
+        if values
+    }
+
+
+async def _parse_filter_params(request: Request) -> dict:
+    params = dict(request.query_params)
+    if request.method not in {"GET", "HEAD"}:
+        try:
+            form = await request.form()
+        except Exception:
+            form = None
+        if form and form.get("filter_state"):
+            params.update(_parse_query_state(str(form.get("filter_state"))))
+
+    priority = None
+    if "priority" in params:
+        try:
+            priority = [int(p) for p in params["priority"].split(",") if p.strip()]
+        except ValueError:
+            priority = None
+    labels = None
+    if "labels" in params:
+        labels = [l.strip() for l in params["labels"].split(",") if l.strip()]
+    project = params.get("project") or None
+    age = None
+    if "age" in params:
+        age = [a.strip() for a in params["age"].split(",") if a.strip()]
+    sort_mode = params.get("sort")
+    if sort_mode not in _SORT_MODES:
+        sort_mode = "priority"
+    return {
+        "filter_priority": priority,
+        "filter_labels": labels,
+        "filter_project": project,
+        "filter_age": age,
+        "sort_mode": sort_mode,
+    }
 
 
 async def _quest_counts(quest_repo) -> dict:
@@ -64,6 +199,23 @@ async def _quest_counts(quest_repo) -> dict:
     active = sum(1 for q in quests if q["status"] == "active")
     done = sum(1 for q in quests if q["status"] == "done")
     return {"total": total, "active": active, "done": done}
+
+
+async def _board_response(request, quest_repo, pomo_repo, filters: dict | None = None, key_repo=None):
+    f = filters or {}
+    columns, all_projects, all_labels_with_hue = await _build_board_context(quest_repo, pomo_repo, **f)
+    artifact_keys = await key_repo.list_keys() if key_repo else []
+    return _render(request, "board.html", {
+        "columns": columns,
+        "all_projects": all_projects,
+        "all_labels_with_hue": all_labels_with_hue,
+        "active_filters": f,
+        "priority_names": PRIORITY_NAMES,
+        "priority_glyphs": PRIORITY_GLYPHS,
+        "artifact_keys": artifact_keys,
+        "active_pomo_quest_id": _active_pomo_quest_id(),
+        "request": request,
+    })
 
 
 def _render(request, name, context):
@@ -77,18 +229,26 @@ def _render(request, name, context):
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request,
                 quest_repo=Depends(get_quest_repo),
-                pomo_repo=Depends(get_pomo_repo)):
-    columns = await _build_board_context(quest_repo, pomo_repo)
+                pomo_repo=Depends(get_pomo_repo),
+                key_repo=Depends(get_artifact_key_repo)):
+    f = await _parse_filter_params(request)
+    columns, all_projects, all_labels_with_hue = await _build_board_context(quest_repo, pomo_repo, **f)
     counts = await _quest_counts(quest_repo)
     sessions = await pomo_repo.load_all()
     pomo_count = sum(get_all_pomo_counts_today(sessions).values())
     return _render(request, "index.html", {
         "columns": columns,
+        "all_projects": all_projects,
+        "all_labels_with_hue": all_labels_with_hue,
+        "active_filters": f,
         "fantasy_date": fantasy_date(),
         "quest_counts": counts,
         "pomo_count": pomo_count,
         "volume_number": today_local().isocalendar()[1],
         "active_pomo_quest_id": _active_pomo_quest_id(),
+        "priority_names": PRIORITY_NAMES,
+        "priority_glyphs": PRIORITY_GLYPHS,
+        "artifact_keys": await key_repo.list_keys(),
     })
 
 
@@ -97,23 +257,41 @@ async def index(request: Request,
 @router.get("/quests", response_class=HTMLResponse)
 async def quest_board(request: Request,
                       quest_repo=Depends(get_quest_repo),
-                      pomo_repo=Depends(get_pomo_repo)):
-    columns = await _build_board_context(quest_repo, pomo_repo)
-    return _render(request, "board.html", {"columns": columns, "active_pomo_quest_id": _active_pomo_quest_id()})
+                      pomo_repo=Depends(get_pomo_repo),
+                      key_repo=Depends(get_artifact_key_repo)):
+    f = await _parse_filter_params(request)
+    return await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo)
 
 
 # ── Add quest ────────────────────────────────────────────────────────────
 
 @router.post("/quests", response_class=HTMLResponse)
-async def add_quest(request: Request,
-                    title: str = Form(...),
-                    quest_repo=Depends(get_quest_repo),
-                    pomo_repo=Depends(get_pomo_repo)):
+async def add_quest(
+    request: Request,
+    title: str = Form(...),
+    priority: int = Form(4),
+    project: str = Form(""),
+    labels: str = Form(""),
+    quest_repo=Depends(get_quest_repo),
+    pomo_repo=Depends(get_pomo_repo),
+    key_repo=Depends(get_artifact_key_repo),
+):
     title = title.strip()
     if title:
-        await quest_repo.add(title)
-    columns = await _build_board_context(quest_repo, pomo_repo)
-    response = _render(request, "board.html", {"columns": columns, "active_pomo_quest_id": _active_pomo_quest_id()})
+        label_list = [l.strip() for l in labels.split(",") if l.strip()] if labels else []
+        form_data = await request.form()
+        artifact_keys_raw = form_data.getlist("artifact_key[]")
+        artifact_vals_raw = form_data.getlist("artifact_val[]")
+        artifacts = {k: v for k, v in zip(artifact_keys_raw, artifact_vals_raw) if k.strip() and v.strip()}
+        await quest_repo.add(
+            title,
+            priority=max(0, min(4, priority)),
+            project=project.strip() or None,
+            labels=label_list,
+            artifacts=artifacts,
+        )
+    f = await _parse_filter_params(request)
+    response = await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo)
     if title:
         response.headers["HX-Trigger"] = "quest-added"
     return response
@@ -126,8 +304,8 @@ async def update_status(request: Request,
                         quest_id: str,
                         status: str = Form(...),
                         quest_repo=Depends(get_quest_repo),
-                        pomo_repo=Depends(get_pomo_repo)):
-    # Validate transition
+                        pomo_repo=Depends(get_pomo_repo),
+                        key_repo=Depends(get_artifact_key_repo)):
     valid_sources = VALID_SOURCES.get(
         {"active": "start", "blocked": "block", "done": "done", "abandoned": "abandon"}.get(status, ""),
         set(),
@@ -139,10 +317,8 @@ async def update_status(request: Request,
         await quest_repo.update_status(quest_id, status)
         transitioned = True
 
-    columns = await _build_board_context(quest_repo, pomo_repo)
-    response = _render(request, "board.html", {"columns": columns, "active_pomo_quest_id": _active_pomo_quest_id()})
-
-    # Fire celebration events via HX-Trigger
+    f = await _parse_filter_params(request)
+    response = await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo)
     if transitioned and status == "done":
         response.headers["HX-Trigger"] = "quest-done"
     return response
@@ -154,10 +330,11 @@ async def update_status(request: Request,
 async def toggle_frog(request: Request,
                       quest_id: str,
                       quest_repo=Depends(get_quest_repo),
-                      pomo_repo=Depends(get_pomo_repo)):
+                      pomo_repo=Depends(get_pomo_repo),
+                      key_repo=Depends(get_artifact_key_repo)):
     await quest_repo.toggle_frog(quest_id)
-    columns = await _build_board_context(quest_repo, pomo_repo)
-    return _render(request, "board.html", {"columns": columns, "active_pomo_quest_id": _active_pomo_quest_id()})
+    f = await _parse_filter_params(request)
+    return await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo)
 
 
 # ── Abandon quest ────────────────────────────────────────────────────────
@@ -166,12 +343,122 @@ async def toggle_frog(request: Request,
 async def abandon_quest(request: Request,
                         quest_id: str,
                         quest_repo=Depends(get_quest_repo),
-                        pomo_repo=Depends(get_pomo_repo)):
+                        pomo_repo=Depends(get_pomo_repo),
+                        key_repo=Depends(get_artifact_key_repo)):
     await quest_repo.abandon(quest_id)
-    columns = await _build_board_context(quest_repo, pomo_repo)
-    response = _render(request, "board.html", {"columns": columns, "active_pomo_quest_id": _active_pomo_quest_id()})
+    f = await _parse_filter_params(request)
+    response = await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo)
     response.headers["HX-Trigger"] = "quest-abandoned"
     return response
+
+
+# ── Update priority / project / labels / artifacts ───────────────────────
+
+@router.patch("/quests/{quest_id}/priority", response_class=HTMLResponse)
+async def update_priority(
+    request: Request,
+    quest_id: str,
+    priority: int = Form(...),
+    quest_repo=Depends(get_quest_repo),
+    pomo_repo=Depends(get_pomo_repo),
+    key_repo=Depends(get_artifact_key_repo),
+):
+    await quest_repo.update_priority(quest_id, max(0, min(4, priority)))
+    if request.query_params.get("strip"):
+        return await _meta_strip_response(request, quest_id, quest_repo, key_repo)
+    f = await _parse_filter_params(request)
+    return await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo)
+
+
+@router.patch("/quests/{quest_id}/project", response_class=HTMLResponse)
+async def update_project(
+    request: Request,
+    quest_id: str,
+    project: str = Form(""),
+    quest_repo=Depends(get_quest_repo),
+    pomo_repo=Depends(get_pomo_repo),
+    key_repo=Depends(get_artifact_key_repo),
+):
+    await quest_repo.update_project(quest_id, project.strip() or None)
+    if request.query_params.get("strip"):
+        return await _meta_strip_response(request, quest_id, quest_repo, key_repo)
+    f = await _parse_filter_params(request)
+    return await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo)
+
+
+@router.put("/quests/{quest_id}/labels", response_class=HTMLResponse)
+async def update_labels(
+    request: Request,
+    quest_id: str,
+    labels: str = Form(""),
+    quest_repo=Depends(get_quest_repo),
+    pomo_repo=Depends(get_pomo_repo),
+    key_repo=Depends(get_artifact_key_repo),
+):
+    label_list = [lbl.strip() for lbl in labels.split(",") if lbl.strip()]
+    await quest_repo.update_labels(quest_id, label_list)
+    if request.query_params.get("strip"):
+        return await _meta_strip_response(request, quest_id, quest_repo, key_repo)
+    f = await _parse_filter_params(request)
+    return await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo)
+
+
+@router.put("/quests/{quest_id}/artifacts", response_class=HTMLResponse)
+async def update_artifacts(
+    request: Request,
+    quest_id: str,
+    quest_repo=Depends(get_quest_repo),
+    pomo_repo=Depends(get_pomo_repo),
+    key_repo=Depends(get_artifact_key_repo),
+):
+    form_data = await request.form()
+    artifact_keys_raw = form_data.getlist("artifact_key[]")
+    artifact_vals_raw = form_data.getlist("artifact_val[]")
+    artifacts = {k: v for k, v in zip(artifact_keys_raw, artifact_vals_raw) if k.strip() and v.strip()}
+    await quest_repo.update_artifacts(quest_id, artifacts)
+    f = await _parse_filter_params(request)
+    return await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo)
+
+
+async def _meta_strip_response(request, quest_id, quest_repo, key_repo):
+    """Return just the meta strip partial (used by pomo screen edits)."""
+    quests = await quest_repo.load_all()
+    q = next((q for q in quests if q["id"] == quest_id), None)
+    if q is None:
+        return HTMLResponse("", status_code=404)
+    today_str = today_local().isoformat()
+    enriched = _enrich_quest(q, {}, today_str)
+    artifact_keys = await key_repo.list_keys()
+    return _render(request, "quest_meta_strip.html", {
+        "quest": enriched,
+        "artifact_keys": artifact_keys,
+        "priority_names": PRIORITY_NAMES,
+        "priority_glyphs": PRIORITY_GLYPHS,
+    })
+
+
+# ── Quest meta strip (used by pomo timer) ───────────────────────────────
+
+@router.get("/quests/{quest_id}/meta-strip", response_class=HTMLResponse)
+async def quest_meta_strip(
+    request: Request,
+    quest_id: str,
+    quest_repo=Depends(get_quest_repo),
+    key_repo=Depends(get_artifact_key_repo),
+):
+    quests = await quest_repo.load_all()
+    q = next((q for q in quests if q["id"] == quest_id), None)
+    if q is None:
+        return HTMLResponse("", status_code=404)
+    today_str = today_local().isoformat()
+    enriched = _enrich_quest(q, {}, today_str)
+    artifact_keys = await key_repo.list_keys()
+    return _render(request, "quest_meta_strip.html", {
+        "quest": enriched,
+        "artifact_keys": artifact_keys,
+        "priority_names": PRIORITY_NAMES,
+        "priority_glyphs": PRIORITY_GLYPHS,
+    })
 
 
 # ── Checklist (partial, used from pomo charge/deed screens) ─────────────

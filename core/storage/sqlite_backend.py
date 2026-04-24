@@ -22,8 +22,9 @@ class SqliteQuestRepo:
 
     async def load_all(self) -> list[dict]:
         cursor = await self._db.execute(
-            "SELECT id, title, status, frog, created_at, started_at, completed_at, abandoned_at, checklist "
-            "FROM quests ORDER BY created_at"
+            "SELECT id, title, status, frog, created_at, started_at, completed_at, abandoned_at, "
+            "checklist, priority, project, labels, artifacts "
+            "FROM quests ORDER BY frog DESC, priority ASC, created_at ASC"
         )
         rows = await cursor.fetchall()
         return [
@@ -37,17 +38,31 @@ class SqliteQuestRepo:
                 "completed_at": r[6],
                 "abandoned_at": r[7],
                 "checklist": json.loads(r[8] or "[]"),
+                "priority": r[9] if r[9] is not None else 4,
+                "project": r[10],
+                "labels": json.loads(r[11] or "[]"),
+                "artifacts": json.loads(r[12] or "{}"),
             }
             for r in rows
         ]
 
-    async def add(self, title: str) -> dict:
+    async def add(
+        self,
+        title: str,
+        *,
+        priority: int = 4,
+        project: str | None = None,
+        labels: list | None = None,
+        artifacts: dict | None = None,
+    ) -> dict:
         qid = uuid.uuid4().hex[:8]
         now = clock.utcnow().isoformat()
+        labels_json = json.dumps(labels or [])
+        artifacts_json = json.dumps(artifacts or {})
         await self._db.execute(
-            "INSERT INTO quests (id, title, status, frog, created_at) "
-            "VALUES (?, ?, 'log', 0, ?)",
-            (qid, title, now),
+            "INSERT INTO quests (id, title, status, frog, created_at, priority, project, labels, artifacts) "
+            "VALUES (?, ?, 'log', 0, ?, ?, ?, ?, ?)",
+            (qid, title, now, priority, project, labels_json, artifacts_json),
         )
         await self._db.commit()
         return {
@@ -58,7 +73,12 @@ class SqliteQuestRepo:
             "created_at": now,
             "started_at": None,
             "completed_at": None,
+            "abandoned_at": None,
             "checklist": [],
+            "priority": priority,
+            "project": project,
+            "labels": labels or [],
+            "artifacts": artifacts or {},
         }
 
     async def update_status(self, quest_id: str, status: str) -> dict | None:
@@ -172,6 +192,102 @@ class SqliteQuestRepo:
             "abandoned_at": row[7],
             "checklist": checklist,
         }
+
+    async def _load_quest(self, quest_id: str) -> dict | None:
+        cursor = await self._db.execute(
+            "SELECT id, title, status, frog, created_at, started_at, completed_at, abandoned_at, "
+            "checklist, priority, project, labels, artifacts "
+            "FROM quests WHERE id = ?",
+            (quest_id,),
+        )
+        r = await cursor.fetchone()
+        if r is None:
+            return None
+        return {
+            "id": r[0], "title": r[1], "status": r[2], "frog": bool(r[3]),
+            "created_at": r[4], "started_at": r[5], "completed_at": r[6],
+            "abandoned_at": r[7], "checklist": json.loads(r[8] or "[]"),
+            "priority": r[9] if r[9] is not None else 4, "project": r[10],
+            "labels": json.loads(r[11] or "[]"),
+            "artifacts": json.loads(r[12] or "{}"),
+        }
+
+    async def update_priority(self, quest_id: str, priority: int) -> dict | None:
+        if not 0 <= priority <= 4:
+            return None
+        await self._db.execute(
+            "UPDATE quests SET priority = ? WHERE id = ?", (priority, quest_id)
+        )
+        await self._db.commit()
+        return await self._load_quest(quest_id)
+
+    async def update_project(self, quest_id: str, project: str | None) -> dict | None:
+        val = project.strip() if project else None
+        await self._db.execute(
+            "UPDATE quests SET project = ? WHERE id = ?", (val or None, quest_id)
+        )
+        await self._db.commit()
+        return await self._load_quest(quest_id)
+
+    async def update_labels(self, quest_id: str, labels: list[str]) -> dict | None:
+        await self._db.execute(
+            "UPDATE quests SET labels = ? WHERE id = ?",
+            (json.dumps(labels), quest_id),
+        )
+        await self._db.commit()
+        return await self._load_quest(quest_id)
+
+    async def update_artifacts(self, quest_id: str, artifacts: dict) -> dict | None:
+        await self._db.execute(
+            "UPDATE quests SET artifacts = ? WHERE id = ?",
+            (json.dumps(artifacts), quest_id),
+        )
+        await self._db.commit()
+        return await self._load_quest(quest_id)
+
+
+class SqliteArtifactKeyRepo:
+    """Artifact key registry backed by SQLite."""
+
+    def __init__(self, db) -> None:
+        self._db = db
+
+    async def list_keys(self) -> list[dict]:
+        cursor = await self._db.execute(
+            "SELECT name, icon, sort_order FROM artifact_keys ORDER BY sort_order, name"
+        )
+        return [{"name": r[0], "icon": r[1], "sort_order": r[2]} for r in await cursor.fetchall()]
+
+    async def add_key(self, name: str, icon: str | None = None) -> dict:
+        name = name.strip()
+        cursor = await self._db.execute("SELECT MAX(sort_order) FROM artifact_keys")
+        row = await cursor.fetchone()
+        sort_order = (row[0] or 0) + 10
+        await self._db.execute(
+            "INSERT OR IGNORE INTO artifact_keys (name, icon, sort_order) VALUES (?, ?, ?)",
+            (name, icon, sort_order),
+        )
+        await self._db.commit()
+        return {"name": name, "icon": icon, "sort_order": sort_order}
+
+    async def rename_key(self, old: str, new: str) -> None:
+        new = new.strip()
+        await self._db.execute(
+            "UPDATE artifact_keys SET name = ? WHERE name = ?", (new, old)
+        )
+        await self._db.commit()
+
+    async def delete_key(self, name: str) -> None:
+        await self._db.execute("DELETE FROM artifact_keys WHERE name = ?", (name,))
+        await self._db.commit()
+
+    async def reorder(self, names_in_order: list[str]) -> None:
+        for i, name in enumerate(names_in_order):
+            await self._db.execute(
+                "UPDATE artifact_keys SET sort_order = ? WHERE name = ?",
+                ((i + 1) * 10, name),
+            )
+        await self._db.commit()
 
 
 class SqlitePomoRepo:

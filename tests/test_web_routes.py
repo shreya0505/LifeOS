@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -11,7 +12,6 @@ import pytest
 async def test_index_renders_full_page(client):
     r = await client.get("/")
     assert r.status_code == 200
-    assert "STARFORGE" in r.text
     assert "Quest Board" in r.text
     assert "In Battle" in r.text
     assert "Conquered" in r.text
@@ -45,6 +45,7 @@ async def test_quest_lifecycle(client):
     r = await client.patch(f"/quests/{qid}/status", data={"status": "active"})
     assert r.status_code == 200
     assert f'data-status="active"' in r.text
+    assert r.text.count('title="Block quest"') >= 2
 
     # Done (active -> done)
     r = await client.patch(f"/quests/{qid}/status", data={"status": "done"})
@@ -133,3 +134,60 @@ async def test_quest_board_partial(client):
     assert r.status_code == 200
     assert "Quest A" in r.text
     assert "Quest B" in r.text
+
+
+@pytest.mark.asyncio
+async def test_board_sort_by_age_orders_open_columns(client, db):
+    fresh = await client.post("/quests", data={"title": "Fresh urgent", "priority": 0})
+    await client.post("/quests", data={"title": "Old whisper", "priority": 4})
+    fresh_id = re.search(r'data-id="([^"]+)"', fresh.text).group(1)
+    old_id = (await (await db.execute("SELECT id FROM quests WHERE title = ?", ("Old whisper",))).fetchone())[0]
+    now = datetime.now(timezone.utc)
+    await db.execute(
+        "UPDATE quests SET created_at = ? WHERE id = ?",
+        ((now - timedelta(days=1)).isoformat(), fresh_id),
+    )
+    await db.execute(
+        "UPDATE quests SET created_at = ? WHERE id = ?",
+        ((now - timedelta(days=12)).isoformat(), old_id),
+    )
+    await db.commit()
+
+    r = await client.get("/quests?sort=age")
+    assert r.status_code == 200
+    assert r.text.index("Old whisper") < r.text.index("Fresh urgent")
+
+
+@pytest.mark.asyncio
+async def test_board_sort_by_priority_orders_open_columns(client, db):
+    await client.post("/quests", data={"title": "Low priority", "priority": 4})
+    await client.post("/quests", data={"title": "High priority", "priority": 0})
+
+    r = await client.get("/quests?sort=priority")
+    assert r.status_code == 200
+    assert r.text.index("High priority") < r.text.index("Low priority")
+
+
+@pytest.mark.asyncio
+async def test_board_sort_state_survives_htmx_mutation(client, db):
+    fresh = await client.post("/quests", data={"title": "Fresh mutable", "priority": 4})
+    await client.post("/quests", data={"title": "Old mutable", "priority": 4})
+    fresh_id = re.search(r'data-id="([^"]+)"', fresh.text).group(1)
+    old_id = (await (await db.execute("SELECT id FROM quests WHERE title = ?", ("Old mutable",))).fetchone())[0]
+    now = datetime.now(timezone.utc)
+    await db.execute(
+        "UPDATE quests SET created_at = ? WHERE id = ?",
+        ((now - timedelta(days=1)).isoformat(), fresh_id),
+    )
+    await db.execute(
+        "UPDATE quests SET created_at = ? WHERE id = ?",
+        ((now - timedelta(days=12)).isoformat(), old_id),
+    )
+    await db.commit()
+
+    r = await client.patch(
+        f"/quests/{fresh_id}/priority",
+        data={"priority": 0, "filter_state": "sort=age"},
+    )
+    assert r.status_code == 200
+    assert r.text.index("Old mutable") < r.text.index("Fresh mutable")

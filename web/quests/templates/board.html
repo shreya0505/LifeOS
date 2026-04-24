@@ -1,9 +1,246 @@
 {% from 'components/icons.html' import icon %}
+
+<!-- Alpine board store: tracks expanded card IDs across HTMX re-renders -->
+<script>
+  function _initBoardStore() {
+    if (!Alpine.store('board')) {
+      Alpine.store('board', {
+        _expanded: new Set(JSON.parse(localStorage.getItem('board-expanded') || '[]')),
+        toggle(id) {
+          if (this._expanded.has(id)) { this._expanded.delete(id); }
+          else { this._expanded.add(id); }
+          localStorage.setItem('board-expanded', JSON.stringify([...this._expanded]));
+        },
+        isExpanded(id) { return this._expanded.has(id); }
+      });
+    }
+  }
+  if (window.Alpine) { _initBoardStore(); }
+  else { document.addEventListener('alpine:init', _initBoardStore); }
+</script>
+
+<!-- Hidden input carries filter state with every board mutation -->
+<input type="hidden" name="filter_state" id="filter-state-input" value="{{ request.url.query if request else '' }}">
+
+<!-- ── Filter Bar ──────────────────────────────────────────────────── -->
+<script>
+  function _regFilterBar() {
+    Alpine.data('filterBar', () => ({
+    prio:        {{ (active_filters.filter_priority or []) | tojson }},
+    ages:        {{ (active_filters.filter_age or []) | tojson }},
+    project:     {{ (active_filters.filter_project or '') | tojson }},
+    labels:      {{ (active_filters.filter_labels or []) | tojson }},
+    sort:        {{ (active_filters.sort_mode or 'priority') | tojson }},
+    allLabels:   {{ all_labels_with_hue | tojson }},
+    allProjects: {{ all_projects | tojson }},
+    labelOpen: false, labelSearch: '',
+    projectOpen: false, projectSearch: '',
+    get filteredLabels() {
+      const q = this.labelSearch.toLowerCase();
+      return q ? this.allLabels.filter(l => l.name.toLowerCase().includes(q)) : this.allLabels;
+    },
+    get filteredProjects() {
+      const q = this.projectSearch.toLowerCase();
+      return q ? this.allProjects.filter(p => p.toLowerCase().includes(q)) : this.allProjects;
+    },
+    get hasFilters() { return this.prio.length || this.ages.length || this.project || this.labels.length; },
+    get qs() {
+      const p = [];
+      if (this.prio.length)   p.push('priority=' + this.prio.join(','));
+      if (this.ages.length)   p.push('age=' + this.ages.join(','));
+      if (this.project)       p.push('project=' + encodeURIComponent(this.project));
+      if (this.labels.length) p.push('labels=' + encodeURIComponent(this.labels.join(',')));
+      if (this.sort !== 'priority') p.push('sort=' + encodeURIComponent(this.sort));
+      return p.join('&');
+    },
+    apply() {
+      const qs = this.qs;
+      history.replaceState(null, '', '/' + (qs ? '?' + qs : ''));
+      document.getElementById('filter-state-input').value = qs;
+      htmx.ajax('GET', '/quests' + (qs ? '?' + qs : ''), { target: '#quest-board', swap: 'innerHTML' });
+    },
+    clear() {
+      this.prio = []; this.ages = []; this.project = ''; this.labels = [];
+      this.labelSearch = ''; this.projectSearch = '';
+      this.apply();
+    },
+    togglePrio(p) {
+      const i = this.prio.indexOf(p);
+      if (i === -1) this.prio.push(p); else this.prio.splice(i, 1);
+      this.apply();
+    },
+    toggleAge(a) {
+      const i = this.ages.indexOf(a);
+      if (i === -1) this.ages.push(a); else this.ages.splice(i, 1);
+      this.apply();
+    },
+    toggleLabel(lbl) {
+      const i = this.labels.indexOf(lbl);
+      if (i === -1) this.labels.push(lbl); else this.labels.splice(i, 1);
+      this.apply();
+    },
+    setProject(proj) {
+      this.project = (this.project === proj) ? '' : proj;
+      this.projectOpen = false;
+      this.projectSearch = '';
+      this.apply();
+    },
+    setSort(mode) {
+      this.sort = mode;
+      this.apply();
+    }
+  }));
+  }
+  if (window.Alpine) { _regFilterBar(); }
+  else { document.addEventListener('alpine:init', _regFilterBar); }
+</script>
+<div class="filter-bar" x-data="filterBar">
+
+  <div class="filter-bar__glass">
+  <div class="filter-toolbar">
+    <!-- Priority group -->
+    <div class="filter-group" role="group" aria-label="Filter by priority">
+      {% for p in range(5) %}
+      <button class="filter-pill filter-pill--p{{ p }}"
+              :class="{ 'is-active': prio.includes({{ p }}) }"
+              @click="togglePrio({{ p }})"
+              title="{{ priority_names[p] }}">
+        {{ icon(priority_glyphs[p], 'icon fpi fpi--p' ~ p) }}<span class="filter-pill__label">P{{ p }}</span>
+      </button>
+      {% endfor %}
+    </div>
+
+    <div class="filter-sep" aria-hidden="true"></div>
+
+    <!-- Age group -->
+    <div class="filter-group" role="group" aria-label="Filter by age">
+      {% for bucket in ['fresh', 'aging', 'stale', 'ancient', 'fossil'] %}
+      <button class="filter-pill filter-age--{{ bucket }}"
+              :class="{ 'is-active': ages.includes('{{ bucket }}') }"
+              @click="toggleAge('{{ bucket }}')">{{ bucket }}</button>
+      {% endfor %}
+    </div>
+
+    <div class="filter-sep" aria-hidden="true"></div>
+
+    <!-- Sort group -->
+    <div class="filter-group filter-group--sort" role="group" aria-label="Sort open quests">
+      <button class="filter-pill filter-pill--sort"
+              :class="{ 'is-active': sort === 'priority' }"
+              @click="setSort('priority')"
+              title="Sort by priority">
+        {{ icon('arrow-down-wide-narrow', 'icon fpi') }}
+        <span class="filter-pill__label">Priority</span>
+      </button>
+      <button class="filter-pill filter-pill--sort"
+              :class="{ 'is-active': sort === 'age' }"
+              @click="setSort('age')"
+              title="Sort by age">
+        {{ icon('calendar-days', 'icon fpi') }}
+        <span class="filter-pill__label">Age</span>
+      </button>
+    </div>
+
+    <div class="filter-sep" aria-hidden="true"></div>
+
+    <!-- Dropdown filters -->
+    <div class="filter-group filter-group--dropdowns">
+
+      <!-- Labels dropdown -->
+      <div class="filter-dropdown" @keydown.escape="labelOpen=false">
+        <button class="filter-pill"
+                :class="{ 'is-active': labels.length }"
+                @click="labelOpen=!labelOpen; projectOpen=false"
+                aria-haspopup="listbox"
+                :aria-expanded="labelOpen">
+          {{ icon('tag', 'icon fpi') }}
+          <span class="filter-pill__label" x-text="labels.length ? 'Labels · ' + labels.length : 'Labels'"></span>
+          {{ icon('chevron-down', 'icon filter-pill__chevron') }}
+        </button>
+        <div class="filter-dropdown__panel"
+             x-show="labelOpen" x-cloak
+             x-transition:enter="dropdown-enter-anim"
+             @click.outside="labelOpen=false"
+             role="listbox" aria-multiselectable="true">
+          <input class="filter-dropdown__search"
+                 x-model="labelSearch"
+                 placeholder="Search labels…"
+                 @click.stop
+                 autocomplete="off">
+          <div class="filter-dropdown__list">
+            <template x-for="lbl in filteredLabels" :key="lbl.name">
+              <button class="filter-dropdown__item"
+                      :class="{ 'is-active': labels.includes(lbl.name) }"
+                      @click="toggleLabel(lbl.name)"
+                      role="option"
+                      :aria-selected="labels.includes(lbl.name)">
+                <span class="filter-dropdown__check" x-show="labels.includes(lbl.name)">{{ icon('check', 'icon') }}</span>
+                <span class="filter-dropdown__check-placeholder" x-show="!labels.includes(lbl.name)" aria-hidden="true"></span>
+                <span class="label-chip" :class="'label-hue-' + lbl.hue" x-text="lbl.name"></span>
+              </button>
+            </template>
+            <p class="filter-dropdown__empty" x-show="filteredLabels.length === 0" x-cloak>No labels found</p>
+            <p class="filter-dropdown__empty" x-show="allLabels.length === 0" x-cloak>No labels yet</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Project dropdown -->
+      <div class="filter-dropdown" @keydown.escape="projectOpen=false">
+        <button class="filter-pill"
+                :class="{ 'is-active': project }"
+                @click="projectOpen=!projectOpen; labelOpen=false"
+                aria-haspopup="listbox"
+                :aria-expanded="projectOpen">
+          {{ icon('folder', 'icon fpi') }}
+          <span class="filter-pill__label" x-text="project || 'Project'"></span>
+          {{ icon('chevron-down', 'icon filter-pill__chevron') }}
+        </button>
+        <div class="filter-dropdown__panel"
+             x-show="projectOpen" x-cloak
+             @click.outside="projectOpen=false"
+             role="listbox">
+          <input class="filter-dropdown__search"
+                 x-model="projectSearch"
+                 placeholder="Search projects…"
+                 @click.stop
+                 autocomplete="off">
+          <div class="filter-dropdown__list">
+            <template x-for="proj in filteredProjects" :key="proj">
+              <button class="filter-dropdown__item"
+                      :class="{ 'is-active': project === proj }"
+                      @click="setProject(proj)"
+                      role="option"
+                      :aria-selected="project === proj">
+                <span class="filter-dropdown__check" x-show="project === proj">{{ icon('check', 'icon') }}</span>
+                <span class="filter-dropdown__check-placeholder" x-show="project !== proj" aria-hidden="true"></span>
+                <span x-text="proj"></span>
+              </button>
+            </template>
+            <p class="filter-dropdown__empty" x-show="filteredProjects.length === 0" x-cloak>No projects found</p>
+            <p class="filter-dropdown__empty" x-show="allProjects.length === 0" x-cloak>No projects yet</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Clear -->
+    <button class="filter-clear-btn" @click="clear()"
+            x-show="hasFilters" x-cloak
+            title="Clear all filters">
+      {{ icon('x', 'icon') }}
+    </button>
+  </div>
+  </div>
+
+</div>
+
+<!-- ── Board Columns ───────────────────────────────────────────────── -->
 <div class="board">
   {% for col in columns %}
 
   {% if col.status == "done" %}
-  <!-- Done column: collapsed by default, expand on click, state in localStorage -->
   <div class="column column--done" id="col-done" data-animate-in
        x-data="{ expanded: localStorage.getItem('done-expanded') === 'true' }">
 
@@ -24,18 +261,30 @@
         {% for quest in col.quests %}
           {% set quest_stale = not quest.done_today %}
           <article class="quest-card{% if quest_stale %} quest-card--stale{% endif %}"
-                   data-status="{{ quest.status }}" data-id="{{ quest.id }}" data-animate-in>
+                   data-status="{{ quest.status }}" data-id="{{ quest.id }}"
+                   data-age="{{ quest.age_bucket }}" data-priority="{{ quest.priority | default(4) }}"
+                   data-animate-in>
             <div class="quest-card__header">
               <div class="quest-card__left">
+                <span class="prio-rune prio-rune--p{{ quest.priority | default(4) }}"
+                      aria-label="Priority {{ quest.priority_name }}">{{ quest.priority_glyph }}</span>
                 {% if quest.frog %}<span class="quest-card__frog">{{ icon('target', 'icon') }}</span>{% endif %}
                 <h3 class="quest-card__title">{{ quest.title }}</h3>
               </div>
               <span class="quest-card__meta">
+                <span class="age-pill age-pill--{{ quest.age_bucket }}" title="{{ quest.age_days }} days old">{{ quest.age_days }}d</span>
                 {% if quest.elapsed %}{{ quest.elapsed }}{% endif %}
                 {% if quest.pomo_count %} · {{ icon('timer', 'icon') }}{{ quest.pomo_count }}{% endif %}
               </span>
             </div>
-            <!-- No actions for done quests -->
+            {% if quest.labels_with_hue or quest.project %}
+            <div class="quest-card__peek">
+              {% for lbl in quest.labels_with_hue %}
+              <span class="label-chip label-hue-{{ lbl.hue }}">{{ lbl.name }}</span>
+              {% endfor %}
+              {% if quest.project %}<span class="project-pill">{{ quest.project }}</span>{% endif %}
+            </div>
+            {% endif %}
           </article>
         {% endfor %}
       {% else %}
@@ -43,7 +292,6 @@
       {% endif %}
     </div>
 
-    <!-- Collapsed summary: today's wins vs older -->
     <div class="column__collapsed-summary" x-show="!expanded">
       {% set done_today_count = col.quests | selectattr("done_today") | list | length %}
       {% set stale_count = col.quests | length - done_today_count %}
@@ -58,7 +306,6 @@
   </div>
 
   {% else %}
-  <!-- Normal column -->
   <div class="column" id="col-{{ col.status }}" data-animate-in>
     <div class="column__header">
       <h2 class="column__title">{{ icon(col.icon, 'icon') }} {{ col.label }}</h2>
@@ -78,3 +325,6 @@
 
   {% endfor %}
 </div>
+
+<!-- Artifact-keys modal slot (used by card expanded artifact management link) -->
+<div id="artifact-keys-modal"></div>

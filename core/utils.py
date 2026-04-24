@@ -4,10 +4,47 @@ Timezone conversion, duration formatting, and display helpers used by
 both TUI and web frontends.
 """
 
+import hashlib
+import re
 from datetime import datetime, date, timezone, timedelta
 
 from core import clock
-from core.config import USER_TZ
+from core.config import USER_TZ, AGE_BUCKETS
+
+
+def quest_age_days(q: dict, now: datetime | None = None) -> int:
+    """Days since quest was created (in user timezone)."""
+    created = q.get("created_at")
+    if not created:
+        return 0
+    try:
+        dt = datetime.fromisoformat(created)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        end = now or clock.utcnow()
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
+        return max(0, (end - dt).days)
+    except Exception:
+        return 0
+
+
+def quest_age_bucket(days: int) -> str:
+    """Map age in days to a named bucket per AGE_BUCKETS config."""
+    for max_days, name in AGE_BUCKETS:
+        if days <= max_days:
+            return name
+    return "fossil"
+
+
+def label_hue(name: str) -> int:
+    """Return a stable 1–8 hue index for a label name."""
+    return int(hashlib.md5(name.encode()).hexdigest()[:4], 16) % 8 + 1
+
+
+def is_url(val: str) -> bool:
+    """True if val looks like an http(s) URL."""
+    return bool(re.match(r"^https?://", val or ""))
 
 
 def today_local() -> date:

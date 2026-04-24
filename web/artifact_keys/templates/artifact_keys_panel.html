@@ -1,0 +1,41 @@
+{% from 'components/icons.html' import icon %}
+<div class="artifact-keys-panel" id="artifact-keys-panel">
+  <div class="artifact-keys-panel__header">
+    <h3 class="artifact-keys-panel__title">Artifact Keys</h3>
+    <p class="artifact-keys-panel__hint">Keys available in quest artifact fields.</p>
+  </div>
+
+  <ul class="artifact-keys-list">
+    {% for key in keys %}
+    <li class="artifact-keys-list__item">
+      <span class="artifact-key-name">{{ key.name }}</span>
+      <div class="artifact-key-actions">
+        <!-- Inline rename -->
+        <form class="inline-form" hx-patch="/artifact-keys/{{ key.name }}"
+              hx-target="#artifact-keys-panel" hx-swap="outerHTML">
+          <input type="text" name="new_name" value="{{ key.name }}"
+                 class="meta-input meta-input--sm" aria-label="Rename {{ key.name }}">
+          <button type="submit" class="meta-save-btn" title="Rename">{{ icon('check', 'icon') }}</button>
+        </form>
+        <!-- Delete -->
+        <button class="segment segment--danger"
+                hx-delete="/artifact-keys/{{ key.name }}"
+                hx-target="#artifact-keys-panel" hx-swap="outerHTML"
+                hx-confirm="Remove '{{ key.name }}' from the dropdown? Existing quest values are kept."
+                title="Delete key">{{ icon('trash-2', 'icon') }}</button>
+      </div>
+    </li>
+    {% else %}
+    <li class="artifact-keys-list__empty">No keys yet.</li>
+    {% endfor %}
+  </ul>
+
+  <!-- Add new key -->
+  <form class="artifact-keys-add" hx-post="/artifact-keys"
+        hx-target="#artifact-keys-panel" hx-swap="outerHTML"
+        hx-on::after-request="this.reset()">
+    <input type="text" name="name" class="meta-input" placeholder="New key name (e.g. Figma)"
+           required aria-label="New artifact key name">
+    <button type="submit" class="btn btn--xs">Add key</button>
+  </form>
+</div>

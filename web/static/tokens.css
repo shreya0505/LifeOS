@@ -226,4 +226,28 @@
   --glass-blur: 20px;
   --glass-border: rgba(120, 100, 80, 0.12);
   --glass-shadow: 0 4px 24px rgba(22, 40, 28, 0.05);
+
+  /* ── Age heat ───────────────────────────────────────── */
+  --age-fresh:   #7fb685;
+  --age-aging:   #c9b458;
+  --age-stale:   #d18b47;
+  --age-ancient: #b4523a;
+  --age-fossil:  #5a2a2a;
+
+  /* ── Priority rune colors ────────────────────────────── */
+  --prio-p0: #e03530;
+  --prio-p1: #d4773a;
+  --prio-p2: #b8972a;
+  --prio-p3: #74796c;
+  --prio-p4: #9a9a94;
+
+  /* ── Label chip hues (8-step palette) ───────────────── */
+  --label-hue-1: #e07b6a;
+  --label-hue-2: #d4943a;
+  --label-hue-3: #b8b03a;
+  --label-hue-4: #7fb685;
+  --label-hue-5: #4a9fb5;
+  --label-hue-6: #6a7ab5;
+  --label-hue-7: #9a6ab5;
+  --label-hue-8: #b56a8a;
 }
