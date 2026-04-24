@@ -48,11 +48,24 @@ python3 - "$DB" <<'PYEOF'
 import sqlite3, sys
 db = sqlite3.connect(sys.argv[1])
 db.execute("PRAGMA foreign_keys=OFF")
+try:
+    db.execute("UPDATE sync_runtime SET value = '1' WHERE key = 'suppress'")
+except sqlite3.OperationalError:
+    pass
 for t in ("challenge_entries", "challenge_tasks", "challenge_eras", "challenges"):
     try:
         db.execute(f"DELETE FROM {t}")
     except sqlite3.OperationalError as e:
         print(f"  skip {t}: {e}")
+try:
+    for t in ("challenge_entries", "challenge_tasks", "challenge_eras", "challenges"):
+        db.execute("DELETE FROM sync_changes WHERE table_name = ?", (t,))
+    db.execute("DELETE FROM sync_conflicts WHERE table_name IN ('challenge_entries', 'challenge_tasks', 'challenge_eras', 'challenges')")
+finally:
+    try:
+        db.execute("UPDATE sync_runtime SET value = '0' WHERE key = 'suppress'")
+    except sqlite3.OperationalError:
+        pass
 db.execute("PRAGMA foreign_keys=ON")
 db.commit()
 db.close()

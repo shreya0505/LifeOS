@@ -1,0 +1,251 @@
+/* Shared sync status tag for QuestLog and Hard 90. */
+.sync-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  font-size: 12px;
+  color: var(--on-surface-muted);
+  isolation: isolate;
+}
+.sync-chip__details {
+  position: relative;
+}
+.sync-chip__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--outline-variant);
+  border-radius: 999px;
+  background: var(--surface-container, rgba(255,255,255,0.06));
+  color: var(--on-surface);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  list-style: none;
+  white-space: nowrap;
+}
+.sync-chip__tag::-webkit-details-marker {
+  display: none;
+}
+.sync-chip__tag--pending {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--outline-variant));
+}
+.sync-chip__tag--warn {
+  border-color: color-mix(in srgb, var(--hearth, #d4943a) 65%, var(--outline-variant));
+}
+.sync-chip__tag--error {
+  border-color: color-mix(in srgb, var(--error) 45%, var(--outline-variant));
+  color: var(--error);
+}
+.sync-chip__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--on-surface-muted);
+  flex: 0 0 auto;
+}
+.sync-chip__dot--ok {
+  background: var(--tertiary, #7a9e7e);
+}
+.sync-chip__dot--pending {
+  background: var(--primary);
+}
+.sync-chip__dot--warn {
+  background: var(--hearth, #d4943a);
+}
+.sync-chip__dot--error {
+  background: var(--error);
+}
+.sync-chip__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(340px, calc(100vw - 24px));
+  padding: 12px;
+  border: 1px solid var(--outline-variant);
+  border-radius: 8px;
+  background: var(--surface-container-high, var(--surface-container, #fff));
+  box-shadow: 0 10px 28px rgba(0,0,0,0.22);
+  z-index: 1300;
+}
+.sync-chip__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 5px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--outline-variant) 45%, transparent);
+}
+.sync-chip__row span {
+  color: var(--on-surface-muted);
+}
+.sync-chip__row strong {
+  color: var(--on-surface);
+}
+.sync-chip__actions,
+.sync-chip__conflict,
+.sync-chip__conflict form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sync-chip__actions {
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.sync-chip__btn,
+.sync-chip__mini {
+  border: 1px solid var(--outline-variant);
+  background: var(--surface-container, transparent);
+  color: var(--on-surface);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+.sync-chip__btn {
+  padding: 7px 9px;
+}
+.sync-chip__mini {
+  padding: 5px 6px;
+}
+.sync-chip__btn--primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+.sync-chip__notice {
+  margin-bottom: 8px;
+  padding: 7px 8px;
+  border: 1px solid var(--outline-variant);
+  border-radius: 6px;
+  color: var(--on-surface);
+}
+.sync-chip__notice--error {
+  color: var(--error);
+}
+.sync-chip__conflicts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+.sync-chip__conflict {
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+/* Hard 90 dark shell overrides. */
+.challenge-page .ch-navbar__end {
+  align-items: center;
+  gap: 14px;
+}
+.challenge-page .ch-navbar {
+  position: fixed;
+  z-index: 3000;
+}
+.challenge-page .ch-main {
+  position: relative;
+  z-index: 1;
+}
+.challenge-page .sync-chip {
+  color: var(--ch-muted);
+  font-family: var(--ch-font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.challenge-page .sync-chip__tag {
+  min-height: 28px;
+  padding: 0 10px;
+  border-color: var(--ch-border-hi);
+  background: rgba(34, 34, 42, 0.72);
+  color: var(--ch-text);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+}
+.challenge-page .sync-chip__tag--pending {
+  border-color: color-mix(in srgb, var(--ch-red) 50%, var(--ch-border-hi));
+}
+.challenge-page .sync-chip__tag--warn {
+  border-color: color-mix(in srgb, var(--ch-amber) 60%, var(--ch-border-hi));
+}
+.challenge-page .sync-chip__tag--error {
+  border-color: color-mix(in srgb, var(--ch-red) 65%, var(--ch-border-hi));
+  color: var(--ch-red);
+}
+.challenge-page .sync-chip__dot {
+  background: var(--ch-muted-2);
+}
+.challenge-page .sync-chip__dot--ok {
+  background: var(--ch-green);
+}
+.challenge-page .sync-chip__dot--pending {
+  background: var(--ch-red);
+}
+.challenge-page .sync-chip__dot--warn {
+  background: var(--ch-amber);
+}
+.challenge-page .sync-chip__dot--error {
+  background: var(--ch-red);
+}
+.challenge-page .sync-chip__menu {
+  width: min(360px, calc(100vw - 24px));
+  border-color: var(--ch-border-hi);
+  background: rgba(26, 26, 31, 0.98);
+  color: var(--ch-text);
+  box-shadow: 0 14px 40px rgba(0,0,0,0.52), 0 0 0 1px rgba(232,93,93,0.08);
+  text-transform: none;
+  letter-spacing: 0;
+  pointer-events: auto;
+}
+.challenge-page .sync-chip__row {
+  border-bottom-color: var(--ch-border);
+}
+.challenge-page .sync-chip__row span {
+  color: var(--ch-muted);
+}
+.challenge-page .sync-chip__row strong {
+  color: var(--ch-text-hi);
+}
+.challenge-page .sync-chip__notice {
+  border-color: var(--ch-border-hi);
+  background: rgba(255,255,255,0.03);
+  color: var(--ch-text);
+}
+.challenge-page .sync-chip__notice--error {
+  color: var(--ch-red);
+}
+.challenge-page .sync-chip__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.25fr;
+  gap: 8px;
+}
+.challenge-page .sync-chip__btn,
+.challenge-page .sync-chip__mini {
+  min-width: 0;
+  border-color: var(--ch-border-hi);
+  background: var(--ch-surface-2);
+  color: var(--ch-text);
+  font-family: var(--ch-font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.challenge-page .sync-chip__btn {
+  padding: 8px 10px;
+}
+.challenge-page .sync-chip__btn--primary {
+  border-color: var(--ch-red);
+  background: var(--ch-red-hi);
+  color: #fff;
+}
+.challenge-page .sync-chip__conflicts {
+  border-top: 1px solid var(--ch-border);
+  padding-top: 10px;
+}
+.challenge-page .sync-chip__conflict {
+  flex-wrap: wrap;
+  color: var(--ch-text);
+}

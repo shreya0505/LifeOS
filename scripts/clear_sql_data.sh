@@ -44,10 +44,25 @@ python3 - "$DB" <<'PYEOF'
 import sqlite3, sys
 db = sqlite3.connect(sys.argv[1])
 db.execute("PRAGMA foreign_keys=OFF")
+try:
+    db.execute("UPDATE sync_runtime SET value = '1' WHERE key = 'suppress'")
+except sqlite3.OperationalError:
+    pass
 db.execute("DELETE FROM pomo_segments")
 db.execute("DELETE FROM pomo_sessions")
 db.execute("DELETE FROM trophy_records")
 db.execute("DELETE FROM quests")
+try:
+    db.execute("DELETE FROM sync_changes")
+    db.execute("DELETE FROM sync_conflicts")
+    db.execute("UPDATE sync_state SET value = '' WHERE key IN ('last_pull_at', 'last_push_at', 'last_error')")
+    db.execute("UPDATE sync_state SET value = '[]' WHERE key = 'applied_bundles'")
+    db.execute("UPDATE sync_state SET value = '0' WHERE key = 'applied_bootstrap'")
+finally:
+    try:
+        db.execute("UPDATE sync_runtime SET value = '0' WHERE key = 'suppress'")
+    except sqlite3.OperationalError:
+        pass
 db.execute("PRAGMA foreign_keys=ON")
 db.commit()
 db.close()

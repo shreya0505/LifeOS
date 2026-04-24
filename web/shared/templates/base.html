@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/static/reset.css?v=2">
   <link rel="stylesheet" href="/static/tokens.css?v=2">
   <link rel="stylesheet" href="/static/style.css?v=2">
+  <link rel="stylesheet" href="/static/sync.css?v=1">
 
   <!-- HTMX -->
   <script src="/static/htmx.min.js" defer></script>
@@ -42,6 +43,7 @@
         <button class="app-navbar__link" data-tab="metrics" onclick="switchNavTab('metrics')">Codex</button>
       </nav>
       <div class="app-navbar__end">
+        <div hx-get="/sync/panel" hx-trigger="load, every {{ sync_ui_poll_seconds() }}s" hx-swap="outerHTML"></div>
         <a href="/challenge" class="app-navbar__switch" title="Hard 90 Challenge">Hard 90 ↗</a>
       </div>
     </header>

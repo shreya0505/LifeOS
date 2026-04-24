@@ -1,0 +1,64 @@
+<section class="sync-chip" id="sync-panel">
+  {% if config_error %}
+  <button class="sync-chip__tag sync-chip__tag--error" type="button" title="{{ config_error }}">
+    <span class="sync-chip__dot sync-chip__dot--error"></span>
+    <span>Sync config</span>
+  </button>
+  {% elif not enabled %}
+  <button class="sync-chip__tag" type="button" title="Sync disabled">
+    <span class="sync-chip__dot"></span>
+    <span>Sync off</span>
+  </button>
+  {% else %}
+  {% set clean = status.pending_changes == 0 and status.open_conflicts == 0 %}
+  <details class="sync-chip__details">
+    <summary class="sync-chip__tag{% if status.open_conflicts %} sync-chip__tag--warn{% elif not clean %} sync-chip__tag--pending{% endif %}">
+      <span class="sync-chip__dot{% if status.open_conflicts %} sync-chip__dot--warn{% elif not clean %} sync-chip__dot--pending{% else %} sync-chip__dot--ok{% endif %}"></span>
+      <span>{% if status.open_conflicts %}Conflict{% elif clean %}Synced{% else %}Unsynced{% endif %}</span>
+    </summary>
+    <div class="sync-chip__menu">
+      {% if result and status.show_prompts %}
+      <div class="sync-chip__notice sync-chip__notice--{{ result.status }}">{{ result.message }}</div>
+      {% endif %}
+      <div class="sync-chip__row">
+        <span>Device</span>
+        <strong>{{ status.device_name }}</strong>
+      </div>
+      <div class="sync-chip__row">
+        <span>Mode</span>
+        <strong>{% if status.auto_enabled %}Auto · {{ status.interval_seconds }}s{% else %}Manual{% endif %}</strong>
+      </div>
+      <div class="sync-chip__row">
+        <span>Pending</span>
+        <strong>{{ status.pending_changes }}</strong>
+      </div>
+      <div class="sync-chip__row">
+        <span>Conflicts</span>
+        <strong>{{ status.open_conflicts }}</strong>
+      </div>
+      {% if status.last_error %}
+      <div class="sync-chip__notice sync-chip__notice--error">{{ status.last_error }}</div>
+      {% endif %}
+      <div class="sync-chip__actions">
+        <button class="sync-chip__btn" hx-post="/sync/pull" hx-target="#sync-panel" hx-swap="outerHTML">Pull</button>
+        <button class="sync-chip__btn" hx-post="/sync/push" hx-target="#sync-panel" hx-swap="outerHTML">Push</button>
+        <button class="sync-chip__btn sync-chip__btn--primary" hx-post="/sync/run" hx-target="#sync-panel" hx-swap="outerHTML">Sync now</button>
+      </div>
+      {% if conflicts %}
+      <div class="sync-chip__conflicts">
+        {% for conflict in conflicts %}
+        <div class="sync-chip__conflict">
+          <span>{{ conflict.table_name }} · {{ conflict.record_id }}</span>
+          <form hx-post="/sync/conflicts/{{ conflict.id }}/resolve" hx-target="#sync-panel" hx-swap="outerHTML">
+            <button name="resolution" value="theirs" class="sync-chip__mini">Theirs</button>
+            <button name="resolution" value="mine" class="sync-chip__mini">Mine</button>
+            <button name="resolution" value="both" class="sync-chip__mini">Both</button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </details>
+  {% endif %}
+</section>

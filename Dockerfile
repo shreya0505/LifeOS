@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Install dependencies
 COPY requirements.txt* pyproject.toml* ./
-RUN pip install --no-cache-dir fastapi uvicorn[standard] jinja2 aiosqlite sse-starlette python-multipart
+RUN pip install --no-cache-dir fastapi uvicorn[standard] jinja2 aiosqlite sse-starlette python-multipart boto3 cryptography
 
 # Copy application code
 COPY core/ core/

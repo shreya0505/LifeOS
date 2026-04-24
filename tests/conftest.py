@@ -17,6 +17,7 @@ def _use_tmp_db(tmp_path, monkeypatch):
     """Point QUESTLOG_DB at a temp file for every test."""
     db_path = str(tmp_path / "test.db")
     monkeypatch.setenv("QUESTLOG_DB", db_path)
+    monkeypatch.setenv("SYNC_ENABLED", "false")
 
 
 @pytest_asyncio.fixture

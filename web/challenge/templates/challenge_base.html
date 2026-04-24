@@ -6,6 +6,7 @@
 <title>{% block title %}Hard 90{% endblock %}</title>
 <link rel="stylesheet" href="/static/tokens.css">
 <link rel="stylesheet" href="/static/challenge.css?v=29">
+<link rel="stylesheet" href="/static/sync.css?v=1">
 <script src="/static/htmx.min.js" defer></script>
 <script src="/static/alpine-collapse.min.js" defer></script>
 <script src="/static/alpine.min.js" defer></script>
@@ -24,6 +25,7 @@
     <a href="/challenge/history" class="ch-nav-link{% if active_tab == 'history' %} is-active{% endif %}">History</a>
   </nav>
   <div class="ch-navbar__end">
+    <div hx-get="/sync/panel" hx-trigger="load, every {{ sync_ui_poll_seconds() }}s" hx-swap="outerHTML"></div>
     <a href="/" class="ch-navbar__switch" title="Quest Tracker">QuestLog ↗</a>
   </div>
 </header>
