@@ -288,3 +288,16 @@ async def test_trophy_pr_overwrite(db):
     loaded = await repo.load_prs()
     assert "a" not in loaded
     assert "b" in loaded
+
+
+@pytest.mark.asyncio
+async def test_trophy_pr_save_is_idempotent_for_sync(db):
+    repo = SqliteTrophyPRRepo(db)
+    prs = {"a": {"best": "1", "date": "2026-01-01", "detail": None}}
+    await repo.save_prs(prs)
+    before = await (await db.execute("SELECT COUNT(*) FROM sync_changes")).fetchone()
+
+    await repo.save_prs(prs)
+    after = await (await db.execute("SELECT COUNT(*) FROM sync_changes")).fetchone()
+
+    assert after[0] == before[0]

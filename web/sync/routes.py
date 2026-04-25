@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
@@ -10,6 +12,7 @@ from core.sync.service import SyncResult, SyncService
 from core.sync.store import build_store
 
 router = APIRouter(prefix="/sync")
+logger = logging.getLogger(__name__)
 
 
 def _render(request: Request, name: str, context: dict):
@@ -68,6 +71,7 @@ async def _panel_context(request: Request, result: SyncResult | None = None) -> 
             "result": result,
         }
     except Exception:
+        logger.exception("sync.panel.error")
         return {
             "enabled": False,
             "config_error": "Sync is enabled but could not initialize.",
@@ -79,6 +83,7 @@ async def _panel_context(request: Request, result: SyncResult | None = None) -> 
 
 @router.get("/panel", response_class=HTMLResponse)
 async def panel(request: Request):
+    logger.info("sync.route.panel")
     return _render(request, "sync_panel.html", await _panel_context(request))
 
 
@@ -93,33 +98,40 @@ async def status(request: Request):
     if not config.enabled:
         return {"enabled": False}
     service = _service(request)
+    logger.info("sync.route.status")
     return await service.status()
 
 
 @router.post("/pull", response_class=HTMLResponse)
 async def pull(request: Request):
+    logger.info("sync.route.pull.start")
     try:
         result = await _service(request).pull()
-    except Exception:
-        result = SyncResult("pull", "error", "Pull failed.")
+    except Exception as exc:
+        logger.exception("sync.route.pull.error")
+        result = SyncResult("pull", "error", f"Pull failed: {exc}")
     return _render(request, "sync_panel.html", await _panel_context(request, result))
 
 
 @router.post("/push", response_class=HTMLResponse)
 async def push(request: Request):
+    logger.info("sync.route.push.start")
     try:
         result = await _service(request).push()
-    except Exception:
-        result = SyncResult("push", "error", "Push failed.")
+    except Exception as exc:
+        logger.exception("sync.route.push.error")
+        result = SyncResult("push", "error", f"Push failed: {exc}")
     return _render(request, "sync_panel.html", await _panel_context(request, result))
 
 
 @router.post("/run", response_class=HTMLResponse)
 async def run(request: Request):
+    logger.info("sync.route.run.start")
     try:
         result = await _service(request).run()
-    except Exception:
-        result = SyncResult("run", "error", "Sync failed.")
+    except Exception as exc:
+        logger.exception("sync.route.run.error")
+        result = SyncResult("run", "error", f"Sync failed: {exc}")
     return _render(request, "sync_panel.html", await _panel_context(request, result))
 
 
@@ -129,8 +141,10 @@ async def resolve_conflict(
     conflict_id: str,
     resolution: str = Form(...),
 ):
+    logger.info("sync.route.resolve.start id=%s resolution=%s", conflict_id, resolution)
     try:
         result = await _service(request).resolve_conflict(conflict_id, resolution)
-    except Exception:
-        result = SyncResult("resolve", "error", "Conflict resolution failed.")
+    except Exception as exc:
+        logger.exception("sync.route.resolve.error id=%s", conflict_id)
+        result = SyncResult("resolve", "error", f"Conflict resolution failed: {exc}")
     return _render(request, "sync_panel.html", await _panel_context(request, result))

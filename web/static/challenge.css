@@ -909,7 +909,13 @@
   cursor: pointer;
 }
 .ch-btn-forfeit:hover { color: var(--ch-red-deep); }
-.ch-forfeit-confirm { display: inline-flex; align-items: center; gap: 10px; }
+.ch-forfeit-confirm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+}
 .ch-forfeit-text {
   font-family: var(--ch-font-mono);
   font-size: 11px;

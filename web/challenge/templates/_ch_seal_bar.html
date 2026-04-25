@@ -34,8 +34,9 @@
         </button>
         <form x-show="confirm" method="post" action="/challenge/forfeit" class="ch-forfeit-confirm">
           <input type="hidden" name="confirm" value="yes">
-          <span class="ch-forfeit-text">END ERA?</span>
-          <button type="submit" class="ch-btn-forfeit-yes">CONFIRM</button>
+          <span class="ch-forfeit-text">NEXT RUN?</span>
+          <button type="submit" name="restart_mode" value="same" class="ch-btn-forfeit-yes">SAME CHALLENGES</button>
+          <button type="submit" name="restart_mode" value="setup" class="ch-btn-forfeit-yes">SETUP AGAIN</button>
           <button type="button" class="ch-btn-forfeit-no" @click="confirm = false">CANCEL</button>
         </form>
       </span>

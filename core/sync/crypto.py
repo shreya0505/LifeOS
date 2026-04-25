@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import os
 from typing import Any
 
@@ -14,6 +15,9 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 class SyncDecryptError(ValueError):
     """Raised when an encrypted sync payload cannot be decrypted."""
+
+
+logger = logging.getLogger(__name__)
 
 
 def _derive_key(passphrase: str, salt: bytes) -> bytes:
@@ -27,6 +31,7 @@ def _derive_key(passphrase: str, salt: bytes) -> bytes:
 
 
 def encrypt_json(data: dict[str, Any], passphrase: str) -> bytes:
+    logger.info("sync.crypto.encrypt.start keys=%s", sorted(data.keys()))
     salt = os.urandom(16)
     token = Fernet(_derive_key(passphrase, salt)).encrypt(
         json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -38,10 +43,13 @@ def encrypt_json(data: dict[str, Any], passphrase: str) -> bytes:
         "salt": base64.b64encode(salt).decode("ascii"),
         "token": token.decode("ascii"),
     }
-    return json.dumps(envelope, sort_keys=True).encode("utf-8")
+    payload = json.dumps(envelope, sort_keys=True).encode("utf-8")
+    logger.info("sync.crypto.encrypt.ok bytes=%s", len(payload))
+    return payload
 
 
 def decrypt_json(payload: bytes, passphrase: str) -> dict[str, Any]:
+    logger.info("sync.crypto.decrypt.start bytes=%s", len(payload))
     try:
         envelope = json.loads(payload.decode("utf-8"))
         if envelope.get("version") != 1:
@@ -49,7 +57,9 @@ def decrypt_json(payload: bytes, passphrase: str) -> dict[str, Any]:
         salt = base64.b64decode(envelope["salt"])
         token = envelope["token"].encode("ascii")
         clear = Fernet(_derive_key(passphrase, salt)).decrypt(token)
-        return json.loads(clear.decode("utf-8"))
+        data = json.loads(clear.decode("utf-8"))
+        logger.info("sync.crypto.decrypt.ok keys=%s", sorted(data.keys()))
+        return data
     except (InvalidToken, KeyError, ValueError, TypeError) as exc:
+        logger.warning("sync.crypto.decrypt.error reason=%s", type(exc).__name__)
         raise SyncDecryptError("Could not decrypt sync payload.") from exc
-

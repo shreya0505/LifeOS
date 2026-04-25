@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 import os
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 
 class SyncConfigError(ValueError):
     """Raised when sync is enabled but required settings are missing."""
+
+
+logger = logging.getLogger(__name__)
 
 
 def _truthy(value: str | None) -> bool:
@@ -40,6 +45,21 @@ def _merged_env(environ: dict[str, str] | None) -> dict[str, str]:
     return values
 
 
+def _normalize_endpoint(endpoint: str) -> str:
+    if not endpoint:
+        return endpoint
+    parts = urlsplit(endpoint)
+    if parts.path and parts.path != "/":
+        normalized = urlunsplit((parts.scheme, parts.netloc, "", "", ""))
+        logger.warning(
+            "sync.config.endpoint_normalized original_path=%s normalized_endpoint=%s",
+            parts.path,
+            normalized,
+        )
+        return normalized
+    return endpoint.rstrip("/")
+
+
 @dataclass(frozen=True)
 class SyncConfig:
     enabled: bool
@@ -67,6 +87,7 @@ def load_sync_config(environ: dict[str, str] | None = None) -> SyncConfig:
     endpoint = (env.get("R2_ENDPOINT") or "").strip()
     if not endpoint and account_id:
         endpoint = f"https://{account_id}.r2.cloudflarestorage.com"
+    endpoint = _normalize_endpoint(endpoint)
 
     config = SyncConfig(
         enabled=enabled,

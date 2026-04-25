@@ -533,27 +533,44 @@ class SqliteTrophyPRRepo:
 
     async def save_prs(self, prs: dict) -> None:
         import json
+        cursor = await self._db.execute(
+            "SELECT trophy_id, best, date, detail FROM trophy_records"
+        )
+        existing = {
+            r[0]: (r[1] or "", r[2] or "", r[3])
+            for r in await cursor.fetchall()
+        }
         known_ids = tuple(prs.keys())
-        rows = []
+        desired = {}
         for tid, data in prs.items():
             if tid.startswith("_"):
-                rows.append((tid, "", data.get("date", ""), json.dumps(data)))
+                desired[tid] = (tid, "", data.get("date", ""), json.dumps(data))
             else:
-                rows.append((tid, str(data["best"]), data["date"], data.get("detail")))
-        # Upsert known entries, then prune any stale IDs (e.g. from old trophy set).
-        # Using INSERT OR REPLACE avoids UNIQUE constraint races on the shared connection.
+                desired[tid] = (tid, str(data["best"]), data["date"], data.get("detail"))
+
+        rows = [
+            row for tid, row in desired.items()
+            if existing.get(tid) != row[1:]
+        ]
+        stale_ids = tuple(tid for tid in existing if tid not in desired)
+
+        if not rows and not stale_ids:
+            return
+
+        # Only write changed rows; trophy panels render often, and no-op writes
+        # would otherwise create noisy sync_changes entries.
         if rows:
             await self._db.executemany(
-                "INSERT OR REPLACE INTO trophy_records (trophy_id, best, date, detail) "
-                "VALUES (?, ?, ?, ?)",
+                "INSERT INTO trophy_records (trophy_id, best, date, detail) "
+                "VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(trophy_id) DO UPDATE SET "
+                "best = excluded.best, date = excluded.date, detail = excluded.detail",
                 rows,
             )
-        if known_ids:
-            placeholders = ",".join("?" * len(known_ids))
+        if stale_ids:
+            placeholders = ",".join("?" * len(stale_ids))
             await self._db.execute(
-                f"DELETE FROM trophy_records WHERE trophy_id NOT IN ({placeholders})",
-                known_ids,
+                f"DELETE FROM trophy_records WHERE trophy_id IN ({placeholders})",
+                stale_ids,
             )
-        else:
-            await self._db.execute("DELETE FROM trophy_records")
         await self._db.commit()

@@ -421,6 +421,7 @@ async def seal_day(
 async def forfeit(
     request: Request,
     confirm: str = Form(""),
+    restart_mode: str = Form("same"),
     challenge_repo=Depends(get_challenge_repo),
     task_repo=Depends(get_challenge_task_repo),
     era_repo=Depends(get_challenge_era_repo),
@@ -445,7 +446,10 @@ async def forfeit(
     )
     await challenge_repo.mark_reset(ch["id"])
 
-    # Start new era with same tasks
+    if restart_mode == "setup":
+        return RedirectResponse("/challenge/setup", status_code=303)
+
+    # Start new era with same tasks.
     tasks = await task_repo.get_by_challenge(ch["id"])
     new_era = await era_names.pick_era_name(era_repo)
     new_adj = era_names.pick_midweek_adjective()

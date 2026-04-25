@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -19,6 +20,8 @@ from core.sync.store import ObjectStore
 
 MANIFEST_KEY = "manifest.json"
 BOOTSTRAP_KEY = "bootstrap.json.enc"
+
+logger = logging.getLogger(__name__)
 
 
 def _now() -> str:
@@ -56,6 +59,7 @@ class SyncService:
         self.store = store
 
     async def register_device(self) -> None:
+        logger.info("sync.device.register.start device=%s", self.config.device_name)
         await self._set_state("device_name", self.config.device_name)
         await self.db.execute(
             "INSERT INTO sync_devices (name) VALUES (?) "
@@ -63,12 +67,19 @@ class SyncService:
             (self.config.device_name,),
         )
         await self.db.commit()
+        logger.info("sync.device.register.ok device=%s", self.config.device_name)
 
     async def status(self) -> dict:
         await self._drop_prebootstrap_stale_deletes()
         changes, _ = await self._pending_changes()
         pending = len(changes)
         conflicts = await self._scalar("SELECT COUNT(*) FROM sync_conflicts WHERE status = 'open'")
+        logger.info(
+            "sync.status device=%s pending=%s conflicts=%s",
+            self.config.device_name,
+            pending or 0,
+            conflicts or 0,
+        )
         return {
             "enabled": self.config.enabled,
             "device_name": self.config.device_name,
@@ -81,17 +92,26 @@ class SyncService:
 
     async def push(self) -> SyncResult:
         run_id = await self._start_run("push")
+        logger.info("sync.push.start run_id=%s device=%s", run_id, self.config.device_name)
         try:
             await self.register_device()
             manifest = await self._load_manifest()
             if not manifest.get("bootstrap_key"):
+                logger.info("sync.push.bootstrap.missing run_id=%s", run_id)
                 await self._upload_bootstrap(manifest)
 
             changes, max_change_id = await self._pending_changes()
+            logger.info(
+                "sync.push.pending run_id=%s effective_changes=%s max_change_id=%s",
+                run_id,
+                len(changes),
+                max_change_id,
+            )
             if not changes:
                 await self._set_state("last_push_at", _now())
                 result = SyncResult("push", "ok", "No local changes to push.")
                 await self._finish_run(run_id, result)
+                logger.info("sync.push.ok run_id=%s changes=0", run_id)
                 return result
 
             bundle_id = uuid.uuid4().hex
@@ -109,6 +129,13 @@ class SyncService:
                 encrypt_json(bundle, self.config.encryption_passphrase),
                 "application/octet-stream",
             )
+            logger.info(
+                "sync.push.bundle.uploaded run_id=%s bundle_id=%s key=%s changes=%s",
+                run_id,
+                bundle_id,
+                key,
+                len(changes),
+            )
             manifest.setdefault("bundles", []).append({
                 "id": bundle_id,
                 "key": key,
@@ -118,6 +145,12 @@ class SyncService:
             })
             manifest["updated_at"] = now
             await self.store.put_json(MANIFEST_KEY, manifest)
+            logger.info(
+                "sync.push.manifest.updated run_id=%s bundle_count=%s bootstrap=%s",
+                run_id,
+                len(manifest.get("bundles", [])),
+                bool(manifest.get("bootstrap_key")),
+            )
             await self.db.execute(
                 "UPDATE sync_changes SET sent_at = ?, remote_bundle_id = ? "
                 "WHERE sent_at IS NULL AND id <= ?",
@@ -128,50 +161,95 @@ class SyncService:
             await self.db.commit()
             result = SyncResult("push", "ok", f"Pushed {len(changes)} change(s).", changes_pushed=len(changes))
             await self._finish_run(run_id, result)
+            logger.info("sync.push.ok run_id=%s changes=%s bundle_id=%s", run_id, len(changes), bundle_id)
             return result
         except Exception as exc:
+            logger.exception("sync.push.error run_id=%s", run_id)
             result = SyncResult("push", "error", str(exc))
-            await self._set_state("last_error", "Push failed.")
+            await self._set_state("last_error", f"Push failed: {exc}")
             await self._finish_run(run_id, result)
             return result
 
     async def pull(self) -> SyncResult:
         run_id = await self._start_run("pull")
+        logger.info("sync.pull.start run_id=%s device=%s", run_id, self.config.device_name)
         try:
             await self.register_device()
             manifest = await self._load_manifest()
             if not manifest:
                 result = SyncResult("pull", "ok", "No remote sync state found.")
                 await self._finish_run(run_id, result)
+                logger.info("sync.pull.ok run_id=%s remote_state=missing", run_id)
                 return result
 
             bundles_pulled = 0
             conflicts = 0
             if manifest.get("bootstrap_key") and await self._get_state("applied_bootstrap", "0") != "1":
+                logger.info("sync.pull.bootstrap.fetch run_id=%s key=%s", run_id, manifest["bootstrap_key"])
                 payload = await self.store.get_bytes(manifest["bootstrap_key"])
                 if payload:
                     snapshot = decrypt_json(payload, self.config.encryption_passphrase)
-                    conflicts += await self._apply_snapshot(snapshot)
+                    logger.info(
+                        "sync.pull.bootstrap.decrypted run_id=%s device=%s tables=%s",
+                        run_id,
+                        snapshot.get("device", ""),
+                        {name: len(rows) for name, rows in snapshot.get("tables", {}).items()},
+                    )
+                    snapshot_conflicts = await self._apply_snapshot(snapshot)
+                    conflicts += snapshot_conflicts
+                    logger.info(
+                        "sync.pull.bootstrap.applied run_id=%s conflicts=%s",
+                        run_id,
+                        snapshot_conflicts,
+                    )
                     await self._set_state("applied_bootstrap", "1")
+                else:
+                    logger.warning("sync.pull.bootstrap.missing run_id=%s key=%s", run_id, manifest["bootstrap_key"])
 
             applied = set(json.loads(await self._get_state("applied_bundles", "[]") or "[]"))
             for entry in sorted(manifest.get("bundles", []), key=lambda item: item.get("created_at", "")):
                 bundle_id = entry["id"]
                 if bundle_id in applied:
+                    logger.info("sync.pull.bundle.skip_already_applied run_id=%s bundle_id=%s", run_id, bundle_id)
                     continue
                 if entry.get("device") == self.config.device_name:
+                    logger.info("sync.pull.bundle.skip_own run_id=%s bundle_id=%s", run_id, bundle_id)
                     applied.add(bundle_id)
                     continue
+                logger.info(
+                    "sync.pull.bundle.fetch run_id=%s bundle_id=%s key=%s device=%s",
+                    run_id,
+                    bundle_id,
+                    entry.get("key"),
+                    entry.get("device"),
+                )
                 payload = await self.store.get_bytes(entry["key"])
                 if payload is None:
+                    logger.warning("sync.pull.bundle.missing run_id=%s bundle_id=%s key=%s", run_id, bundle_id, entry["key"])
                     continue
                 bundle = decrypt_json(payload, self.config.encryption_passphrase)
+                logger.info(
+                    "sync.pull.bundle.decrypted run_id=%s bundle_id=%s changes=%s",
+                    run_id,
+                    bundle_id,
+                    len(bundle.get("changes", [])),
+                )
+                applied_count = 0
                 for change in bundle.get("changes", []):
                     applied_ok, conflicted = await self._apply_change(change)
+                    if applied_ok:
+                        applied_count += 1
                     if conflicted:
                         conflicts += 1
                 applied.add(bundle_id)
                 bundles_pulled += 1
+                logger.info(
+                    "sync.pull.bundle.applied run_id=%s bundle_id=%s applied=%s conflicts_total=%s",
+                    run_id,
+                    bundle_id,
+                    applied_count,
+                    conflicts,
+                )
 
             await self._set_state("applied_bundles", _dumps(sorted(applied)))
             await self._set_state("last_pull_at", _now())
@@ -182,21 +260,32 @@ class SyncService:
                 message += f" {conflicts} conflict(s) need review."
             result = SyncResult("pull", "ok", message, bundles_pulled=bundles_pulled, conflicts=conflicts)
             await self._finish_run(run_id, result)
+            logger.info(
+                "sync.pull.ok run_id=%s bundles_pulled=%s conflicts=%s applied_bundles=%s",
+                run_id,
+                bundles_pulled,
+                conflicts,
+                len(applied),
+            )
             return result
         except Exception as exc:
+            logger.exception("sync.pull.error run_id=%s", run_id)
             result = SyncResult("pull", "error", str(exc))
-            await self._set_state("last_error", "Pull failed.")
+            await self._set_state("last_error", f"Pull failed: {exc}")
             await self._finish_run(run_id, result)
             return result
 
     async def run(self) -> SyncResult:
+        logger.info("sync.run.start device=%s", self.config.device_name)
         pulled = await self.pull()
         if pulled.status != "ok":
+            logger.warning("sync.run.pull_failed message=%s", pulled.message)
             return pulled
         pushed = await self.push()
         if pushed.status != "ok":
+            logger.warning("sync.run.push_failed message=%s", pushed.message)
             return pushed
-        return SyncResult(
+        result = SyncResult(
             "run",
             "ok",
             f"{pulled.message} {pushed.message}".strip(),
@@ -204,6 +293,13 @@ class SyncService:
             changes_pushed=pushed.changes_pushed,
             conflicts=pulled.conflicts,
         )
+        logger.info(
+            "sync.run.ok bundles_pulled=%s changes_pushed=%s conflicts=%s",
+            result.bundles_pulled,
+            result.changes_pushed,
+            result.conflicts,
+        )
+        return result
 
     async def open_conflicts(self) -> list[dict]:
         cursor = await self.db.execute(
@@ -217,6 +313,7 @@ class SyncService:
         ]
 
     async def resolve_conflict(self, conflict_id: str, resolution: str) -> SyncResult:
+        logger.info("sync.conflict.resolve.start id=%s resolution=%s", conflict_id, resolution)
         cursor = await self.db.execute(
             "SELECT table_name, record_id, local_row, remote_row, remote_change "
             "FROM sync_conflicts WHERE id = ? AND status = 'open'",
@@ -224,6 +321,7 @@ class SyncService:
         )
         row = await cursor.fetchone()
         if row is None:
+            logger.warning("sync.conflict.resolve.missing id=%s", conflict_id)
             return SyncResult("resolve", "error", "Conflict not found.")
 
         table_name, record_id, local_raw, remote_raw, remote_change_raw = row
@@ -257,12 +355,21 @@ class SyncService:
             (resolution, conflict_id),
         )
         await self.db.commit()
+        logger.info("sync.conflict.resolve.ok id=%s resolution=%s table=%s record_id=%s", conflict_id, resolution, table_name, record_id)
         return SyncResult("resolve", "ok", "Conflict resolved.")
 
     async def _load_manifest(self) -> dict:
         manifest = await self.store.get_json(MANIFEST_KEY)
         if manifest is None:
+            logger.info("sync.manifest.missing key=%s", MANIFEST_KEY)
             return {"version": 1, "bootstrap_key": "", "bundles": [], "updated_at": ""}
+        logger.info(
+            "sync.manifest.loaded key=%s bootstrap=%s bundles=%s updated_at=%s",
+            MANIFEST_KEY,
+            bool(manifest.get("bootstrap_key")),
+            len(manifest.get("bundles", [])),
+            manifest.get("updated_at", ""),
+        )
         return manifest
 
     async def _upload_bootstrap(self, manifest: dict) -> None:
@@ -274,6 +381,8 @@ class SyncService:
         }
         for table in SYNC_TABLES:
             snapshot["tables"][table.name] = await self._all_rows(table)
+        table_counts = {name: len(rows) for name, rows in snapshot["tables"].items()}
+        logger.info("sync.bootstrap.upload.start device=%s table_counts=%s", self.config.device_name, table_counts)
         await self.store.put_bytes(
             BOOTSTRAP_KEY,
             encrypt_json(snapshot, self.config.encryption_passphrase),
@@ -283,6 +392,7 @@ class SyncService:
         manifest["created_by"] = self.config.device_name
         manifest["updated_at"] = snapshot["created_at"]
         await self.store.put_json(MANIFEST_KEY, manifest)
+        logger.info("sync.bootstrap.upload.ok key=%s table_counts=%s", BOOTSTRAP_KEY, table_counts)
 
     async def _apply_snapshot(self, snapshot: dict) -> int:
         conflicts = 0
@@ -300,6 +410,7 @@ class SyncService:
                 _, conflicted = await self._apply_change(change)
                 if conflicted:
                     conflicts += 1
+        logger.info("sync.snapshot.apply.done conflicts=%s", conflicts)
         return conflicts
 
     async def _pending_changes(self) -> tuple[list[dict], int]:
@@ -309,6 +420,7 @@ class SyncService:
         )
         rows = await cursor.fetchall()
         if not rows:
+            logger.info("sync.pending.none")
             return [], 0
 
         latest: dict[tuple[str, str], tuple] = {}
@@ -332,6 +444,10 @@ class SyncService:
                 "origin_device": origin_device,
                 "row": current,
             })
+        by_table: dict[str, int] = {}
+        for change in changes:
+            by_table[change["table"]] = by_table.get(change["table"], 0) + 1
+        logger.info("sync.pending.compacted raw=%s effective=%s by_table=%s", len(rows), len(changes), by_table)
         return changes, max_id
 
     async def _drop_prebootstrap_stale_deletes(self) -> None:
@@ -360,6 +476,7 @@ class SyncService:
             )
         if stale:
             await self.db.commit()
+            logger.info("sync.pending.pruned_stale count=%s", len(stale))
 
     async def _apply_change(self, change: dict) -> tuple[bool, bool]:
         table = SYNC_TABLE_BY_NAME[change["table"]]
@@ -369,16 +486,19 @@ class SyncService:
 
         if local is None:
             await self._apply_with_suppression(change)
+            logger.info("sync.change.apply.ok table=%s record_id=%s op=%s reason=no_local_row", table.name, record_id, change["op"])
             return True, False
 
         if change["op"] == "DELETE":
             if int(local.get("sync_revision") or 0) <= int(change.get("base_revision") or 0):
                 await self._apply_with_suppression(change)
+                logger.info("sync.change.apply.ok table=%s record_id=%s op=DELETE", table.name, record_id)
                 return True, False
             await self._queue_conflict(table, record_id, local, remote, change, "Local row changed after remote delete.")
             return False, True
 
         if _hash_row(local) == _hash_row(remote):
+            logger.info("sync.change.apply.skip_identical table=%s record_id=%s", table.name, record_id)
             return True, False
 
         local_rev = int(local.get("sync_revision") or 0)
@@ -389,6 +509,15 @@ class SyncService:
             and local_rev < remote_rev
         ):
             await self._apply_with_suppression(change)
+            logger.info(
+                "sync.change.apply.ok table=%s record_id=%s op=%s local_rev=%s base_rev=%s remote_rev=%s",
+                table.name,
+                record_id,
+                change["op"],
+                local_rev,
+                base_rev,
+                remote_rev,
+            )
             return True, False
 
         await self._queue_conflict(table, record_id, local, remote, change, "Both devices changed this row.")
@@ -399,8 +528,10 @@ class SyncService:
         await self.db.execute("UPDATE sync_runtime SET value = '1' WHERE key = 'suppress'")
         try:
             if change["op"] == "DELETE":
+                logger.info("sync.change.db.delete table=%s record_id=%s", table.name, change["record_id"])
                 await self.db.execute(f"DELETE FROM {table.name} WHERE {table.pk} = ?", (change["record_id"],))
             else:
+                logger.info("sync.change.db.upsert table=%s record_id=%s", table.name, change["record_id"])
                 await self._upsert_row(table, change["row"])
         finally:
             await self.db.execute("UPDATE sync_runtime SET value = '0' WHERE key = 'suppress'")
@@ -450,6 +581,7 @@ class SyncService:
                 _dumps(row) if row else None,
             ),
         )
+        logger.info("sync.change.manual_queued table=%s record_id=%s op=%s", table.name, record_id, op)
 
     async def _queue_conflict(
         self,
@@ -476,6 +608,15 @@ class SyncService:
                 _dumps(change),
                 reason,
             ),
+        )
+        logger.warning(
+            "sync.conflict.queued id=%s table=%s record_id=%s reason=%s local_rev=%s remote_rev=%s",
+            conflict_id,
+            table.name,
+            record_id,
+            reason,
+            (local or {}).get("sync_revision"),
+            (remote or {}).get("sync_revision"),
         )
 
     async def _all_rows(self, table: SyncTable) -> list[dict]:
@@ -521,6 +662,7 @@ class SyncService:
             (action,),
         )
         await self.db.commit()
+        logger.info("sync.run_record.start id=%s action=%s", cursor.lastrowid, action)
         return cursor.lastrowid
 
     async def _finish_run(self, run_id: int, result: SyncResult) -> None:
@@ -538,3 +680,13 @@ class SyncService:
             ),
         )
         await self.db.commit()
+        logger.info(
+            "sync.run_record.finish id=%s action=%s status=%s pulled=%s pushed=%s conflicts=%s message=%s",
+            run_id,
+            result.action,
+            result.status,
+            result.bundles_pulled,
+            result.changes_pushed,
+            result.conflicts,
+            result.message,
+        )

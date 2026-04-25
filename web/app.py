@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -13,6 +14,9 @@ from jinja2 import Environment, FileSystemLoader
 from starlette.templating import Jinja2Templates
 
 from web.db import get_db, migrate
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
+logger = logging.getLogger(__name__)
 
 _WEB_DIR = Path(__file__).parent
 _TEMPLATE_DIRS = [
@@ -39,6 +43,18 @@ async def lifespan(app: FastAPI):
         sync_config = load_sync_config()
         app.state.sync_config = sync_config
         app.state.sync_config_error = ""
+        logger.info(
+            "sync.config.loaded enabled=%s provider=%s device=%s bucket=%s prefix=%s endpoint=%s auto=%s interval=%s ui_poll=%s",
+            sync_config.enabled,
+            sync_config.provider,
+            sync_config.device_name,
+            sync_config.bucket,
+            sync_config.prefix,
+            sync_config.endpoint,
+            sync_config.auto_enabled,
+            sync_config.interval_seconds,
+            sync_config.ui_poll_seconds,
+        )
         if sync_config.enabled:
             await db.execute(
                 "INSERT INTO sync_state (key, value) VALUES ('device_name', ?) "
@@ -55,6 +71,7 @@ async def lifespan(app: FastAPI):
             if sync_config.auto_enabled and sync_config.interval_seconds > 0:
                 app.state.sync_task = asyncio.create_task(_sync_loop(app))
     except Exception:
+        logger.exception("sync.config.invalid")
         app.state.sync_config = None
         app.state.sync_config_error = "Sync configuration is invalid."
     yield
@@ -77,10 +94,13 @@ async def _sync_loop(app: FastAPI) -> None:
         interval = config.interval_seconds if config else 0
         await asyncio.sleep(max(interval, 5))
         try:
+            logger.info("sync.periodic.start interval=%s", interval)
             await SyncService(app.state.db, config, build_store(config)).run()
+            logger.info("sync.periodic.ok")
         except asyncio.CancelledError:
             raise
         except Exception:
+            logger.exception("sync.periodic.error")
             try:
                 await app.state.db.execute(
                     "INSERT INTO sync_state (key, value) VALUES ('last_error', 'Periodic sync failed.') "

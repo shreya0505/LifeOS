@@ -456,15 +456,40 @@ async def test_challenge_forfeit_no_confirm_redirects(client):
 
 
 @pytest.mark.asyncio
-async def test_challenge_forfeit_confirmed_resets_and_starts_new(client):
+async def test_challenge_forfeit_confirmed_resets_and_starts_same_challenges(client, db):
+    await client.post(
+        "/challenge/setup",
+        data={"anchor[]": "Morning run", "improver[]": "Read"},
+    )
+    r = await client.post(
+        "/challenge/forfeit",
+        data={"confirm": "yes", "restart_mode": "same"},
+    )
+    assert r.status_code == 200
+    # Forfeit cinematic renders
+    assert "Relinquish" in r.text or "Forfeit" in r.text or "relinquish" in r.text.lower()
+
+    ch_repo = SqliteChallengeRepo(db)
+    task_repo = SqliteChallengeTaskRepo(db)
+    active = await ch_repo.get_active()
+    assert active is not None
+    tasks = await task_repo.get_by_challenge(active["id"])
+    assert {t["name"] for t in tasks} == {"Morning run", "Read"}
+
+
+@pytest.mark.asyncio
+async def test_challenge_forfeit_confirmed_can_restart_with_setup(client, db):
     await client.post(
         "/challenge/setup",
         data={"anchor[]": "Morning run"},
     )
     r = await client.post(
         "/challenge/forfeit",
-        data={"confirm": "yes"},
+        data={"confirm": "yes", "restart_mode": "setup"},
+        follow_redirects=False,
     )
-    assert r.status_code == 200
-    # Forfeit cinematic renders
-    assert "Relinquish" in r.text or "Forfeit" in r.text or "relinquish" in r.text.lower()
+    assert r.status_code in (302, 303)
+    assert r.headers["location"].endswith("/challenge/setup")
+
+    ch_repo = SqliteChallengeRepo(db)
+    assert await ch_repo.get_active() is None
