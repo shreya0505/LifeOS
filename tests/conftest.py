@@ -34,6 +34,25 @@ async def db(tmp_path):
 
 
 @pytest_asyncio.fixture
+async def sync_db(tmp_path):
+    """Factory yielding migrated aiosqlite connections for sync tests."""
+    conns = []
+
+    async def factory(name: str):
+        conn = await aiosqlite.connect(tmp_path / f"{name}.db")
+        await conn.execute("PRAGMA journal_mode=WAL")
+        await conn.execute("PRAGMA foreign_keys=ON")
+        await migrate(conn)
+        conns.append(conn)
+        return conn
+
+    yield factory
+
+    for conn in conns:
+        await conn.close()
+
+
+@pytest_asyncio.fixture
 async def client(db):
     """Yield an httpx AsyncClient wired to the FastAPI app."""
     # Import here so QUESTLOG_DB env is already set

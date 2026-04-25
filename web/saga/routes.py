@@ -7,7 +7,7 @@ from datetime import date
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from core.saga import emotion_catalog, grouped_events, saga_metrics, unified_events
+from core.saga import dyad_catalog, emotion_catalog, render_markdown_note, saga_metrics, timeline_days
 from core.storage.saga_backend import SqliteSagaRepo
 from core.utils import today_local
 
@@ -20,11 +20,27 @@ def _render(request: Request, name: str, context: dict):
 
 
 def _entry_context(entries: list[dict]) -> dict:
-    return {"entries": entries, "emotion_catalog": emotion_catalog()}
+    return {"entries": _rendered_entries(entries), "emotion_catalog": emotion_catalog()}
+
+
+def _rendered_entries(entries: list[dict]) -> list[dict]:
+    return [{**entry, "note_html": render_markdown_note(entry.get("note"))} for entry in entries]
+
+
+def _today_context(entries: list[dict]) -> dict:
+    return {"entries": _rendered_entries(entries)}
 
 
 async def _recent_response(request: Request, repo: SqliteSagaRepo) -> HTMLResponse:
     return _render(request, "saga_recent_entries.html", _entry_context(await repo.list_recent()))
+
+
+async def _today_notes_response(request: Request, repo: SqliteSagaRepo) -> HTMLResponse:
+    return _render(
+        request,
+        "saga_today_entries.html",
+        _today_context(await repo.list_by_date(today_local().isoformat())),
+    )
 
 
 @router.get("", response_class=HTMLResponse)
@@ -32,15 +48,15 @@ async def _recent_response(request: Request, repo: SqliteSagaRepo) -> HTMLRespon
 async def saga_index(request: Request):
     repo = SqliteSagaRepo(request.app.state.db)
     today = today_local().isoformat()
-    events = await unified_events(request.app.state.db, today)
     return _render(request, "saga_index.html", {
         "active_tab": "today",
         "today": today,
         "today_label": date.fromisoformat(today).strftime("%b %d"),
         "emotion_catalog": emotion_catalog(),
-        "recent_entries": await repo.list_recent(),
-        "event_groups": grouped_events(events),
+        "dyad_catalog": dyad_catalog(),
+        "today_entries": _rendered_entries(await repo.list_by_date(today)),
         "metrics": await saga_metrics(request.app.state.db),
+        "timeline": await timeline_days(request.app.state.db),
     })
 
 
@@ -50,13 +66,9 @@ async def saga_today_redirect():
 
 
 @router.get("/timeline", response_class=HTMLResponse)
-async def saga_timeline(request: Request, local_date: str | None = None):
-    day = local_date or today_local().isoformat()
-    events = await unified_events(request.app.state.db, day)
+async def saga_timeline(request: Request, page: int = 1):
     return _render(request, "saga_timeline.html", {
-        "today": day,
-        "today_label": date.fromisoformat(day).strftime("%b %d"),
-        "event_groups": grouped_events(events),
+        "timeline": await timeline_days(request.app.state.db, page=page),
     })
 
 
@@ -74,13 +86,22 @@ async def create_entry(
     emotion_label: str = Form(...),
     intensity: int = Form(...),
     note: str = Form(""),
+    secondary_emotion_family: str = Form(""),
+    secondary_emotion_label: str = Form(""),
 ):
     repo = SqliteSagaRepo(request.app.state.db)
     try:
-        await repo.create(emotion_family, emotion_label, intensity, note)
+        await repo.create(
+            emotion_family,
+            emotion_label,
+            intensity,
+            note,
+            secondary_emotion_family=secondary_emotion_family,
+            secondary_emotion_label=secondary_emotion_label,
+        )
     except ValueError as exc:
         return HTMLResponse(str(exc), status_code=400)
-    response = await _recent_response(request, repo)
+    response = await _today_notes_response(request, repo)
     response.headers["HX-Trigger"] = "saga-changed"
     return response
 
@@ -93,12 +114,22 @@ async def update_entry(
     emotion_label: str = Form(...),
     intensity: int = Form(...),
     note: str = Form(""),
+    secondary_emotion_family: str = Form(""),
+    secondary_emotion_label: str = Form(""),
 ):
     repo = SqliteSagaRepo(request.app.state.db)
-    updated = await repo.update(entry_id, emotion_family, emotion_label, intensity, note)
+    updated = await repo.update(
+        entry_id,
+        emotion_family,
+        emotion_label,
+        intensity,
+        note,
+        secondary_emotion_family=secondary_emotion_family,
+        secondary_emotion_label=secondary_emotion_label,
+    )
     if updated is None:
         return HTMLResponse("Entry not found.", status_code=404)
-    response = await _recent_response(request, repo)
+    response = await _today_notes_response(request, repo)
     response.headers["HX-Trigger"] = "saga-changed"
     return response
 
@@ -107,6 +138,6 @@ async def update_entry(
 async def delete_entry(request: Request, entry_id: str):
     repo = SqliteSagaRepo(request.app.state.db)
     await repo.delete(entry_id)
-    response = await _recent_response(request, repo)
+    response = await _today_notes_response(request, repo)
     response.headers["HX-Trigger"] = "saga-changed"
     return response

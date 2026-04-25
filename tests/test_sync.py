@@ -30,27 +30,6 @@ def _config(device: str) -> SyncConfig:
     )
 
 
-@pytest_asyncio.fixture
-async def sync_db(tmp_path):
-    async def _make(name: str):
-        conn = await aiosqlite.connect(tmp_path / f"{name}.db")
-        await conn.execute("PRAGMA journal_mode=WAL")
-        await conn.execute("PRAGMA foreign_keys=ON")
-        await migrate(conn)
-        return conn
-
-    conns = []
-    async def factory(name: str):
-        conn = await _make(name)
-        conns.append(conn)
-        return conn
-
-    yield factory
-
-    for conn in conns:
-        await conn.close()
-
-
 def test_sync_config_requires_values_when_enabled():
     with pytest.raises(SyncConfigError):
         load_sync_config({"SYNC_ENABLED": "true", "SYNC_PROVIDER": "r2"})

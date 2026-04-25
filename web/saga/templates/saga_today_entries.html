@@ -1,0 +1,25 @@
+{% if entries %}
+<div class="saga-note-cards">
+  {% for entry in entries %}
+  <article class="saga-note-card{% if entry.dyad_type %} saga-note-card--{{ entry.dyad_type }}{% endif %}"
+           {% if entry.dyad_type %}style="--dyad-accent: {{ entry.dyad_accent }}"{% endif %}>
+    <div class="saga-note-card__body">{{ entry.note_html | safe }}</div>
+    <footer>
+      <time>{{ entry.timestamp[11:16] }}</time>
+      <span>
+        {{ entry.emotion_label }}{% if entry.secondary_emotion_label %} + {{ entry.secondary_emotion_label }}{% endif %} / {{ entry.intensity }}
+      </span>
+      {% if entry.dyad_type == "opposite" %}
+      <span>Opposites</span>
+      {% elif entry.dyad_label %}
+      <span>{{ entry.dyad_label }} / {{ entry.dyad_type }}</span>
+      {% endif %}
+    </footer>
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<div class="saga-empty-line">
+  The day is quiet so far. One capture is enough to begin the page.
+</div>
+{% endif %}

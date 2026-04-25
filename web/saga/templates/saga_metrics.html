@@ -1,65 +1,165 @@
-<section class="saga-metrics-panel">
-  <header class="saga-sticky-head">
-    <div>
-      <p class="saga-kicker">Patterns</p>
-      <h1>Reflection metrics</h1>
+<section class="saga-metrics-panel saga-ledger">
+  {% set day = metrics.current %}
+  <header class="saga-ledger-hero" style="--day-accent: {{ day.saga.accent if day else '#CF9D7B' }}">
+    <div class="saga-ledger-hero__copy">
+      <p class="saga-kicker">Relational ledger</p>
+      <h1>{{ day.archetype if day else 'No Signal' }}</h1>
+      <p>{{ day.verdict if day else 'Capture emotion, complete quests, and log challenge progress to unlock the field report.' }}</p>
     </div>
-    <span>{{ metrics.total_entries }} entries</span>
+    {% if day %}
+    <div class="saga-ledger-hero__meta">
+      <span>{{ day.label }}</span>
+      <span>{{ day.weekday }}</span>
+      <span>{{ metrics.range_days }} day read</span>
+    </div>
+    {% endif %}
   </header>
 
-  <div class="saga-metric-band">
+  {% if day %}
+  <section class="saga-ledger-strip" aria-label="Daily relational scores">
     <div>
-      <span class="saga-field-label">Stability</span>
-      <strong>{{ metrics.stability }}</strong>
-      <small>Average drift {{ metrics.volatility }}</small>
+      <span>Mood load</span>
+      <strong>{{ day.saga.mood_load }}</strong>
+      <small>{{ day.saga.load_label }}{% if day.saga.dominant_label %} / {{ day.saga.dominant_label }}{% endif %}</small>
     </div>
-    <p>{{ metrics.correlation }}</p>
-  </div>
+    <div>
+      <span>Quest output</span>
+      <strong>{{ day.quest.output_index }}</strong>
+      <small>{{ day.quest.label }} / {{ day.quest.count }} done</small>
+    </div>
+    <div>
+      <span>Challenge hold</span>
+      <strong>{% if day.challenge.score is not none %}{{ day.challenge.score }}{% else %}-{% endif %}</strong>
+      <small>{{ day.challenge.label }} / {{ day.challenge.count }} trials</small>
+    </div>
+    <div>
+      <span>Alignment</span>
+      <strong>{% if day.alignment.score is not none %}{{ day.alignment.score }}{% else %}-{% endif %}</strong>
+      <small>{{ day.alignment.label }}</small>
+    </div>
+  </section>
 
-  <section class="saga-heatmap-section">
+  <section class="saga-relation-grid">
+    <article>
+      <span>Emotion to Quest</span>
+      <strong>{{ day.relations.emotion_quest }}</strong>
+      <p>Emotional load is read against completed tasks, not shown as a separate mood chart.</p>
+    </article>
+    <article>
+      <span>Emotion to Challenge</span>
+      <strong>{{ day.relations.emotion_challenge }}</strong>
+      <p>Intensity is tested against whether the long-term system held.</p>
+    </article>
+    <article>
+      <span>Quest to Challenge</span>
+      <strong>{{ day.relations.quest_challenge }}</strong>
+      <p>Output only counts as aligned when it moves with identity-level progress.</p>
+    </article>
+  </section>
+
+  <section class="saga-evidence-grid">
+    <article class="saga-evidence-card">
+      <div class="saga-section-head">
+        <span>Saga state</span>
+        <small>emotional cost</small>
+      </div>
+      <dl>
+        <div><dt>Entries</dt><dd>{{ day.saga.entry_count }}</dd></div>
+        <div><dt>Average</dt><dd>{{ day.saga.avg_intensity }}/10</dd></div>
+        <div><dt>Peak</dt><dd>{{ day.saga.peak_intensity }}/10</dd></div>
+        <div><dt>Volatility</dt><dd>{{ day.saga.volatility }}</dd></div>
+        <div><dt>Dyads</dt><dd>{{ day.saga.dyad_count }}</dd></div>
+      </dl>
+    </article>
+
+    <article class="saga-evidence-card">
+      <div class="saga-section-head">
+        <span>Quest response</span>
+        <small>execution under state</small>
+      </div>
+      <dl>
+        <div><dt>Completed</dt><dd>{{ day.quest.count }}</dd></div>
+        <div><dt>Weighted</dt><dd>{{ day.quest.weighted }}</dd></div>
+        <div><dt>Baseline</dt><dd>{{ day.quest.baseline }}</dd></div>
+        <div><dt>Delta</dt><dd>{% if day.quest.delta_pct > 0 %}+{% endif %}{{ day.quest.delta_pct }}%</dd></div>
+        <div><dt>Frogs</dt><dd>{{ day.quest.frog_count }}</dd></div>
+      </dl>
+    </article>
+
+    <article class="saga-evidence-card">
+      <div class="saga-section-head">
+        <span>Challenge posture</span>
+        <small>long-term system</small>
+      </div>
+      {% if day.challenge.bucket_rows %}
+      <div class="saga-bucket-read">
+        {% for bucket in day.challenge.bucket_rows %}
+        <div>
+          <span>{{ bucket.label }}</span>
+          <i style="width: {{ bucket.score }}%"></i>
+          <strong>{{ bucket.score }}</strong>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="saga-empty-line">Challenge data has not entered this day.</p>
+      {% endif %}
+    </article>
+  </section>
+
+  <section class="saga-pattern-panel">
     <div class="saga-section-head">
-      <span>35 day intensity</span>
-      <small>average daily pressure</small>
+      <span>Pattern memory</span>
+      <small>relationships over time</small>
     </div>
-    <div class="saga-heatmap">
-      {% for cell in metrics.heatmap %}
-      <span class="saga-heatmap__cell saga-heatmap__cell--{{ cell.level }}"
-            title="{{ cell.date }}: {{ cell.count }} entries, avg {{ cell.average }}">
-        {{ cell.day }}
+    <div class="saga-pattern-grid">
+      <article>
+        <span>Common day type</span>
+        <strong>{{ metrics.trends.common_archetype }}</strong>
+      </article>
+      <article>
+        <span>Pressure and output</span>
+        <strong>{{ metrics.trends.pressure_output }}</strong>
+      </article>
+      <article>
+        <span>Keystone mood</span>
+        <strong>{{ metrics.trends.keystone_mood or 'Still resolving' }}</strong>
+      </article>
+      <article>
+        <span>Risk mood</span>
+        <strong>{{ metrics.trends.risk_mood or 'Still resolving' }}</strong>
+      </article>
+      <article>
+        <span>Recovery read</span>
+        <strong>{{ metrics.trends.recovery }}</strong>
+      </article>
+    </div>
+    {% if metrics.trends.arc %}
+    <div class="saga-arc">
+      {% for item in metrics.trends.arc %}
+      <span style="--arc-accent: {{ item.accent }}">
+        <small>{{ item.date }}</small>
+        {{ item.archetype }}
       </span>
       {% endfor %}
     </div>
-  </section>
-
-  <section class="saga-distribution-section">
-    <div class="saga-section-head">
-      <span>Emotion distribution</span>
-      <small>family share</small>
-    </div>
-    <div class="saga-distribution">
-      {% for item in metrics.distribution %}
-      <div class="saga-dist-row">
-        <span>{{ item.label }}</span>
-        <div><i style="width: {{ item.pct }}%"></i></div>
-        <strong>{{ item.count }}</strong>
-      </div>
-      {% endfor %}
-    </div>
-  </section>
-
-  <section class="saga-top-labels">
-    <div class="saga-section-head">
-      <span>Most named</span>
-      <small>signal words</small>
-    </div>
-    {% if metrics.top_labels %}
-    <div class="saga-label-cloud">
-      {% for label, count in metrics.top_labels %}
-      <span>{{ label }} <small>{{ count }}</small></span>
-      {% endfor %}
-    </div>
-    {% else %}
-    <p class="saga-empty-line">Capture a few moments and this section will tighten up.</p>
     {% endif %}
   </section>
+
+  <section class="saga-relationship-heat">
+    <div class="saga-section-head">
+      <span>Recent field states</span>
+      <small>archetype arc</small>
+    </div>
+    <div class="saga-day-type-list">
+      {% for item in metrics.recent_days %}
+      <article style="--row-accent: {{ item.saga.accent }}">
+        <span>{{ item.label }}</span>
+        <strong>{{ item.archetype }}</strong>
+        <small>{{ item.relations.emotion_quest }} / {{ item.alignment.label }}</small>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
 </section>

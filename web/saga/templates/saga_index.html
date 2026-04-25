@@ -10,38 +10,40 @@
 
   <section class="saga-panel" x-show="tab === 'today'">
     <div class="saga-today"
-         x-data="sagaCapture({{ emotion_catalog | tojson }})"
+         x-data='sagaCapture({{ emotion_catalog | tojson }}, {{ dyad_catalog | tojson }})'
          x-init="init()">
       <div class="saga-today__prompt">
         <p class="saga-kicker">{{ today_label }}</p>
-        <h1>What is the tone right now?</h1>
+        <h1 class="saga-prompt">What is the tone right now?</h1>
         <p class="saga-today__sub">Choose a word, set the pressure, leave a line if it helps.</p>
       </div>
 
       <form class="saga-capture"
             hx-post="/saga/entries"
-            hx-target="#saga-recent"
-            hx-swap="innerHTML"
+            hx-swap="none"
             @htmx:after-request="if ($event.detail.successful) finishCapture()">
-        <input type="hidden" name="emotion_family" x-model="family">
-        <input type="hidden" name="emotion_label" x-model="label">
+        <input type="hidden" name="emotion_family" :value="primaryEmotion().family">
+        <input type="hidden" name="emotion_label" :value="primaryEmotion().label">
+        <input type="hidden" name="secondary_emotion_family" :value="secondaryEmotion() ? secondaryEmotion().family : ''">
+        <input type="hidden" name="secondary_emotion_label" :value="secondaryEmotion() ? secondaryEmotion().label : ''">
         <input type="hidden" name="intensity" x-model="intensity">
 
         <div class="saga-wheel" aria-label="Emotion selector">
           {% for group in emotion_catalog %}
           <section class="saga-wheel__lane"
-                   :class="{ 'is-selected': family === '{{ group.family }}' }"
-                   style="--lane-index: {{ loop.index0 }}">
+                   :class="{ 'is-selected': familySelected('{{ group.family }}') }"
+                   style="--lane-index: {{ loop.index0 }}; --emotion-accent: {{ group.accent }}">
             <button class="saga-wheel__family" type="button"
-                    @click="select('{{ group.family }}', '{{ group.words[1] }}', 5)">
+                    @click="toggleEmotion('{{ group.family }}', '{{ group.words[1] }}', 5)">
               <span class="saga-wheel__pip"></span>
               <span>{{ group.label }}</span>
             </button>
             <div class="saga-wheel__words">
               {% for word in group.words %}
               <button class="saga-word" type="button"
-                      :class="{ 'is-selected': family === '{{ group.family }}' && label === '{{ word }}' }"
-                      @click="select('{{ group.family }}', '{{ word }}', {{ 2 if loop.index0 == 0 else 5 if loop.index0 == 1 else 8 }})">
+                      :class="{ 'is-selected': isSelected('{{ group.family }}', '{{ word }}') }"
+                      style="--emotion-tier: {{ loop.index }}"
+                      @click="toggleEmotion('{{ group.family }}', '{{ word }}', {{ 2 if loop.index0 == 0 else 5 if loop.index0 == 1 else 8 }})">
                 {{ word }}
               </button>
               {% endfor %}
@@ -50,12 +52,14 @@
           {% endfor %}
         </div>
 
-        <div class="saga-mix-strip" x-show="selectedMix()" x-cloak>
-          <span>Adjacent mix</span>
-          <button type="button" @click="select(family, selectedMix().label, intensity)">
-            <strong x-text="selectedMix().label"></strong>
-            <em x-text="familyLabel(family) + ' + ' + familyLabel(selectedMix().with)"></em>
-          </button>
+        <div class="saga-dyad-strip"
+             x-show="selected.length === 2"
+             x-cloak
+             :class="'saga-dyad-strip--' + dyadConclusion().type"
+             :style="'--dyad-accent: ' + dyadConclusion().accent">
+          <span x-text="dyadConclusion().typeLabel"></span>
+          <strong x-text="dyadConclusion().label"></strong>
+          <em x-text="selectionLabel()"></em>
         </div>
 
         <div class="saga-intensity">
@@ -68,30 +72,18 @@
         </div>
 
         <label class="saga-note">
-          <span class="saga-field-label">Optional note</span>
-          <textarea name="note" maxlength="200" rows="3"
+          <textarea name="note" maxlength="2000" rows="5"
+                    x-ref="noteInput"
                     x-model="note"
-                    placeholder="One precise line, or leave it blank."></textarea>
-          <small><span x-text="note.length"></span>/200</small>
+                    placeholder="Write a note..."></textarea>
+          <small><span x-text="note.length"></span>/2000</small>
         </label>
 
         <div class="saga-capture__footer">
           <p class="saga-confirm" x-text="confirmation"></p>
-          <button class="saga-capture__submit" type="submit">Capture moment</button>
+          <button class="saga-capture__submit" type="submit">Save</button>
         </div>
       </form>
-
-      <aside class="saga-recent-wrap">
-        <div class="saga-section-head">
-          <span>Recent captures</span>
-          <small>Synced entries</small>
-        </div>
-        <div id="saga-recent">
-          {% with entries=recent_entries %}
-            {% include "saga_recent_entries.html" %}
-          {% endwith %}
-        </div>
-      </aside>
     </div>
   </section>
 
@@ -115,11 +107,11 @@
 </div>
 
 <script>
-  function sagaCapture(catalog) {
+  function sagaCapture(catalog, dyads) {
     return {
       catalog,
-      family: 'joy',
-      label: 'joy',
+      dyads,
+      selected: [{ family: 'joy', label: 'joy', intensity: 5 }],
       intensity: 5,
       note: '',
       confirmation: '',
@@ -128,36 +120,86 @@
         if (saved) {
           try {
             const draft = JSON.parse(saved);
-            this.family = draft.family || this.family;
-            this.label = draft.label || this.label;
+            if (Array.isArray(draft.selected) && draft.selected.length) {
+              this.selected = draft.selected.slice(0, 2);
+            } else if (draft.family && draft.label) {
+              this.selected = [{ family: draft.family, label: draft.label, intensity: draft.intensity || 5 }];
+            }
             this.intensity = draft.intensity || this.intensity;
             this.note = draft.note || '';
           } catch (_) {}
         }
-        this.$watch('family', () => this.saveDraft());
-        this.$watch('label', () => this.saveDraft());
+        this.$watch('selected', () => this.saveDraft());
         this.$watch('intensity', () => this.saveDraft());
         this.$watch('note', () => this.saveDraft());
       },
       saveDraft() {
         localStorage.setItem('saga.draft.v1', JSON.stringify({
-          family: this.family,
-          label: this.label,
+          selected: this.selected,
           intensity: this.intensity,
           note: this.note
         }));
       },
-      select(family, label, intensity) {
-        this.family = family;
-        this.label = label;
-        this.intensity = intensity;
+      primaryEmotion() {
+        return this.selected[0] || { family: 'joy', label: 'joy', intensity: 5 };
       },
-      selectedMix() {
-        return (this.catalog.find(group => group.family === this.family) || {}).mix || null;
+      secondaryEmotion() {
+        return this.selected[1] || null;
+      },
+      pairKey() {
+        if (this.selected.length < 2) return '';
+        return [this.selected[0].family, this.selected[1].family].sort().join('|');
+      },
+      dyadConclusion() {
+        const found = this.dyads[this.pairKey()];
+        if (!found) {
+          return { label: 'No named dyad', type: 'none', typeLabel: 'Combination', accent: '#EACEAA' };
+        }
+        if (found.type === 'opposite') {
+          return { label: 'Opposites, not a dyad', type: 'opposite', typeLabel: 'Opposite', accent: found.accent };
+        }
+        return {
+          label: found.label,
+          type: found.type,
+          typeLabel: found.type + ' dyad',
+          accent: found.accent
+        };
+      },
+      selectionLabel() {
+        return this.selected.map(item => `${this.familyLabel(item.family)} / ${item.label}`).join(' + ');
+      },
+      familySelected(family) {
+        return this.selected.some(item => item.family === family);
+      },
+      isSelected(family, label) {
+        return this.selected.some(item => item.family === family && item.label === label);
       },
       familyLabel(family) {
         const found = this.catalog.find(group => group.family === family);
         return found ? found.label : family;
+      },
+      toggleEmotion(family, label, intensity) {
+        const existing = this.selected.findIndex(item => item.family === family && item.label === label);
+        if (existing >= 0) {
+          if (this.selected.length > 1) {
+            this.selected.splice(existing, 1);
+          }
+          this.intensity = Math.max(...this.selected.map(item => item.intensity || 5));
+          return;
+        }
+        const sameFamily = this.selected.findIndex(item => item.family === family);
+        if (sameFamily >= 0) {
+          this.selected.splice(sameFamily, 1, { family, label, intensity });
+          this.intensity = Math.max(...this.selected.map(item => item.intensity || 5));
+          return;
+        }
+        const next = { family, label, intensity };
+        if (this.selected.length < 2) {
+          this.selected.push(next);
+        } else {
+          this.selected.splice(1, 1, next);
+        }
+        this.intensity = Math.max(...this.selected.map(item => item.intensity || 5));
       },
       intensityTier() {
         if (this.intensity <= 3) return 'low tier';
@@ -166,8 +208,9 @@
       },
       finishCapture() {
         this.note = '';
-        this.confirmation = 'Captured just now.';
+        this.confirmation = 'Entry saved.';
         localStorage.removeItem('saga.draft.v1');
+        this.$nextTick(() => this.$refs.noteInput && this.$refs.noteInput.focus());
         setTimeout(() => this.confirmation = '', 1800);
       }
     }

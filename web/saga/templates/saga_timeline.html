@@ -1,48 +1,124 @@
 <section class="saga-timeline-panel">
-  <header class="saga-sticky-head">
-    <div>
-      <p class="saga-kicker">Daily story</p>
-      <h1>{{ today_label }}</h1>
-    </div>
-    <span>{{ today }}</span>
-  </header>
+  <article class="saga-day-panel">
+    <div class="saga-timeline">
+      {% if timeline.days %}
+      {% for day in timeline.days %}
+      <article class="saga-day-card saga-day-card--{{ day.granularity }}" x-data="{ open: {{ 'true' if loop.first else 'false' }} }">
+        <button class="saga-day-card__dot"
+                type="button"
+                :aria-expanded="open.toString()"
+                @click="open = !open">
+          <span class="saga-day-card__marker"></span>
+          <span class="saga-day-card__date" style="--day-mood-accent: {{ day.latest_mood_accent }}">
+            <span class="saga-day-card__title">
+              <strong>{{ day.label }}</strong>
+              <span class="saga-day-card__meta">
+                {% for item in day.title_meta %}
+                <span{% if loop.index0 == 1 and day.latest_mood %} class="saga-day-card__latest"{% endif %}>{{ item }}</span>
+                {% endfor %}
+              </span>
+            </span>
+            <small>{{ day.weekday }} &middot; {{ day.granularity }}</small>
+          </span>
+        </button>
 
-  <div class="saga-timeline">
-    {% for group in event_groups %}
-    <section class="saga-time-block">
-      <h2>{{ group.label }}</h2>
-      {% if group.events %}
-      <div class="saga-event-list">
-        {% for event in group.events %}
-        <details class="saga-event saga-event--{{ event.source }}">
-          <summary>
-            <span class="saga-event__pip"></span>
-            <span class="saga-event__time">{{ event.time or "--:--" }}</span>
-            <span class="saga-event__source">{{ event.source_label }}</span>
-            <strong>{{ event.title }}</strong>
-          </summary>
-          <div class="saga-event__body">
-            <p>{{ event.summary }}</p>
-            {% if event.payload %}
-            <dl>
-              {% for key, value in event.payload.items() %}
-              {% if value %}
-              <div>
-                <dt>{{ key.replace("_", " ") }}</dt>
-                <dd>{{ value }}</dd>
+        <div class="saga-day-card__panel" x-show="open" x-collapse>
+          {% if day.entries %}
+          <section class="saga-day-section saga-day-section--entries">
+            <h2>Entries</h2>
+            <div class="saga-day-notes">
+              {% for entry in day.entries %}
+              <div class="saga-day-note{% if entry.dyad_type %} saga-day-note--{{ entry.dyad_type }}{% endif %}"
+                   style="--mood-accent: {{ entry.emotion_accent }}; --dyad-accent: {{ entry.dyad_accent }}; --mood-strength: {{ entry.intensity_pct }}%; --mood-wash: {{ entry.mood_wash_pct }}%; --mood-glow: {{ entry.mood_glow_pct }}%; --mood-chip: {{ entry.mood_chip_pct }}%;">
+                <time>{{ entry.time or "--:--" }}</time>
+                <div class="saga-day-note__body">{{ entry.note_html | safe }}</div>
+                <div class="saga-day-note__mood" aria-label="Entry mood">
+                  <span class="saga-mood-pill saga-mood-pill--emotion">{{ entry.emotion }}</span>
+                  {% if entry.dyad_type == "opposite" %}
+                  <span class="saga-mood-pill saga-mood-pill--dyad">Opposites</span>
+                  {% elif entry.dyad_label %}
+                  <span class="saga-mood-pill saga-mood-pill--dyad">{{ entry.dyad_label }}</span>
+                  {% endif %}
+                  <span class="saga-mood-pill saga-mood-pill--intensity">{{ entry.intensity }}/10</span>
+                </div>
               </div>
-              {% endif %}
               {% endfor %}
-            </dl>
-            {% endif %}
-          </div>
-        </details>
-        {% endfor %}
-      </div>
+            </div>
+          </section>
+          {% endif %}
+
+          {% if day.quests %}
+          <section class="saga-day-section saga-day-section--quests">
+            <h2>Quest Data</h2>
+            <div class="saga-day-list">
+              {% for quest in day.quests %}
+              <article class="saga-day-data-row saga-day-data-row--questlog">
+                <time>{{ quest.time or "--:--" }}</time>
+                <div>
+                  <strong>{{ quest.title }}</strong>
+                  {% if quest.project or quest.labels or quest.workspace %}
+                  <p>
+                    {% if quest.project %}<span>{{ quest.project }}</span>{% endif %}
+                    {% if quest.labels %}<span>{{ quest.labels }}</span>{% endif %}
+                    {% if quest.workspace %}<span>{{ quest.workspace }}</span>{% endif %}
+                  </p>
+                  {% endif %}
+                </div>
+              </article>
+              {% endfor %}
+            </div>
+          </section>
+          {% endif %}
+
+          {% if day.challenges %}
+          <section class="saga-day-section saga-day-section--challenges">
+            <h2>Challenge Data</h2>
+            <div class="saga-day-list">
+              {% for item in day.challenges %}
+              <article class="saga-day-data-row saga-day-data-row--hard90">
+                <time>{{ item.time or "--:--" }}</time>
+                <div>
+                  <strong>{{ item.title }}</strong>
+                  {% if item.state or item.bucket or item.era %}
+                  <p>
+                    {% if item.state %}<span>{{ item.state }}</span>{% endif %}
+                    {% if item.bucket %}<span>{{ item.bucket }}</span>{% endif %}
+                    {% if item.era %}<span>{{ item.era }}</span>{% endif %}
+                  </p>
+                  {% endif %}
+                  {% if item.notes %}
+                  <em>{{ item.notes }}</em>
+                  {% endif %}
+                </div>
+              </article>
+              {% endfor %}
+            </div>
+          </section>
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
       {% else %}
-      <p class="saga-empty-line">No signals in this block yet.</p>
+      <p class="saga-empty-line">No timeline data yet. Send a note to start the thread.</p>
       {% endif %}
-    </section>
-    {% endfor %}
-  </div>
+    </div>
+
+    {% if timeline.has_prev or timeline.has_next %}
+    <nav class="saga-timeline-pager" aria-label="Timeline pages">
+      {% if timeline.has_prev %}
+      <button type="button"
+              hx-get="/saga/timeline?page={{ timeline.prev_page }}"
+              hx-target="#saga-timeline-slot"
+              hx-swap="innerHTML">Newer</button>
+      {% endif %}
+      <span>Page {{ timeline.page }}</span>
+      {% if timeline.has_next %}
+      <button type="button"
+              hx-get="/saga/timeline?page={{ timeline.next_page }}"
+              hx-target="#saga-timeline-slot"
+              hx-swap="innerHTML">Older</button>
+      {% endif %}
+    </nav>
+    {% endif %}
+  </article>
 </section>
