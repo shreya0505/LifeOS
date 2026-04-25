@@ -16,8 +16,10 @@ from core.utils import (
     quest_age_days, quest_age_bucket, label_hue, is_url,
 )
 from core.pomo_queries import get_all_pomo_counts_today
-from web.deps import get_quest_repo, get_pomo_repo, get_artifact_key_repo
+from core.storage.sqlite_backend import SqliteArtifactKeyRepo
+from web.deps import get_quest_repo, get_pomo_repo, get_workspace_repo
 from web.pomos.engine import get_engine as _get_pomo_engine
+from web.questlog_context import WORKSPACE_COOKIE, QuestlogContext, resolve_questlog_context
 
 router = APIRouter()
 
@@ -31,12 +33,21 @@ _COLUMNS = [
 ]
 
 _SORT_MODES = {"priority", "age"}
+_WORKSPACE_ICONS = {"folder", "clipboard-list", "hammer", "target", "flame", "moon", "scroll", "tag"}
+_WORKSPACE_COLORS = {"blue", "green", "amber", "rose", "violet", "slate"}
 
 
 def _active_pomo_quest_id() -> str | None:
     engine = _get_pomo_engine()
     if engine.is_active and engine.session:
         return engine.session.get("quest_id")
+    return None
+
+
+def _active_pomo_workspace_id() -> str | None:
+    engine = _get_pomo_engine()
+    if engine.is_active and engine.session:
+        return engine.session.get("workspace_id") or "work"
     return None
 
 
@@ -142,6 +153,7 @@ async def _build_board_context(
     quest_repo,
     pomo_repo,
     *,
+    workspace_id: str = "work",
     filter_priority: list[int] | None = None,
     filter_labels: list[str] | None = None,
     filter_project: str | None = None,
@@ -149,8 +161,8 @@ async def _build_board_context(
     sort_mode: str | None = None,
 ) -> tuple[list[dict], list[str], list[dict]]:
     """Build column data with enriched quest cards. Returns (columns, all_projects, all_labels_with_hue)."""
-    quests = await quest_repo.load_all()
-    sessions = await pomo_repo.load_all()
+    quests = await quest_repo.load_all(workspace_id)
+    sessions = await pomo_repo.load_all(workspace_id)
     pomo_counts = get_all_pomo_counts_today(sessions)
 
     today_str = today_local().isoformat()
@@ -196,11 +208,11 @@ async def _build_board_context(
     return columns, all_projects, all_labels_with_hue
 
 
-async def _build_legend_context(quest_repo) -> dict:
+async def _build_legend_context(quest_repo, workspace_id: str) -> dict:
     today_str = today_local().isoformat()
     done_quests = [
         _enrich_quest(q, {}, today_str)
-        for q in await quest_repo.load_all()
+        for q in await quest_repo.load_all(workspace_id)
         if q["status"] == "done"
     ]
     for quest in done_quests:
@@ -279,17 +291,27 @@ async def _parse_filter_params(request: Request) -> dict:
     }
 
 
-async def _quest_counts(quest_repo) -> dict:
-    quests = [q for q in await quest_repo.load_all() if q["status"] != "abandoned"]
+async def _quest_counts(quest_repo, workspace_id: str) -> dict:
+    quests = [q for q in await quest_repo.load_all(workspace_id) if q["status"] != "abandoned"]
     total = len(quests)
     active = sum(1 for q in quests if q["status"] == "active")
     done = sum(1 for q in quests if q["status"] == "done")
     return {"total": total, "active": active, "done": done}
 
 
-async def _board_response(request, quest_repo, pomo_repo, filters: dict | None = None, key_repo=None):
+async def _board_response(
+    request,
+    quest_repo,
+    pomo_repo,
+    filters: dict | None = None,
+    key_repo=None,
+    qctx: QuestlogContext | None = None,
+):
     f = filters or {}
-    columns, all_projects, all_labels_with_hue = await _build_board_context(quest_repo, pomo_repo, **f)
+    workspace_id = qctx.workspace_id if qctx else "work"
+    columns, all_projects, all_labels_with_hue = await _build_board_context(
+        quest_repo, pomo_repo, workspace_id=workspace_id, **f
+    )
     artifact_keys = await key_repo.list_keys() if key_repo else []
     return _render(request, "board.html", {
         "columns": columns,
@@ -300,6 +322,8 @@ async def _board_response(request, quest_repo, pomo_repo, filters: dict | None =
         "priority_glyphs": PRIORITY_GLYPHS,
         "artifact_keys": artifact_keys,
         "active_pomo_quest_id": _active_pomo_quest_id(),
+        "current_workspace": qctx.workspace if qctx else None,
+        "workspaces": qctx.workspaces if qctx else [],
         "request": request,
     })
 
@@ -310,17 +334,62 @@ def _render(request, name, context):
     return templates.TemplateResponse(request, name, context)
 
 
+# ── Workspaces ──────────────────────────────────────────────────────────
+
+@router.post("/workspaces/select", response_class=HTMLResponse)
+async def select_workspace(
+    request: Request,
+    workspace_id: str = Form(...),
+    workspace_repo=Depends(get_workspace_repo),
+):
+    workspace = await workspace_repo.get(workspace_id)
+    if workspace is None:
+        return HTMLResponse("Workspace not found.", status_code=404)
+    active_workspace = _active_pomo_workspace_id()
+    if active_workspace and active_workspace != workspace_id:
+        return HTMLResponse("Finish the active pomo before switching workspaces.", status_code=409)
+    response = HTMLResponse("")
+    response.set_cookie(WORKSPACE_COOKIE, workspace_id, httponly=False, samesite="lax")
+    response.headers["HX-Refresh"] = "true"
+    return response
+
+
+@router.post("/workspaces", response_class=HTMLResponse)
+async def create_workspace(
+    request: Request,
+    name: str = Form(...),
+    icon: str = Form("folder"),
+    color: str = Form("blue"),
+    workspace_repo=Depends(get_workspace_repo),
+):
+    if _active_pomo_workspace_id():
+        return HTMLResponse("Finish the active pomo before creating a new workspace.", status_code=409)
+    icon = icon if icon in _WORKSPACE_ICONS else "folder"
+    color = color if color in _WORKSPACE_COLORS else "blue"
+    name = name.strip()
+    if not name:
+        return HTMLResponse("Workspace name is required.", status_code=400)
+    workspace = await workspace_repo.create(name, icon, color)
+    response = HTMLResponse("")
+    response.set_cookie(WORKSPACE_COOKIE, workspace["id"], httponly=False, samesite="lax")
+    response.headers["HX-Refresh"] = "true"
+    return response
+
+
 # ── Full page ────────────────────────────────────────────────────────────
 
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request,
                 quest_repo=Depends(get_quest_repo),
                 pomo_repo=Depends(get_pomo_repo),
-                key_repo=Depends(get_artifact_key_repo)):
+                qctx: QuestlogContext = Depends(resolve_questlog_context)):
     f = await _parse_filter_params(request)
-    columns, all_projects, all_labels_with_hue = await _build_board_context(quest_repo, pomo_repo, **f)
-    counts = await _quest_counts(quest_repo)
-    sessions = await pomo_repo.load_all()
+    key_repo = SqliteArtifactKeyRepo(request.app.state.db, qctx.workspace_id)
+    columns, all_projects, all_labels_with_hue = await _build_board_context(
+        quest_repo, pomo_repo, workspace_id=qctx.workspace_id, **f
+    )
+    counts = await _quest_counts(quest_repo, qctx.workspace_id)
+    sessions = await pomo_repo.load_all(qctx.workspace_id)
     pomo_count = sum(get_all_pomo_counts_today(sessions).values())
     return _render(request, "index.html", {
         "columns": columns,
@@ -335,6 +404,8 @@ async def index(request: Request,
         "priority_names": PRIORITY_NAMES,
         "priority_glyphs": PRIORITY_GLYPHS,
         "artifact_keys": await key_repo.list_keys(),
+        "current_workspace": qctx.workspace,
+        "workspaces": qctx.workspaces,
     })
 
 
@@ -344,17 +415,19 @@ async def index(request: Request,
 async def quest_board(request: Request,
                       quest_repo=Depends(get_quest_repo),
                       pomo_repo=Depends(get_pomo_repo),
-                      key_repo=Depends(get_artifact_key_repo)):
+                      qctx: QuestlogContext = Depends(resolve_questlog_context)):
     f = await _parse_filter_params(request)
-    return await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo)
+    key_repo = SqliteArtifactKeyRepo(request.app.state.db, qctx.workspace_id)
+    return await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo, qctx=qctx)
 
 
 # ── Completed quest archive ─────────────────────────────────────────────
 
 @router.get("/quests/legend", response_class=HTMLResponse)
 async def quest_legend(request: Request,
-                       quest_repo=Depends(get_quest_repo)):
-    return _render(request, "quest_legend.html", await _build_legend_context(quest_repo))
+                       quest_repo=Depends(get_quest_repo),
+                       qctx: QuestlogContext = Depends(resolve_questlog_context)):
+    return _render(request, "quest_legend.html", await _build_legend_context(quest_repo, qctx.workspace_id))
 
 
 # ── Add quest ────────────────────────────────────────────────────────────
@@ -368,7 +441,7 @@ async def add_quest(
     labels: str = Form(""),
     quest_repo=Depends(get_quest_repo),
     pomo_repo=Depends(get_pomo_repo),
-    key_repo=Depends(get_artifact_key_repo),
+    qctx: QuestlogContext = Depends(resolve_questlog_context),
 ):
     title = title.strip()
     if title:
@@ -383,9 +456,11 @@ async def add_quest(
             project=project.strip() or None,
             labels=label_list,
             artifacts=artifacts,
+            workspace_id=qctx.workspace_id,
         )
     f = await _parse_filter_params(request)
-    response = await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo)
+    key_repo = SqliteArtifactKeyRepo(request.app.state.db, qctx.workspace_id)
+    response = await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo, qctx=qctx)
     if title:
         response.headers["HX-Trigger"] = "quest-added"
     return response
@@ -399,20 +474,21 @@ async def update_status(request: Request,
                         status: str = Form(...),
                         quest_repo=Depends(get_quest_repo),
                         pomo_repo=Depends(get_pomo_repo),
-                        key_repo=Depends(get_artifact_key_repo)):
+                        qctx: QuestlogContext = Depends(resolve_questlog_context)):
     valid_sources = VALID_SOURCES.get(
         {"active": "start", "blocked": "block", "done": "done", "abandoned": "abandon"}.get(status, ""),
         set(),
     )
-    quests = await quest_repo.load_all()
+    quests = await quest_repo.load_all(qctx.workspace_id)
     quest = next((q for q in quests if q["id"] == quest_id), None)
     transitioned = False
     if quest and quest["status"] in valid_sources:
-        await quest_repo.update_status(quest_id, status)
+        await quest_repo.update_status(quest_id, status, qctx.workspace_id)
         transitioned = True
 
     f = await _parse_filter_params(request)
-    response = await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo)
+    key_repo = SqliteArtifactKeyRepo(request.app.state.db, qctx.workspace_id)
+    response = await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo, qctx=qctx)
     if transitioned and status == "done":
         response.headers["HX-Trigger"] = "quest-done"
     return response
@@ -425,10 +501,11 @@ async def toggle_frog(request: Request,
                       quest_id: str,
                       quest_repo=Depends(get_quest_repo),
                       pomo_repo=Depends(get_pomo_repo),
-                      key_repo=Depends(get_artifact_key_repo)):
-    await quest_repo.toggle_frog(quest_id)
+                      qctx: QuestlogContext = Depends(resolve_questlog_context)):
+    await quest_repo.toggle_frog(quest_id, qctx.workspace_id)
     f = await _parse_filter_params(request)
-    return await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo)
+    key_repo = SqliteArtifactKeyRepo(request.app.state.db, qctx.workspace_id)
+    return await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo, qctx=qctx)
 
 
 # ── Abandon quest ────────────────────────────────────────────────────────
@@ -438,10 +515,11 @@ async def abandon_quest(request: Request,
                         quest_id: str,
                         quest_repo=Depends(get_quest_repo),
                         pomo_repo=Depends(get_pomo_repo),
-                        key_repo=Depends(get_artifact_key_repo)):
-    await quest_repo.abandon(quest_id)
+                        qctx: QuestlogContext = Depends(resolve_questlog_context)):
+    await quest_repo.abandon(quest_id, qctx.workspace_id)
     f = await _parse_filter_params(request)
-    response = await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo)
+    key_repo = SqliteArtifactKeyRepo(request.app.state.db, qctx.workspace_id)
+    response = await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo, qctx=qctx)
     response.headers["HX-Trigger"] = "quest-abandoned"
     return response
 
@@ -455,13 +533,14 @@ async def update_priority(
     priority: int = Form(...),
     quest_repo=Depends(get_quest_repo),
     pomo_repo=Depends(get_pomo_repo),
-    key_repo=Depends(get_artifact_key_repo),
+    qctx: QuestlogContext = Depends(resolve_questlog_context),
 ):
-    await quest_repo.update_priority(quest_id, max(0, min(4, priority)))
+    key_repo = SqliteArtifactKeyRepo(request.app.state.db, qctx.workspace_id)
+    await quest_repo.update_priority(quest_id, max(0, min(4, priority)), qctx.workspace_id)
     if request.query_params.get("strip"):
-        return await _meta_strip_response(request, quest_id, quest_repo, key_repo)
+        return await _meta_strip_response(request, quest_id, quest_repo, key_repo, qctx.workspace_id)
     f = await _parse_filter_params(request)
-    return await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo)
+    return await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo, qctx=qctx)
 
 
 @router.patch("/quests/{quest_id}/project", response_class=HTMLResponse)
@@ -471,13 +550,14 @@ async def update_project(
     project: str = Form(""),
     quest_repo=Depends(get_quest_repo),
     pomo_repo=Depends(get_pomo_repo),
-    key_repo=Depends(get_artifact_key_repo),
+    qctx: QuestlogContext = Depends(resolve_questlog_context),
 ):
-    await quest_repo.update_project(quest_id, project.strip() or None)
+    key_repo = SqliteArtifactKeyRepo(request.app.state.db, qctx.workspace_id)
+    await quest_repo.update_project(quest_id, project.strip() or None, qctx.workspace_id)
     if request.query_params.get("strip"):
-        return await _meta_strip_response(request, quest_id, quest_repo, key_repo)
+        return await _meta_strip_response(request, quest_id, quest_repo, key_repo, qctx.workspace_id)
     f = await _parse_filter_params(request)
-    return await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo)
+    return await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo, qctx=qctx)
 
 
 @router.put("/quests/{quest_id}/labels", response_class=HTMLResponse)
@@ -487,14 +567,15 @@ async def update_labels(
     labels: str = Form(""),
     quest_repo=Depends(get_quest_repo),
     pomo_repo=Depends(get_pomo_repo),
-    key_repo=Depends(get_artifact_key_repo),
+    qctx: QuestlogContext = Depends(resolve_questlog_context),
 ):
+    key_repo = SqliteArtifactKeyRepo(request.app.state.db, qctx.workspace_id)
     label_list = [lbl.strip() for lbl in labels.split(",") if lbl.strip()]
-    await quest_repo.update_labels(quest_id, label_list)
+    await quest_repo.update_labels(quest_id, label_list, qctx.workspace_id)
     if request.query_params.get("strip"):
-        return await _meta_strip_response(request, quest_id, quest_repo, key_repo)
+        return await _meta_strip_response(request, quest_id, quest_repo, key_repo, qctx.workspace_id)
     f = await _parse_filter_params(request)
-    return await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo)
+    return await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo, qctx=qctx)
 
 
 @router.put("/quests/{quest_id}/artifacts", response_class=HTMLResponse)
@@ -503,20 +584,21 @@ async def update_artifacts(
     quest_id: str,
     quest_repo=Depends(get_quest_repo),
     pomo_repo=Depends(get_pomo_repo),
-    key_repo=Depends(get_artifact_key_repo),
+    qctx: QuestlogContext = Depends(resolve_questlog_context),
 ):
+    key_repo = SqliteArtifactKeyRepo(request.app.state.db, qctx.workspace_id)
     form_data = await request.form()
     artifact_keys_raw = form_data.getlist("artifact_key[]")
     artifact_vals_raw = form_data.getlist("artifact_val[]")
     artifacts = {k: v for k, v in zip(artifact_keys_raw, artifact_vals_raw) if k.strip() and v.strip()}
-    await quest_repo.update_artifacts(quest_id, artifacts)
+    await quest_repo.update_artifacts(quest_id, artifacts, qctx.workspace_id)
     f = await _parse_filter_params(request)
-    return await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo)
+    return await _board_response(request, quest_repo, pomo_repo, f, key_repo=key_repo, qctx=qctx)
 
 
-async def _meta_strip_response(request, quest_id, quest_repo, key_repo):
+async def _meta_strip_response(request, quest_id, quest_repo, key_repo, workspace_id: str):
     """Return just the meta strip partial (used by pomo screen edits)."""
-    quests = await quest_repo.load_all()
+    quests = await quest_repo.load_all(workspace_id)
     q = next((q for q in quests if q["id"] == quest_id), None)
     if q is None:
         return HTMLResponse("", status_code=404)
@@ -538,9 +620,10 @@ async def quest_meta_strip(
     request: Request,
     quest_id: str,
     quest_repo=Depends(get_quest_repo),
-    key_repo=Depends(get_artifact_key_repo),
+    qctx: QuestlogContext = Depends(resolve_questlog_context),
 ):
-    quests = await quest_repo.load_all()
+    key_repo = SqliteArtifactKeyRepo(request.app.state.db, qctx.workspace_id)
+    quests = await quest_repo.load_all(qctx.workspace_id)
     q = next((q for q in quests if q["id"] == quest_id), None)
     if q is None:
         return HTMLResponse("", status_code=404)
@@ -569,7 +652,8 @@ def _render_checklist(request, quest_id: str, checklist: list[dict]):
 
 @router.get("/quests/{quest_id}/checklist", response_class=HTMLResponse)
 async def get_checklist(request: Request, quest_id: str, quest_repo=Depends(get_quest_repo)):
-    quests = await quest_repo.load_all()
+    qctx = await resolve_questlog_context(request)
+    quests = await quest_repo.load_all(qctx.workspace_id)
     quest = next((q for q in quests if q["id"] == quest_id), None)
     if quest is None:
         return HTMLResponse("", status_code=404)
@@ -583,21 +667,22 @@ async def add_checklist_item(
     text: str = Form(...),
     quest_repo=Depends(get_quest_repo),
 ):
+    qctx = await resolve_questlog_context(request)
     text = text.strip()
     if not text:
-        quests = await quest_repo.load_all()
+        quests = await quest_repo.load_all(qctx.workspace_id)
         quest = next((q for q in quests if q["id"] == quest_id), None)
         checklist = quest.get("checklist", []) if quest else []
         return _render_checklist(request, quest_id, checklist)
 
-    quests = await quest_repo.load_all()
+    quests = await quest_repo.load_all(qctx.workspace_id)
     quest = next((q for q in quests if q["id"] == quest_id), None)
     if quest is None:
         return HTMLResponse("", status_code=404)
 
     checklist = list(quest.get("checklist", []))
     checklist.append({"id": uuid.uuid4().hex[:8], "text": text, "done": False})
-    await quest_repo.update_checklist(quest_id, checklist)
+    await quest_repo.update_checklist(quest_id, checklist, qctx.workspace_id)
     return _render_checklist(request, quest_id, checklist)
 
 
@@ -608,7 +693,8 @@ async def toggle_checklist_item(
     item_id: str,
     quest_repo=Depends(get_quest_repo),
 ):
-    quests = await quest_repo.load_all()
+    qctx = await resolve_questlog_context(request)
+    quests = await quest_repo.load_all(qctx.workspace_id)
     quest = next((q for q in quests if q["id"] == quest_id), None)
     if quest is None:
         return HTMLResponse("", status_code=404)
@@ -618,7 +704,7 @@ async def toggle_checklist_item(
         if item["id"] == item_id:
             item["done"] = not item["done"]
             break
-    await quest_repo.update_checklist(quest_id, checklist)
+    await quest_repo.update_checklist(quest_id, checklist, qctx.workspace_id)
     return _render_checklist(request, quest_id, checklist)
 
 
@@ -629,13 +715,14 @@ async def delete_checklist_item(
     item_id: str,
     quest_repo=Depends(get_quest_repo),
 ):
-    quests = await quest_repo.load_all()
+    qctx = await resolve_questlog_context(request)
+    quests = await quest_repo.load_all(qctx.workspace_id)
     quest = next((q for q in quests if q["id"] == quest_id), None)
     if quest is None:
         return HTMLResponse("", status_code=404)
 
     checklist = [i for i in quest.get("checklist", []) if i["id"] != item_id]
-    await quest_repo.update_checklist(quest_id, checklist)
+    await quest_repo.update_checklist(quest_id, checklist, qctx.workspace_id)
     return _render_checklist(request, quest_id, checklist)
 
 
@@ -645,8 +732,9 @@ async def delete_checklist_item(
 async def stats_bar(request: Request,
                     quest_repo=Depends(get_quest_repo),
                     pomo_repo=Depends(get_pomo_repo)):
-    counts = await _quest_counts(quest_repo)
-    sessions = await pomo_repo.load_all()
+    qctx = await resolve_questlog_context(request)
+    counts = await _quest_counts(quest_repo, qctx.workspace_id)
+    sessions = await pomo_repo.load_all(qctx.workspace_id)
     pomo_count = sum(get_all_pomo_counts_today(sessions).values())
     return _render(request, "stats_bar.html", {
         "quest_counts": counts,

@@ -29,6 +29,7 @@ _TEMPLATE_DIRS = [
     str(_WEB_DIR / "challenge" / "templates"),
     str(_WEB_DIR / "artifact_keys" / "templates"),
     str(_WEB_DIR / "sync" / "templates"),
+    str(_WEB_DIR / "saga" / "templates"),
 ]
 
 
@@ -145,6 +146,7 @@ from web.dashboard.routes import router as dashboard_router  # noqa: E402
 from web.challenge.routes import router as challenge_router  # noqa: E402
 from web.artifact_keys.routes import router as artifact_keys_router  # noqa: E402
 from web.sync.routes import router as sync_router  # noqa: E402
+from web.saga.routes import router as saga_router  # noqa: E402
 
 app.include_router(quest_router)
 app.include_router(pomo_router)
@@ -155,6 +157,7 @@ app.include_router(dashboard_router)
 app.include_router(challenge_router)
 app.include_router(artifact_keys_router)
 app.include_router(sync_router)
+app.include_router(saga_router)
 
 # Test mode — dev-only, gated by TEST_MODE env var
 from core import clock  # noqa: E402

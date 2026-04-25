@@ -1,0 +1,176 @@
+{% extends "saga_base.html" %}
+
+{% block content %}
+<div class="saga-root" data-saga-root x-data="{ tab: 'today' }"
+     x-init="$watch('tab', value => {
+       document.querySelectorAll('.saga-nav-link[data-saga-tab]').forEach(btn => {
+         btn.classList.toggle('is-active', btn.dataset.sagaTab === value);
+       });
+     })">
+
+  <section class="saga-panel" x-show="tab === 'today'">
+    <div class="saga-today"
+         x-data="sagaCapture({{ emotion_catalog | tojson }})"
+         x-init="init()">
+      <div class="saga-today__prompt">
+        <p class="saga-kicker">{{ today_label }}</p>
+        <h1>What is the tone right now?</h1>
+        <p class="saga-today__sub">Choose a word, set the pressure, leave a line if it helps.</p>
+      </div>
+
+      <form class="saga-capture"
+            hx-post="/saga/entries"
+            hx-target="#saga-recent"
+            hx-swap="innerHTML"
+            @htmx:after-request="if ($event.detail.successful) finishCapture()">
+        <input type="hidden" name="emotion_family" x-model="family">
+        <input type="hidden" name="emotion_label" x-model="label">
+        <input type="hidden" name="intensity" x-model="intensity">
+
+        <div class="saga-wheel" aria-label="Emotion selector">
+          {% for group in emotion_catalog %}
+          <section class="saga-wheel__lane"
+                   :class="{ 'is-selected': family === '{{ group.family }}' }"
+                   style="--lane-index: {{ loop.index0 }}">
+            <button class="saga-wheel__family" type="button"
+                    @click="select('{{ group.family }}', '{{ group.words[1] }}', 5)">
+              <span class="saga-wheel__pip"></span>
+              <span>{{ group.label }}</span>
+            </button>
+            <div class="saga-wheel__words">
+              {% for word in group.words %}
+              <button class="saga-word" type="button"
+                      :class="{ 'is-selected': family === '{{ group.family }}' && label === '{{ word }}' }"
+                      @click="select('{{ group.family }}', '{{ word }}', {{ 2 if loop.index0 == 0 else 5 if loop.index0 == 1 else 8 }})">
+                {{ word }}
+              </button>
+              {% endfor %}
+            </div>
+          </section>
+          {% endfor %}
+        </div>
+
+        <div class="saga-mix-strip" x-show="selectedMix()" x-cloak>
+          <span>Adjacent mix</span>
+          <button type="button" @click="select(family, selectedMix().label, intensity)">
+            <strong x-text="selectedMix().label"></strong>
+            <em x-text="familyLabel(family) + ' + ' + familyLabel(selectedMix().with)"></em>
+          </button>
+        </div>
+
+        <div class="saga-intensity">
+          <div>
+            <span class="saga-field-label">Intensity</span>
+            <strong x-text="intensity + '/10'"></strong>
+            <small x-text="intensityTier()"></small>
+          </div>
+          <input type="range" min="1" max="10" step="1" x-model="intensity" aria-label="Intensity">
+        </div>
+
+        <label class="saga-note">
+          <span class="saga-field-label">Optional note</span>
+          <textarea name="note" maxlength="200" rows="3"
+                    x-model="note"
+                    placeholder="One precise line, or leave it blank."></textarea>
+          <small><span x-text="note.length"></span>/200</small>
+        </label>
+
+        <div class="saga-capture__footer">
+          <p class="saga-confirm" x-text="confirmation"></p>
+          <button class="saga-capture__submit" type="submit">Capture moment</button>
+        </div>
+      </form>
+
+      <aside class="saga-recent-wrap">
+        <div class="saga-section-head">
+          <span>Recent captures</span>
+          <small>Synced entries</small>
+        </div>
+        <div id="saga-recent">
+          {% with entries=recent_entries %}
+            {% include "saga_recent_entries.html" %}
+          {% endwith %}
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="saga-panel" x-show="tab === 'timeline'">
+    <div id="saga-timeline-slot"
+         hx-get="/saga/timeline"
+         hx-trigger="load, saga-changed from:body, quest-done from:body, refresh"
+         hx-swap="innerHTML">
+      {% include "saga_timeline.html" %}
+    </div>
+  </section>
+
+  <section class="saga-panel" x-show="tab === 'metrics'">
+    <div id="saga-metrics-slot"
+         hx-get="/saga/metrics"
+         hx-trigger="load, saga-changed from:body, quest-done from:body, refresh"
+         hx-swap="innerHTML">
+      {% include "saga_metrics.html" %}
+    </div>
+  </section>
+</div>
+
+<script>
+  function sagaCapture(catalog) {
+    return {
+      catalog,
+      family: 'joy',
+      label: 'joy',
+      intensity: 5,
+      note: '',
+      confirmation: '',
+      init() {
+        const saved = localStorage.getItem('saga.draft.v1');
+        if (saved) {
+          try {
+            const draft = JSON.parse(saved);
+            this.family = draft.family || this.family;
+            this.label = draft.label || this.label;
+            this.intensity = draft.intensity || this.intensity;
+            this.note = draft.note || '';
+          } catch (_) {}
+        }
+        this.$watch('family', () => this.saveDraft());
+        this.$watch('label', () => this.saveDraft());
+        this.$watch('intensity', () => this.saveDraft());
+        this.$watch('note', () => this.saveDraft());
+      },
+      saveDraft() {
+        localStorage.setItem('saga.draft.v1', JSON.stringify({
+          family: this.family,
+          label: this.label,
+          intensity: this.intensity,
+          note: this.note
+        }));
+      },
+      select(family, label, intensity) {
+        this.family = family;
+        this.label = label;
+        this.intensity = intensity;
+      },
+      selectedMix() {
+        return (this.catalog.find(group => group.family === this.family) || {}).mix || null;
+      },
+      familyLabel(family) {
+        const found = this.catalog.find(group => group.family === family);
+        return found ? found.label : family;
+      },
+      intensityTier() {
+        if (this.intensity <= 3) return 'low tier';
+        if (this.intensity <= 7) return 'core tier';
+        return 'high tier';
+      },
+      finishCapture() {
+        this.note = '';
+        this.confirmation = 'Captured just now.';
+        localStorage.removeItem('saga.draft.v1');
+        setTimeout(() => this.confirmation = '', 1800);
+      }
+    }
+  }
+</script>
+{% endblock %}

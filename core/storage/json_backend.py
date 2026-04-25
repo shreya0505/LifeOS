@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timezone
 from core import clock
 from pathlib import Path
 
@@ -28,7 +27,7 @@ class JsonQuestRepo:
         with open(self._path, "w") as f:
             json.dump(quests, f, indent=2)
 
-    def load_all(self) -> list[dict]:
+    def load_all(self, workspace_id: str = "work") -> list[dict]:
         quests = self._load()
         for q in quests:
             q.setdefault("checklist", [])
@@ -36,7 +35,8 @@ class JsonQuestRepo:
             q.setdefault("project", None)
             q.setdefault("labels", [])
             q.setdefault("artifacts", {})
-        return quests
+            q.setdefault("workspace_id", "work")
+        return [q for q in quests if q.get("workspace_id") == workspace_id]
 
     def add(
         self,
@@ -46,6 +46,7 @@ class JsonQuestRepo:
         project: str | None = None,
         labels: list | None = None,
         artifacts: dict | None = None,
+        workspace_id: str = "work",
     ) -> dict:
         quests = self._load()
         quest = {
@@ -60,15 +61,16 @@ class JsonQuestRepo:
             "project": project,
             "labels": labels or [],
             "artifacts": artifacts or {},
+            "workspace_id": workspace_id,
         }
         quests.append(quest)
         self._save(quests)
         return quest
 
-    def update_status(self, quest_id: str, status: str) -> dict | None:
+    def update_status(self, quest_id: str, status: str, workspace_id: str = "work") -> dict | None:
         quests = self._load()
         for quest in quests:
-            if quest["id"] == quest_id:
+            if quest["id"] == quest_id and quest.get("workspace_id", "work") == workspace_id:
                 quest["status"] = status
                 now = clock.utcnow().isoformat()
                 if status == "active" and not quest.get("started_at"):
@@ -79,67 +81,73 @@ class JsonQuestRepo:
                 return quest
         return None
 
-    def abandon(self, quest_id: str) -> dict | None:
+    def abandon(self, quest_id: str, workspace_id: str = "work") -> dict | None:
         quests = self._load()
         for quest in quests:
-            if quest["id"] == quest_id:
+            if quest["id"] == quest_id and quest.get("workspace_id", "work") == workspace_id:
                 quest["status"] = "abandoned"
                 quest["abandoned_at"] = clock.utcnow().isoformat()
                 self._save(quests)
                 return quest
         return None
 
-    def toggle_frog(self, quest_id: str) -> dict | None:
+    def toggle_frog(self, quest_id: str, workspace_id: str = "work") -> dict | None:
         quests = self._load()
         for quest in quests:
-            if quest["id"] == quest_id:
+            if quest["id"] == quest_id and quest.get("workspace_id", "work") == workspace_id:
                 quest["frog"] = not quest.get("frog", False)
                 self._save(quests)
                 return quest
         return None
 
-    def update_checklist(self, quest_id: str, checklist: list[dict]) -> dict | None:
+    def update_checklist(
+        self, quest_id: str, checklist: list[dict], workspace_id: str = "work",
+    ) -> dict | None:
         quests = self._load()
         for quest in quests:
-            if quest["id"] == quest_id:
+            if quest["id"] == quest_id and quest.get("workspace_id", "work") == workspace_id:
                 quest["checklist"] = checklist
                 self._save(quests)
                 return quest
         return None
 
-    def update_priority(self, quest_id: str, priority: int) -> dict | None:
+    def update_priority(self, quest_id: str, priority: int, workspace_id: str = "work") -> dict | None:
         if not 0 <= priority <= 4:
             return None
         quests = self._load()
         for quest in quests:
-            if quest["id"] == quest_id:
+            if quest["id"] == quest_id and quest.get("workspace_id", "work") == workspace_id:
                 quest["priority"] = priority
                 self._save(quests)
                 return quest
         return None
 
-    def update_project(self, quest_id: str, project: str | None) -> dict | None:
+    def update_project(
+        self, quest_id: str, project: str | None, workspace_id: str = "work",
+    ) -> dict | None:
         quests = self._load()
         for quest in quests:
-            if quest["id"] == quest_id:
+            if quest["id"] == quest_id and quest.get("workspace_id", "work") == workspace_id:
                 quest["project"] = project.strip() if project else None
                 self._save(quests)
                 return quest
         return None
 
-    def update_labels(self, quest_id: str, labels: list[str]) -> dict | None:
+    def update_labels(self, quest_id: str, labels: list[str], workspace_id: str = "work") -> dict | None:
         quests = self._load()
         for quest in quests:
-            if quest["id"] == quest_id:
+            if quest["id"] == quest_id and quest.get("workspace_id", "work") == workspace_id:
                 quest["labels"] = labels
                 self._save(quests)
                 return quest
         return None
 
-    def update_artifacts(self, quest_id: str, artifacts: dict) -> dict | None:
+    def update_artifacts(
+        self, quest_id: str, artifacts: dict, workspace_id: str = "work",
+    ) -> dict | None:
         quests = self._load()
         for quest in quests:
-            if quest["id"] == quest_id:
+            if quest["id"] == quest_id and quest.get("workspace_id", "work") == workspace_id:
                 quest["artifacts"] = artifacts
                 self._save(quests)
                 return quest
@@ -217,10 +225,15 @@ class JsonPomoRepo:
         with open(self._path, "w") as f:
             json.dump(pomos, f, indent=2)
 
-    def load_all(self) -> list[dict]:
-        return self._load()
+    def load_all(self, workspace_id: str = "work") -> list[dict]:
+        sessions = self._load()
+        for s in sessions:
+            s.setdefault("workspace_id", "work")
+            for seg in s.get("segments", []):
+                seg.setdefault("workspace_id", s["workspace_id"])
+        return [s for s in sessions if s.get("workspace_id") == workspace_id]
 
-    def start_session(self, quest_id: str, quest_title: str) -> dict:
+    def start_session(self, quest_id: str, quest_title: str, workspace_id: str = "work") -> dict:
         pomos = self._load()
         session = {
             "id": str(uuid.uuid4())[:8],
@@ -233,6 +246,7 @@ class JsonPomoRepo:
             "status": "running",
             "streak_peak": 0,
             "total_interruptions": 0,
+            "workspace_id": workspace_id,
         }
         pomos.append(session)
         self._save(pomos)
@@ -241,6 +255,9 @@ class JsonPomoRepo:
     def get_session(self, session_id: str) -> dict | None:
         for s in self._load():
             if s["id"] == session_id:
+                s.setdefault("workspace_id", "work")
+                for seg in s.get("segments", []):
+                    seg.setdefault("workspace_id", s["workspace_id"])
                 return s
         return None
 
@@ -278,6 +295,7 @@ class JsonPomoRepo:
                     "interruption_reason": interruption_reason,
                     "early_completion": early_completion,
                     "forge_type": forge_type,
+                    "workspace_id": s.get("workspace_id", "work"),
                 })
                 # Hollow forges don't count as real pomos
                 if seg_type == "work" and completed and forge_type != "hollow":

@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse
 from core.pomo_queries import get_today_timeline, get_berserker_stats
 from core.utils import today_local, to_local_date, segment_duration, fmt_compact
 from web.deps import get_pomo_repo
+from web.questlog_context import QuestlogContext, resolve_questlog_context
 
 router = APIRouter()
 
@@ -133,8 +134,12 @@ def _week_summary(sessions: list[dict]) -> dict:
 
 
 @router.get("/chronicle", response_class=HTMLResponse)
-async def chronicle(request: Request, pomo_repo=Depends(get_pomo_repo)):
-    sessions = await pomo_repo.load_all()
+async def chronicle(
+    request: Request,
+    pomo_repo=Depends(get_pomo_repo),
+    qctx: QuestlogContext = Depends(resolve_questlog_context),
+):
+    sessions = await pomo_repo.load_all(qctx.workspace_id)
     heatmap_cells = _build_heatmap(sessions)
     today_entries = _build_today_entries(sessions)
     week = _week_summary(sessions)

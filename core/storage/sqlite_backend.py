@@ -8,10 +8,57 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timezone
 from core import clock
 
 import aiosqlite
+
+DEFAULT_WORKSPACE_ID = "work"
+
+
+class SqliteWorkspaceRepo:
+    """Workspace registry backed by SQLite."""
+
+    def __init__(self, db: aiosqlite.Connection) -> None:
+        self._db = db
+
+    async def list_workspaces(self) -> list[dict]:
+        cursor = await self._db.execute(
+            "SELECT id, name, icon, color, sort_order "
+            "FROM workspaces WHERE deleted_at IS NULL ORDER BY sort_order, name"
+        )
+        return [
+            {"id": r[0], "name": r[1], "icon": r[2], "color": r[3], "sort_order": r[4]}
+            for r in await cursor.fetchall()
+        ]
+
+    async def get(self, workspace_id: str) -> dict | None:
+        cursor = await self._db.execute(
+            "SELECT id, name, icon, color, sort_order FROM workspaces "
+            "WHERE id = ? AND deleted_at IS NULL",
+            (workspace_id,),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return {"id": row[0], "name": row[1], "icon": row[2], "color": row[3], "sort_order": row[4]}
+
+    async def create(self, name: str, icon: str, color: str) -> dict:
+        name = name.strip()
+        wid = uuid.uuid4().hex[:8]
+        cursor = await self._db.execute("SELECT MAX(sort_order) FROM workspaces")
+        row = await cursor.fetchone()
+        sort_order = (row[0] or 0) + 10
+        await self._db.execute(
+            "INSERT OR IGNORE INTO workspaces (id, name, icon, color, sort_order) VALUES (?, ?, ?, ?, ?)",
+            (wid, name, icon, color, sort_order),
+        )
+        await self._db.commit()
+        cursor = await self._db.execute(
+            "SELECT id, name, icon, color, sort_order FROM workspaces WHERE name = ? AND deleted_at IS NULL",
+            (name,),
+        )
+        row = await cursor.fetchone()
+        return {"id": row[0], "name": row[1], "icon": row[2], "color": row[3], "sort_order": row[4]}
 
 
 class SqliteQuestRepo:
@@ -20,11 +67,12 @@ class SqliteQuestRepo:
     def __init__(self, db: aiosqlite.Connection) -> None:
         self._db = db
 
-    async def load_all(self) -> list[dict]:
+    async def load_all(self, workspace_id: str = DEFAULT_WORKSPACE_ID) -> list[dict]:
         cursor = await self._db.execute(
             "SELECT id, title, status, frog, created_at, started_at, completed_at, abandoned_at, "
-            "checklist, priority, project, labels, artifacts "
-            "FROM quests ORDER BY frog DESC, priority ASC, created_at ASC"
+            "checklist, priority, project, labels, artifacts, workspace_id "
+            "FROM quests WHERE workspace_id = ? ORDER BY frog DESC, priority ASC, created_at ASC",
+            (workspace_id,),
         )
         rows = await cursor.fetchall()
         return [
@@ -42,6 +90,7 @@ class SqliteQuestRepo:
                 "project": r[10],
                 "labels": json.loads(r[11] or "[]"),
                 "artifacts": json.loads(r[12] or "{}"),
+                "workspace_id": r[13],
             }
             for r in rows
         ]
@@ -54,15 +103,16 @@ class SqliteQuestRepo:
         project: str | None = None,
         labels: list | None = None,
         artifacts: dict | None = None,
+        workspace_id: str = DEFAULT_WORKSPACE_ID,
     ) -> dict:
         qid = uuid.uuid4().hex[:8]
         now = clock.utcnow().isoformat()
         labels_json = json.dumps(labels or [])
         artifacts_json = json.dumps(artifacts or {})
         await self._db.execute(
-            "INSERT INTO quests (id, title, status, frog, created_at, priority, project, labels, artifacts) "
-            "VALUES (?, ?, 'log', 0, ?, ?, ?, ?, ?)",
-            (qid, title, now, priority, project, labels_json, artifacts_json),
+            "INSERT INTO quests (id, title, status, frog, created_at, priority, project, labels, artifacts, workspace_id) "
+            "VALUES (?, ?, 'log', 0, ?, ?, ?, ?, ?, ?)",
+            (qid, title, now, priority, project, labels_json, artifacts_json, workspace_id),
         )
         await self._db.commit()
         return {
@@ -79,13 +129,16 @@ class SqliteQuestRepo:
             "project": project,
             "labels": labels or [],
             "artifacts": artifacts or {},
+            "workspace_id": workspace_id,
         }
 
-    async def update_status(self, quest_id: str, status: str) -> dict | None:
+    async def update_status(
+        self, quest_id: str, status: str, workspace_id: str = DEFAULT_WORKSPACE_ID,
+    ) -> dict | None:
         cursor = await self._db.execute(
             "SELECT id, title, status, frog, created_at, started_at, completed_at "
-            "FROM quests WHERE id = ?",
-            (quest_id,),
+            "FROM quests WHERE id = ? AND workspace_id = ?",
+            (quest_id, workspace_id),
         )
         row = await cursor.fetchone()
         if row is None:
@@ -102,8 +155,8 @@ class SqliteQuestRepo:
 
         await self._db.execute(
             "UPDATE quests SET status = ?, started_at = ?, completed_at = ? "
-            "WHERE id = ?",
-            (status, started_at, completed_at, quest_id),
+            "WHERE id = ? AND workspace_id = ?",
+            (status, started_at, completed_at, quest_id, workspace_id),
         )
         await self._db.commit()
         return {
@@ -114,21 +167,22 @@ class SqliteQuestRepo:
             "created_at": row[4],
             "started_at": started_at,
             "completed_at": completed_at,
+            "workspace_id": workspace_id,
         }
 
-    async def abandon(self, quest_id: str) -> dict | None:
+    async def abandon(self, quest_id: str, workspace_id: str = DEFAULT_WORKSPACE_ID) -> dict | None:
         cursor = await self._db.execute(
             "SELECT id, title, status, frog, created_at, started_at, completed_at "
-            "FROM quests WHERE id = ?",
-            (quest_id,),
+            "FROM quests WHERE id = ? AND workspace_id = ?",
+            (quest_id, workspace_id),
         )
         row = await cursor.fetchone()
         if row is None:
             return None
         now = clock.utcnow().isoformat()
         await self._db.execute(
-            "UPDATE quests SET status = 'abandoned', abandoned_at = ? WHERE id = ?",
-            (now, quest_id),
+            "UPDATE quests SET status = 'abandoned', abandoned_at = ? WHERE id = ? AND workspace_id = ?",
+            (now, quest_id, workspace_id),
         )
         await self._db.commit()
         return {
@@ -140,21 +194,22 @@ class SqliteQuestRepo:
             "started_at": row[5],
             "completed_at": row[6],
             "abandoned_at": now,
+            "workspace_id": workspace_id,
         }
 
-    async def toggle_frog(self, quest_id: str) -> dict | None:
+    async def toggle_frog(self, quest_id: str, workspace_id: str = DEFAULT_WORKSPACE_ID) -> dict | None:
         cursor = await self._db.execute(
             "SELECT id, title, status, frog, created_at, started_at, completed_at "
-            "FROM quests WHERE id = ?",
-            (quest_id,),
+            "FROM quests WHERE id = ? AND workspace_id = ?",
+            (quest_id, workspace_id),
         )
         row = await cursor.fetchone()
         if row is None:
             return None
         new_frog = not bool(row[3])
         await self._db.execute(
-            "UPDATE quests SET frog = ? WHERE id = ?",
-            (int(new_frog), quest_id),
+            "UPDATE quests SET frog = ? WHERE id = ? AND workspace_id = ?",
+            (int(new_frog), quest_id, workspace_id),
         )
         await self._db.commit()
         return {
@@ -165,20 +220,23 @@ class SqliteQuestRepo:
             "created_at": row[4],
             "started_at": row[5],
             "completed_at": row[6],
+            "workspace_id": workspace_id,
         }
 
-    async def update_checklist(self, quest_id: str, checklist: list[dict]) -> dict | None:
+    async def update_checklist(
+        self, quest_id: str, checklist: list[dict], workspace_id: str = DEFAULT_WORKSPACE_ID,
+    ) -> dict | None:
         cursor = await self._db.execute(
             "SELECT id, title, status, frog, created_at, started_at, completed_at, abandoned_at "
-            "FROM quests WHERE id = ?",
-            (quest_id,),
+            "FROM quests WHERE id = ? AND workspace_id = ?",
+            (quest_id, workspace_id),
         )
         row = await cursor.fetchone()
         if row is None:
             return None
         await self._db.execute(
-            "UPDATE quests SET checklist = ? WHERE id = ?",
-            (json.dumps(checklist), quest_id),
+            "UPDATE quests SET checklist = ? WHERE id = ? AND workspace_id = ?",
+            (json.dumps(checklist), quest_id, workspace_id),
         )
         await self._db.commit()
         return {
@@ -191,14 +249,15 @@ class SqliteQuestRepo:
             "completed_at": row[6],
             "abandoned_at": row[7],
             "checklist": checklist,
+            "workspace_id": workspace_id,
         }
 
-    async def _load_quest(self, quest_id: str) -> dict | None:
+    async def _load_quest(self, quest_id: str, workspace_id: str = DEFAULT_WORKSPACE_ID) -> dict | None:
         cursor = await self._db.execute(
             "SELECT id, title, status, frog, created_at, started_at, completed_at, abandoned_at, "
-            "checklist, priority, project, labels, artifacts "
-            "FROM quests WHERE id = ?",
-            (quest_id,),
+            "checklist, priority, project, labels, artifacts, workspace_id "
+            "FROM quests WHERE id = ? AND workspace_id = ?",
+            (quest_id, workspace_id),
         )
         r = await cursor.fetchone()
         if r is None:
@@ -210,82 +269,113 @@ class SqliteQuestRepo:
             "priority": r[9] if r[9] is not None else 4, "project": r[10],
             "labels": json.loads(r[11] or "[]"),
             "artifacts": json.loads(r[12] or "{}"),
+            "workspace_id": r[13],
         }
 
-    async def update_priority(self, quest_id: str, priority: int) -> dict | None:
+    async def update_priority(
+        self, quest_id: str, priority: int, workspace_id: str = DEFAULT_WORKSPACE_ID,
+    ) -> dict | None:
         if not 0 <= priority <= 4:
             return None
         await self._db.execute(
-            "UPDATE quests SET priority = ? WHERE id = ?", (priority, quest_id)
+            "UPDATE quests SET priority = ? WHERE id = ? AND workspace_id = ?",
+            (priority, quest_id, workspace_id),
         )
         await self._db.commit()
-        return await self._load_quest(quest_id)
+        return await self._load_quest(quest_id, workspace_id)
 
-    async def update_project(self, quest_id: str, project: str | None) -> dict | None:
+    async def update_project(
+        self, quest_id: str, project: str | None, workspace_id: str = DEFAULT_WORKSPACE_ID,
+    ) -> dict | None:
         val = project.strip() if project else None
         await self._db.execute(
-            "UPDATE quests SET project = ? WHERE id = ?", (val or None, quest_id)
+            "UPDATE quests SET project = ? WHERE id = ? AND workspace_id = ?",
+            (val or None, quest_id, workspace_id),
         )
         await self._db.commit()
-        return await self._load_quest(quest_id)
+        return await self._load_quest(quest_id, workspace_id)
 
-    async def update_labels(self, quest_id: str, labels: list[str]) -> dict | None:
+    async def update_labels(
+        self, quest_id: str, labels: list[str], workspace_id: str = DEFAULT_WORKSPACE_ID,
+    ) -> dict | None:
         await self._db.execute(
-            "UPDATE quests SET labels = ? WHERE id = ?",
-            (json.dumps(labels), quest_id),
+            "UPDATE quests SET labels = ? WHERE id = ? AND workspace_id = ?",
+            (json.dumps(labels), quest_id, workspace_id),
         )
         await self._db.commit()
-        return await self._load_quest(quest_id)
+        return await self._load_quest(quest_id, workspace_id)
 
-    async def update_artifacts(self, quest_id: str, artifacts: dict) -> dict | None:
+    async def update_artifacts(
+        self, quest_id: str, artifacts: dict, workspace_id: str = DEFAULT_WORKSPACE_ID,
+    ) -> dict | None:
         await self._db.execute(
-            "UPDATE quests SET artifacts = ? WHERE id = ?",
-            (json.dumps(artifacts), quest_id),
+            "UPDATE quests SET artifacts = ? WHERE id = ? AND workspace_id = ?",
+            (json.dumps(artifacts), quest_id, workspace_id),
         )
         await self._db.commit()
-        return await self._load_quest(quest_id)
+        return await self._load_quest(quest_id, workspace_id)
 
 
 class SqliteArtifactKeyRepo:
     """Artifact key registry backed by SQLite."""
 
-    def __init__(self, db) -> None:
+    def __init__(self, db, workspace_id: str = DEFAULT_WORKSPACE_ID) -> None:
         self._db = db
+        self._workspace_id = workspace_id
 
     async def list_keys(self) -> list[dict]:
         cursor = await self._db.execute(
-            "SELECT name, icon, sort_order FROM artifact_keys ORDER BY sort_order, name"
+            "SELECT id, name, icon, sort_order FROM artifact_keys "
+            "WHERE workspace_id = ? ORDER BY sort_order, name",
+            (self._workspace_id,),
         )
-        return [{"name": r[0], "icon": r[1], "sort_order": r[2]} for r in await cursor.fetchall()]
+        return [
+            {"id": r[0], "name": r[1], "icon": r[2], "sort_order": r[3]}
+            for r in await cursor.fetchall()
+        ]
 
     async def add_key(self, name: str, icon: str | None = None) -> dict:
         name = name.strip()
-        cursor = await self._db.execute("SELECT MAX(sort_order) FROM artifact_keys")
+        key_id = uuid.uuid4().hex[:8]
+        cursor = await self._db.execute(
+            "SELECT MAX(sort_order) FROM artifact_keys WHERE workspace_id = ?",
+            (self._workspace_id,),
+        )
         row = await cursor.fetchone()
         sort_order = (row[0] or 0) + 10
         await self._db.execute(
-            "INSERT OR IGNORE INTO artifact_keys (name, icon, sort_order) VALUES (?, ?, ?)",
-            (name, icon, sort_order),
+            "INSERT OR IGNORE INTO artifact_keys (id, workspace_id, name, icon, sort_order) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (key_id, self._workspace_id, name, icon, sort_order),
         )
         await self._db.commit()
-        return {"name": name, "icon": icon, "sort_order": sort_order}
+        cursor = await self._db.execute(
+            "SELECT id, name, icon, sort_order FROM artifact_keys WHERE workspace_id = ? AND name = ?",
+            (self._workspace_id, name),
+        )
+        row = await cursor.fetchone()
+        return {"id": row[0], "name": row[1], "icon": row[2], "sort_order": row[3]}
 
     async def rename_key(self, old: str, new: str) -> None:
         new = new.strip()
         await self._db.execute(
-            "UPDATE artifact_keys SET name = ? WHERE name = ?", (new, old)
+            "UPDATE artifact_keys SET name = ? WHERE workspace_id = ? AND name = ?",
+            (new, self._workspace_id, old),
         )
         await self._db.commit()
 
     async def delete_key(self, name: str) -> None:
-        await self._db.execute("DELETE FROM artifact_keys WHERE name = ?", (name,))
+        await self._db.execute(
+            "DELETE FROM artifact_keys WHERE workspace_id = ? AND name = ?",
+            (self._workspace_id, name),
+        )
         await self._db.commit()
 
     async def reorder(self, names_in_order: list[str]) -> None:
         for i, name in enumerate(names_in_order):
             await self._db.execute(
-                "UPDATE artifact_keys SET sort_order = ? WHERE name = ?",
-                ((i + 1) * 10, name),
+                "UPDATE artifact_keys SET sort_order = ? WHERE workspace_id = ? AND name = ?",
+                ((i + 1) * 10, self._workspace_id, name),
             )
         await self._db.commit()
 
@@ -300,11 +390,12 @@ class SqlitePomoRepo:
     def __init__(self, db: aiosqlite.Connection) -> None:
         self._db = db
 
-    async def load_all(self) -> list[dict]:
+    async def load_all(self, workspace_id: str = DEFAULT_WORKSPACE_ID) -> list[dict]:
         cursor = await self._db.execute(
             "SELECT id, quest_id, quest_title, started_at, ended_at, "
-            "actual_pomos, status, streak_peak, total_interruptions "
-            "FROM pomo_sessions ORDER BY started_at"
+            "actual_pomos, status, streak_peak, total_interruptions, workspace_id "
+            "FROM pomo_sessions WHERE workspace_id = ? ORDER BY started_at",
+            (workspace_id,),
         )
         sessions = []
         for r in await cursor.fetchall():
@@ -318,14 +409,15 @@ class SqlitePomoRepo:
                 "status": r[6],
                 "streak_peak": r[7],
                 "total_interruptions": r[8],
+                "workspace_id": r[9],
                 "segments": [],
             }
             seg_cursor = await self._db.execute(
                 "SELECT type, lap, cycle, completed, interruptions, started_at, "
                 "ended_at, charge, deed, break_size, interruption_reason, "
-                "early_completion, forge_type "
-                "FROM pomo_segments WHERE session_id = ? ORDER BY id",
-                (r[0],),
+                "early_completion, forge_type, workspace_id "
+                "FROM pomo_segments WHERE session_id = ? AND workspace_id = ? ORDER BY id",
+                (r[0], workspace_id),
             )
             for s in await seg_cursor.fetchall():
                 session["segments"].append({
@@ -342,19 +434,22 @@ class SqlitePomoRepo:
                     "interruption_reason": s[10],
                     "early_completion": bool(s[11]),
                     "forge_type": s[12],
+                    "workspace_id": s[13],
                 })
             sessions.append(session)
         return sessions
 
-    async def start_session(self, quest_id: str, quest_title: str) -> dict:
+    async def start_session(
+        self, quest_id: str, quest_title: str, workspace_id: str = DEFAULT_WORKSPACE_ID,
+    ) -> dict:
         sid = uuid.uuid4().hex[:8]
         now = clock.utcnow().isoformat()
         await self._db.execute(
             "INSERT INTO pomo_sessions "
             "(id, quest_id, quest_title, started_at, status, actual_pomos, "
-            "streak_peak, total_interruptions) "
-            "VALUES (?, ?, ?, ?, 'running', 0, 0, 0)",
-            (sid, quest_id, quest_title, now),
+            "streak_peak, total_interruptions, workspace_id) "
+            "VALUES (?, ?, ?, ?, 'running', 0, 0, 0, ?)",
+            (sid, quest_id, quest_title, now, workspace_id),
         )
         await self._db.commit()
         return {
@@ -368,12 +463,13 @@ class SqlitePomoRepo:
             "status": "running",
             "streak_peak": 0,
             "total_interruptions": 0,
+            "workspace_id": workspace_id,
         }
 
     async def get_session(self, session_id: str) -> dict | None:
         cursor = await self._db.execute(
             "SELECT id, quest_id, quest_title, started_at, ended_at, "
-            "actual_pomos, status, streak_peak, total_interruptions "
+            "actual_pomos, status, streak_peak, total_interruptions, workspace_id "
             "FROM pomo_sessions WHERE id = ?",
             (session_id,),
         )
@@ -384,14 +480,15 @@ class SqlitePomoRepo:
             "id": r[0], "quest_id": r[1], "quest_title": r[2],
             "started_at": r[3], "ended_at": r[4], "actual_pomos": r[5],
             "status": r[6], "streak_peak": r[7], "total_interruptions": r[8],
+            "workspace_id": r[9],
             "segments": [],
         }
         seg_cursor = await self._db.execute(
             "SELECT type, lap, cycle, completed, interruptions, started_at, "
             "ended_at, charge, deed, break_size, interruption_reason, "
-            "early_completion, forge_type "
-            "FROM pomo_segments WHERE session_id = ? ORDER BY id",
-            (session_id,),
+            "early_completion, forge_type, workspace_id "
+            "FROM pomo_segments WHERE session_id = ? AND workspace_id = ? ORDER BY id",
+            (session_id, r[9]),
         )
         for s in await seg_cursor.fetchall():
             session["segments"].append({
@@ -401,6 +498,7 @@ class SqlitePomoRepo:
                 "deed": s[8], "break_size": s[9],
                 "interruption_reason": s[10],
                 "early_completion": bool(s[11]), "forge_type": s[12],
+                "workspace_id": s[13],
             })
         return session
 
@@ -423,20 +521,22 @@ class SqlitePomoRepo:
     ) -> dict | None:
         # Verify session exists
         cursor = await self._db.execute(
-            "SELECT id FROM pomo_sessions WHERE id = ?", (session_id,)
+            "SELECT id, workspace_id FROM pomo_sessions WHERE id = ?", (session_id,)
         )
-        if await cursor.fetchone() is None:
+        session_row = await cursor.fetchone()
+        if session_row is None:
             return None
+        workspace_id = session_row[1]
 
         await self._db.execute(
             "INSERT INTO pomo_segments "
             "(session_id, type, lap, cycle, completed, interruptions, "
             "started_at, ended_at, charge, deed, break_size, "
-            "interruption_reason, early_completion, forge_type) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "interruption_reason, early_completion, forge_type, workspace_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (session_id, seg_type, lap, cycle, int(completed), interruptions,
              started_at, ended_at, charge, deed, break_size,
-             interruption_reason, int(early_completion), forge_type),
+             interruption_reason, int(early_completion), forge_type, workspace_id),
         )
 
         # Update actual_pomos count (hollow forges don't count)
@@ -505,12 +605,14 @@ class SqlitePomoRepo:
 class SqliteTrophyPRRepo:
     """Trophy personal records backed by SQLite."""
 
-    def __init__(self, db: aiosqlite.Connection) -> None:
+    def __init__(self, db: aiosqlite.Connection, workspace_id: str = DEFAULT_WORKSPACE_ID) -> None:
         self._db = db
+        self._workspace_id = workspace_id
 
     async def load_prs(self) -> dict:
         cursor = await self._db.execute(
-            "SELECT trophy_id, best, date, detail FROM trophy_records"
+            "SELECT trophy_id, best, date, detail FROM trophy_records WHERE workspace_id = ?",
+            (self._workspace_id,),
         )
         prs = {}
         for r in await cursor.fetchall():
@@ -534,23 +636,24 @@ class SqliteTrophyPRRepo:
     async def save_prs(self, prs: dict) -> None:
         import json
         cursor = await self._db.execute(
-            "SELECT trophy_id, best, date, detail FROM trophy_records"
+            "SELECT trophy_id, best, date, detail FROM trophy_records WHERE workspace_id = ?",
+            (self._workspace_id,),
         )
         existing = {
             r[0]: (r[1] or "", r[2] or "", r[3])
             for r in await cursor.fetchall()
         }
-        known_ids = tuple(prs.keys())
         desired = {}
         for tid, data in prs.items():
+            record_id = f"{self._workspace_id}:{tid}"
             if tid.startswith("_"):
-                desired[tid] = (tid, "", data.get("date", ""), json.dumps(data))
+                desired[tid] = (record_id, self._workspace_id, tid, "", data.get("date", ""), json.dumps(data))
             else:
-                desired[tid] = (tid, str(data["best"]), data["date"], data.get("detail"))
+                desired[tid] = (record_id, self._workspace_id, tid, str(data["best"]), data["date"], data.get("detail"))
 
         rows = [
             row for tid, row in desired.items()
-            if existing.get(tid) != row[1:]
+            if existing.get(tid) != row[3:]
         ]
         stale_ids = tuple(tid for tid in existing if tid not in desired)
 
@@ -561,16 +664,16 @@ class SqliteTrophyPRRepo:
         # would otherwise create noisy sync_changes entries.
         if rows:
             await self._db.executemany(
-                "INSERT INTO trophy_records (trophy_id, best, date, detail) "
-                "VALUES (?, ?, ?, ?) "
-                "ON CONFLICT(trophy_id) DO UPDATE SET "
+                "INSERT INTO trophy_records (id, workspace_id, trophy_id, best, date, detail) "
+                "VALUES (?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(workspace_id, trophy_id) DO UPDATE SET "
                 "best = excluded.best, date = excluded.date, detail = excluded.detail",
                 rows,
             )
         if stale_ids:
             placeholders = ",".join("?" * len(stale_ids))
             await self._db.execute(
-                f"DELETE FROM trophy_records WHERE trophy_id IN ({placeholders})",
-                stale_ids,
+                f"DELETE FROM trophy_records WHERE workspace_id = ? AND trophy_id IN ({placeholders})",
+                (self._workspace_id, *stale_ids),
             )
         await self._db.commit()

@@ -1,0 +1,49 @@
+{% if entries %}
+<div class="saga-recent">
+  {% for entry in entries %}
+  <details class="saga-entry-row">
+    <summary>
+      <span class="saga-entry-row__time">{{ entry.timestamp[11:16] }}</span>
+      <span class="saga-entry-row__label">{{ entry.emotion_label }}</span>
+      <span class="saga-entry-row__meta">{{ entry.emotion_family }} / {{ entry.intensity }}</span>
+    </summary>
+    <form class="saga-entry-edit"
+          hx-patch="/saga/entries/{{ entry.id }}"
+          hx-target="#saga-recent"
+          hx-swap="innerHTML">
+      <label>
+        <span>Family</span>
+        <select name="emotion_family">
+          {% for group in emotion_catalog %}
+          <option value="{{ group.family }}"{% if group.family == entry.emotion_family %} selected{% endif %}>{{ group.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Word</span>
+        <input name="emotion_label" value="{{ entry.emotion_label }}" maxlength="32">
+      </label>
+      <label>
+        <span>Intensity</span>
+        <input name="intensity" type="number" min="1" max="10" value="{{ entry.intensity }}">
+      </label>
+      <label class="saga-entry-edit__note">
+        <span>Note</span>
+        <textarea name="note" maxlength="200" rows="2">{{ entry.note or "" }}</textarea>
+      </label>
+      <div class="saga-entry-edit__actions">
+        <button type="submit">Save</button>
+        <button type="button"
+                hx-delete="/saga/entries/{{ entry.id }}"
+                hx-target="#saga-recent"
+                hx-swap="innerHTML">Delete</button>
+      </div>
+    </form>
+  </details>
+  {% endfor %}
+</div>
+{% else %}
+<div class="saga-empty-line">
+  The day is quiet so far. One capture is enough to begin the thread.
+</div>
+{% endif %}

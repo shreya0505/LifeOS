@@ -25,11 +25,12 @@ class SyncSqlitePomoRepo:
     def close(self) -> None:
         self._conn.close()
 
-    def load_all(self) -> list[dict]:
+    def load_all(self, workspace_id: str = "work") -> list[dict]:
         cursor = self._conn.execute(
             "SELECT id, quest_id, quest_title, started_at, ended_at, "
-            "actual_pomos, status, streak_peak, total_interruptions "
-            "FROM pomo_sessions ORDER BY started_at"
+            "actual_pomos, status, streak_peak, total_interruptions, workspace_id "
+            "FROM pomo_sessions WHERE workspace_id = ? ORDER BY started_at",
+            (workspace_id,),
         )
         sessions = []
         for r in cursor.fetchall():
@@ -37,14 +38,15 @@ class SyncSqlitePomoRepo:
                 "id": r[0], "quest_id": r[1], "quest_title": r[2],
                 "started_at": r[3], "ended_at": r[4], "actual_pomos": r[5],
                 "status": r[6], "streak_peak": r[7], "total_interruptions": r[8],
+                "workspace_id": r[9],
                 "segments": [],
             }
             seg_cursor = self._conn.execute(
                 "SELECT type, lap, cycle, completed, interruptions, started_at, "
                 "ended_at, charge, deed, break_size, interruption_reason, "
-                "early_completion, forge_type "
-                "FROM pomo_segments WHERE session_id = ? ORDER BY id",
-                (r[0],),
+                "early_completion, forge_type, workspace_id "
+                "FROM pomo_segments WHERE session_id = ? AND workspace_id = ? ORDER BY id",
+                (r[0], workspace_id),
             )
             for s in seg_cursor.fetchall():
                 session["segments"].append({
@@ -54,19 +56,20 @@ class SyncSqlitePomoRepo:
                     "deed": s[8], "break_size": s[9],
                     "interruption_reason": s[10],
                     "early_completion": bool(s[11]), "forge_type": s[12],
+                    "workspace_id": s[13],
                 })
             sessions.append(session)
         return sessions
 
-    def start_session(self, quest_id: str, quest_title: str) -> dict:
+    def start_session(self, quest_id: str, quest_title: str, workspace_id: str = "work") -> dict:
         sid = uuid.uuid4().hex[:8]
         now = clock.utcnow().isoformat()
         self._conn.execute(
             "INSERT INTO pomo_sessions "
             "(id, quest_id, quest_title, started_at, status, actual_pomos, "
-            "streak_peak, total_interruptions) "
-            "VALUES (?, ?, ?, ?, 'running', 0, 0, 0)",
-            (sid, quest_id, quest_title, now),
+            "streak_peak, total_interruptions, workspace_id) "
+            "VALUES (?, ?, ?, ?, 'running', 0, 0, 0, ?)",
+            (sid, quest_id, quest_title, now, workspace_id),
         )
         self._conn.commit()
         return {
@@ -74,12 +77,13 @@ class SyncSqlitePomoRepo:
             "started_at": now, "ended_at": None, "segments": [],
             "actual_pomos": 0, "status": "running",
             "streak_peak": 0, "total_interruptions": 0,
+            "workspace_id": workspace_id,
         }
 
     def get_session(self, session_id: str) -> dict | None:
         cursor = self._conn.execute(
             "SELECT id, quest_id, quest_title, started_at, ended_at, "
-            "actual_pomos, status, streak_peak, total_interruptions "
+            "actual_pomos, status, streak_peak, total_interruptions, workspace_id "
             "FROM pomo_sessions WHERE id = ?",
             (session_id,),
         )
@@ -90,14 +94,15 @@ class SyncSqlitePomoRepo:
             "id": r[0], "quest_id": r[1], "quest_title": r[2],
             "started_at": r[3], "ended_at": r[4], "actual_pomos": r[5],
             "status": r[6], "streak_peak": r[7], "total_interruptions": r[8],
+            "workspace_id": r[9],
             "segments": [],
         }
         seg_cursor = self._conn.execute(
             "SELECT type, lap, cycle, completed, interruptions, started_at, "
             "ended_at, charge, deed, break_size, interruption_reason, "
-            "early_completion, forge_type "
-            "FROM pomo_segments WHERE session_id = ? ORDER BY id",
-            (session_id,),
+            "early_completion, forge_type, workspace_id "
+            "FROM pomo_segments WHERE session_id = ? AND workspace_id = ? ORDER BY id",
+            (session_id, r[9]),
         )
         for s in seg_cursor.fetchall():
             session["segments"].append({
@@ -107,6 +112,7 @@ class SyncSqlitePomoRepo:
                 "deed": s[8], "break_size": s[9],
                 "interruption_reason": s[10],
                 "early_completion": bool(s[11]), "forge_type": s[12],
+                "workspace_id": s[13],
             })
         return session
 
@@ -128,20 +134,22 @@ class SyncSqlitePomoRepo:
         forge_type: str | None = None,
     ) -> dict | None:
         cursor = self._conn.execute(
-            "SELECT id FROM pomo_sessions WHERE id = ?", (session_id,)
+            "SELECT id, workspace_id FROM pomo_sessions WHERE id = ?", (session_id,)
         )
-        if cursor.fetchone() is None:
+        session_row = cursor.fetchone()
+        if session_row is None:
             return None
+        workspace_id = session_row[1]
 
         self._conn.execute(
             "INSERT INTO pomo_segments "
             "(session_id, type, lap, cycle, completed, interruptions, "
             "started_at, ended_at, charge, deed, break_size, "
-            "interruption_reason, early_completion, forge_type) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "interruption_reason, early_completion, forge_type, workspace_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (session_id, seg_type, lap, cycle, int(completed), interruptions,
              started_at, ended_at, charge, deed, break_size,
-             interruption_reason, int(early_completion), forge_type),
+             interruption_reason, int(early_completion), forge_type, workspace_id),
         )
 
         if seg_type == "work" and completed and forge_type != "hollow":

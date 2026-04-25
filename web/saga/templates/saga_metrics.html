@@ -1,0 +1,65 @@
+<section class="saga-metrics-panel">
+  <header class="saga-sticky-head">
+    <div>
+      <p class="saga-kicker">Patterns</p>
+      <h1>Reflection metrics</h1>
+    </div>
+    <span>{{ metrics.total_entries }} entries</span>
+  </header>
+
+  <div class="saga-metric-band">
+    <div>
+      <span class="saga-field-label">Stability</span>
+      <strong>{{ metrics.stability }}</strong>
+      <small>Average drift {{ metrics.volatility }}</small>
+    </div>
+    <p>{{ metrics.correlation }}</p>
+  </div>
+
+  <section class="saga-heatmap-section">
+    <div class="saga-section-head">
+      <span>35 day intensity</span>
+      <small>average daily pressure</small>
+    </div>
+    <div class="saga-heatmap">
+      {% for cell in metrics.heatmap %}
+      <span class="saga-heatmap__cell saga-heatmap__cell--{{ cell.level }}"
+            title="{{ cell.date }}: {{ cell.count }} entries, avg {{ cell.average }}">
+        {{ cell.day }}
+      </span>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="saga-distribution-section">
+    <div class="saga-section-head">
+      <span>Emotion distribution</span>
+      <small>family share</small>
+    </div>
+    <div class="saga-distribution">
+      {% for item in metrics.distribution %}
+      <div class="saga-dist-row">
+        <span>{{ item.label }}</span>
+        <div><i style="width: {{ item.pct }}%"></i></div>
+        <strong>{{ item.count }}</strong>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="saga-top-labels">
+    <div class="saga-section-head">
+      <span>Most named</span>
+      <small>signal words</small>
+    </div>
+    {% if metrics.top_labels %}
+    <div class="saga-label-cloud">
+      {% for label, count in metrics.top_labels %}
+      <span>{{ label }} <small>{{ count }}</small></span>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="saga-empty-line">Capture a few moments and this section will tighten up.</p>
+    {% endif %}
+  </section>
+</section>

@@ -6916,3 +6916,163 @@ details[open] .inscribe-more__chevron { transform: rotate(180deg); }
 /* Ensure meta strip renders cleanly inside pomo screen headers */
 .pomo-quest-meta { display: block; }
 .pomo-quest-meta:empty { display: none; }
+
+/* ── Workspace switcher ─────────────────────────────────────────────── */
+.workspace-switcher {
+  position: relative;
+  --workspace-accent: var(--primary);
+}
+
+.workspace-switcher__current {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  color: var(--on-surface-variant);
+  background: color-mix(in oklch, var(--surface-container-lowest) 72%, transparent);
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  box-shadow: var(--shadow-input-lift);
+  transition: background 140ms var(--ease-natural), color 140ms var(--ease-natural),
+    border-color 140ms var(--ease-natural);
+}
+
+.workspace-switcher__current:hover,
+.workspace-switcher[open] .workspace-switcher__current {
+  border-color: color-mix(in oklch, var(--workspace-accent) 35%, var(--glass-border));
+  color: var(--on-surface);
+  background: color-mix(in oklch, var(--workspace-accent) 9%, var(--surface-container-lowest));
+}
+
+.workspace-switcher__current::-webkit-details-marker {
+  display: none;
+}
+
+.workspace-switcher__current .icon,
+.workspace-option .icon,
+.workspace-create__submit .icon {
+  width: 15px;
+  height: 15px;
+}
+
+.workspace-switcher__current > .icon:first-child,
+.workspace-option > .icon:first-child {
+  color: var(--workspace-accent);
+}
+
+.workspace-switcher__chevron {
+  opacity: 0.62;
+}
+
+.workspace-switcher__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 80;
+  width: min(340px, calc(100vw - 24px));
+  padding: 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklch, var(--surface) 96%, var(--primary));
+  box-shadow: var(--shadow-overlay);
+}
+
+.workspace-switcher__list {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.workspace-option {
+  display: grid;
+  grid-template-columns: 18px 1fr 16px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--on-surface);
+  text-align: left;
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms var(--ease-natural), border-color 120ms var(--ease-natural);
+}
+
+.workspace-option:hover,
+.workspace-option.is-active {
+  border-color: color-mix(in oklch, var(--workspace-accent) 32%, var(--outline-variant));
+  background: color-mix(in oklch, var(--workspace-accent) 12%, transparent);
+}
+
+.workspace-option__check {
+  justify-self: end;
+  color: var(--workspace-accent);
+}
+
+.workspace-create {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px 86px 34px;
+  gap: 6px;
+}
+
+.workspace-create__name,
+.workspace-create__select {
+  min-width: 0;
+  height: 34px;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-md);
+  background: var(--surface-container-lowest);
+  color: var(--on-surface);
+  font: inherit;
+  font-size: 12px;
+  box-shadow: var(--shadow-input-inset);
+}
+
+.workspace-create__name {
+  padding: 0 9px;
+}
+
+.workspace-create__submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-md);
+  background: var(--primary);
+  color: var(--on-primary);
+  cursor: pointer;
+  transition: background 140ms var(--ease-natural), border-color 140ms var(--ease-natural);
+}
+
+.workspace-create__submit:hover {
+  border-color: var(--primary-container);
+  background: var(--primary-container);
+}
+
+.workspace-color-blue { --workspace-accent: var(--label-hue-5); }
+.workspace-color-green { --workspace-accent: var(--tertiary); }
+.workspace-color-amber { --workspace-accent: var(--hearth); }
+.workspace-color-rose { --workspace-accent: var(--label-hue-8); }
+.workspace-color-violet { --workspace-accent: var(--label-hue-7); }
+.workspace-color-slate { --workspace-accent: var(--slate); }
+
+@media (max-width: 720px) {
+  .workspace-switcher__panel {
+    right: -72px;
+  }
+
+  .workspace-create {
+    grid-template-columns: 1fr 34px;
+  }
+}

@@ -7,7 +7,9 @@ from fastapi.responses import HTMLResponse
 
 from core.metrics import compute_war_room
 from core.trophy_compute import compute_trophies
-from web.deps import get_quest_repo, get_pomo_repo, get_trophy_repo
+from web.deps import get_quest_repo, get_pomo_repo
+from core.storage.sqlite_backend import SqliteTrophyPRRepo
+from web.questlog_context import QuestlogContext, resolve_questlog_context
 
 router = APIRouter()
 
@@ -29,10 +31,11 @@ async def trophies(
     request: Request,
     quest_repo=Depends(get_quest_repo),
     pomo_repo=Depends(get_pomo_repo),
-    trophy_repo=Depends(get_trophy_repo),
+    qctx: QuestlogContext = Depends(resolve_questlog_context),
 ):
-    sessions = await pomo_repo.load_all()
-    quests = await quest_repo.load_all()
+    trophy_repo = SqliteTrophyPRRepo(request.app.state.db, qctx.workspace_id)
+    sessions = await pomo_repo.load_all(qctx.workspace_id)
+    quests = await quest_repo.load_all(qctx.workspace_id)
     prs = await trophy_repo.load_prs()
     old_prs = dict(prs)
 
@@ -61,10 +64,11 @@ async def trophies_strip(
     request: Request,
     quest_repo=Depends(get_quest_repo),
     pomo_repo=Depends(get_pomo_repo),
-    trophy_repo=Depends(get_trophy_repo),
+    qctx: QuestlogContext = Depends(resolve_questlog_context),
 ):
-    sessions = await pomo_repo.load_all()
-    quests = await quest_repo.load_all()
+    trophy_repo = SqliteTrophyPRRepo(request.app.state.db, qctx.workspace_id)
+    sessions = await pomo_repo.load_all(qctx.workspace_id)
+    quests = await quest_repo.load_all(qctx.workspace_id)
     prs = await trophy_repo.load_prs()
 
     result, updated_prs = _compute(sessions, quests, prs)

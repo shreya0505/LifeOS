@@ -126,12 +126,13 @@ class PomoEngine:
         quest_title: str,
         prior_pomos: int = 0,
         lap_history: dict | None = None,
+        workspace_id: str = "work",
     ) -> dict:
         """Start a new pomo session. Returns the session dict."""
         self.lap_history = dict(lap_history) if lap_history else {}
         self.lap = prior_pomos
         self.is_resume = prior_pomos > 0
-        self.session = self._repo.start_session(quest_id, quest_title)
+        self.session = self._repo.start_session(quest_id, quest_title, workspace_id=workspace_id)
 
         # Reset per-session state
         self.seg_type = "work"

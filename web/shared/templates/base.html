@@ -43,7 +43,54 @@
         <button class="app-navbar__link" data-tab="metrics" onclick="switchNavTab('metrics')">Codex</button>
       </nav>
       <div class="app-navbar__end">
+        {% if workspaces is defined and current_workspace is defined %}
+        <details class="workspace-switcher">
+          <summary class="workspace-switcher__current workspace-color-{{ current_workspace.color | default('blue') }}">
+            {{ icon(current_workspace.icon | default('folder'), 'icon') }}
+            <span>{{ current_workspace.name }}</span>
+            {{ icon('chevron-down', 'icon workspace-switcher__chevron') }}
+          </summary>
+          <div class="workspace-switcher__panel">
+            <div class="workspace-switcher__list">
+              {% for workspace in workspaces %}
+              <form hx-post="/workspaces/select" hx-swap="none">
+                <input type="hidden" name="workspace_id" value="{{ workspace.id }}">
+                <button type="submit"
+                        class="workspace-option workspace-color-{{ workspace.color }}{% if workspace.id == current_workspace.id %} is-active{% endif %}">
+                  {{ icon(workspace.icon, 'icon') }}
+                  <span>{{ workspace.name }}</span>
+                  {% if workspace.id == current_workspace.id %}{{ icon('check', 'icon workspace-option__check') }}{% endif %}
+                </button>
+              </form>
+              {% endfor %}
+            </div>
+            <form class="workspace-create" hx-post="/workspaces" hx-swap="none">
+              <input class="workspace-create__name" type="text" name="name" placeholder="New workspace" required>
+              <select class="workspace-create__select" name="icon" aria-label="Workspace icon">
+                <option value="folder">Folder</option>
+                <option value="clipboard-list">List</option>
+                <option value="hammer">Hammer</option>
+                <option value="target">Target</option>
+                <option value="flame">Flame</option>
+                <option value="moon">Moon</option>
+                <option value="scroll">Scroll</option>
+                <option value="tag">Tag</option>
+              </select>
+              <select class="workspace-create__select" name="color" aria-label="Workspace color">
+                <option value="blue">Blue</option>
+                <option value="green">Green</option>
+                <option value="amber">Amber</option>
+                <option value="rose">Rose</option>
+                <option value="violet">Violet</option>
+                <option value="slate">Slate</option>
+              </select>
+              <button class="workspace-create__submit" type="submit">{{ icon('check', 'icon') }}</button>
+            </form>
+          </div>
+        </details>
+        {% endif %}
         <div hx-get="/sync/panel" hx-trigger="load, every {{ sync_ui_poll_seconds() }}s" hx-swap="outerHTML"></div>
+        <a href="/saga" class="app-navbar__switch" title="Saga">Saga ↗</a>
         <a href="/challenge" class="app-navbar__switch" title="Hard 90 Challenge">Hard 90 ↗</a>
       </div>
     </header>

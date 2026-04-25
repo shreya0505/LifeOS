@@ -42,6 +42,20 @@ def _hash_row(row: dict | None) -> str:
     return hashlib.sha256(_dumps(public).encode("utf-8")).hexdigest()
 
 
+def _normalize_workspace_row(table: SyncTable, row: dict | None) -> dict | None:
+    """Accept pre-workspace sync rows by assigning them to Work."""
+    if row is None:
+        return None
+    normalized = dict(row)
+    if table.name in {"quests", "artifact_keys", "pomo_sessions", "pomo_segments", "trophy_records"}:
+        normalized["workspace_id"] = normalized.get("workspace_id") or "work"
+    if table.name == "artifact_keys" and not normalized.get("id") and normalized.get("name"):
+        normalized["id"] = f"{normalized.get('workspace_id', 'work')}:{normalized['name']}"
+    if table.name == "trophy_records" and not normalized.get("id") and normalized.get("trophy_id"):
+        normalized["id"] = f"{normalized.get('workspace_id', 'work')}:{normalized['trophy_id']}"
+    return normalized
+
+
 @dataclass
 class SyncResult:
     action: str
@@ -398,6 +412,9 @@ class SyncService:
         conflicts = 0
         for table in SYNC_TABLES:
             for row in snapshot.get("tables", {}).get(table.name, []):
+                row = _normalize_workspace_row(table, row)
+                if not row or table.pk not in row:
+                    continue
                 change = {
                     "table": table.name,
                     "record_id": str(row[table.pk]),
@@ -480,6 +497,10 @@ class SyncService:
 
     async def _apply_change(self, change: dict) -> tuple[bool, bool]:
         table = SYNC_TABLE_BY_NAME[change["table"]]
+        if change.get("row") is not None:
+            change = {**change, "row": _normalize_workspace_row(table, change.get("row"))}
+            if change["row"] and change["record_id"] not in {change["row"].get(table.pk), str(change["row"].get(table.pk))}:
+                change["record_id"] = str(change["row"].get(table.pk))
         record_id = str(change["record_id"])
         local = await self._row_by_id(table, record_id)
         remote = change.get("row")

@@ -1,0 +1,58 @@
+{% from 'components/icons.html' import icon %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Saga{% endblock %}</title>
+<link rel="icon" type="image/png" href="/static/assets/logo.png">
+<link rel="stylesheet" href="/static/reset.css?v=2">
+<link rel="stylesheet" href="/static/tokens.css?v=2">
+<link rel="stylesheet" href="/static/sync.css?v=1">
+<link rel="stylesheet" href="/static/saga.css?v=1">
+<script src="/static/htmx.min.js" defer></script>
+<script src="/static/alpine-collapse.min.js" defer></script>
+<script src="/static/alpine.min.js" defer></script>
+<script src="/static/chart.min.js" defer></script>
+</head>
+<body class="saga-page" hx-headers='{"X-Requested-With": "htmx"}'>
+<header class="saga-navbar">
+  <div class="saga-navbar__brand">
+    <a href="/saga" class="saga-brand">Saga</a>
+    <span class="saga-navbar__crumb">Daily narrative</span>
+  </div>
+  <nav class="saga-navbar__nav">
+    <button class="saga-nav-link is-active" data-saga-tab="today" type="button" onclick="switchSagaTab('today')">Today</button>
+    <button class="saga-nav-link" data-saga-tab="timeline" type="button" onclick="switchSagaTab('timeline')">Timeline</button>
+    <button class="saga-nav-link" data-saga-tab="metrics" type="button" onclick="switchSagaTab('metrics')">Metrics</button>
+  </nav>
+  <div class="saga-navbar__end">
+    <div hx-get="/sync/panel" hx-trigger="load, every {{ sync_ui_poll_seconds() }}s" hx-swap="outerHTML"></div>
+    <a href="/" class="saga-navbar__switch" title="Questlog">Questlog</a>
+    <a href="/challenge" class="saga-navbar__switch" title="Hard 90">Hard 90</a>
+  </div>
+</header>
+
+<main class="saga-main">
+  {% block content %}{% endblock %}
+</main>
+
+{% if test_mode_enabled() %}
+<div hx-get="/test/bar" hx-trigger="load" hx-swap="outerHTML"></div>
+{% endif %}
+
+<script>
+  function switchSagaTab(tabName) {
+    document.querySelectorAll('.saga-nav-link[data-saga-tab]').forEach(btn => {
+      btn.classList.toggle('is-active', btn.dataset.sagaTab === tabName);
+    });
+    const root = document.querySelector('[data-saga-root]');
+    if (root && root._x_dataStack) {
+      root._x_dataStack[0].tab = tabName;
+    }
+    if (tabName === 'timeline') htmx.trigger('#saga-timeline-slot', 'refresh');
+    if (tabName === 'metrics') htmx.trigger('#saga-metrics-slot', 'refresh');
+  }
+</script>
+</body>
+</html>

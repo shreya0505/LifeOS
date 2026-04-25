@@ -26,6 +26,7 @@
   </nav>
   <div class="ch-navbar__end">
     <div hx-get="/sync/panel" hx-trigger="load, every {{ sync_ui_poll_seconds() }}s" hx-swap="outerHTML"></div>
+    <a href="/saga" class="ch-navbar__switch" title="Saga">Saga ↗</a>
     <a href="/" class="ch-navbar__switch" title="Quest Tracker">QuestLog ↗</a>
   </div>
 </header>

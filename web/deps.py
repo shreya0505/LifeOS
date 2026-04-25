@@ -9,7 +9,9 @@ from core.storage.sqlite_backend import (
     SqliteQuestRepo,
     SqlitePomoRepo,
     SqliteTrophyPRRepo,
+    SqliteWorkspaceRepo,
 )
+from core.storage.saga_backend import SqliteSagaRepo
 from core.storage.challenge_backend import (
     SqliteChallengeRepo,
     SqliteChallengeTaskRepo,
@@ -30,6 +32,10 @@ def get_trophy_repo(request: Request) -> SqliteTrophyPRRepo:
     return SqliteTrophyPRRepo(request.app.state.db)
 
 
+def get_workspace_repo(request: Request) -> SqliteWorkspaceRepo:
+    return SqliteWorkspaceRepo(request.app.state.db)
+
+
 def get_challenge_repo(request: Request) -> SqliteChallengeRepo:
     return SqliteChallengeRepo(request.app.state.db)
 
@@ -48,3 +54,7 @@ def get_challenge_era_repo(request: Request) -> SqliteChallengeEraRepo:
 
 def get_artifact_key_repo(request: Request) -> SqliteArtifactKeyRepo:
     return SqliteArtifactKeyRepo(request.app.state.db)
+
+
+def get_saga_repo(request: Request) -> SqliteSagaRepo:
+    return SqliteSagaRepo(request.app.state.db)

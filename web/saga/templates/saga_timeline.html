@@ -1,0 +1,48 @@
+<section class="saga-timeline-panel">
+  <header class="saga-sticky-head">
+    <div>
+      <p class="saga-kicker">Daily story</p>
+      <h1>{{ today_label }}</h1>
+    </div>
+    <span>{{ today }}</span>
+  </header>
+
+  <div class="saga-timeline">
+    {% for group in event_groups %}
+    <section class="saga-time-block">
+      <h2>{{ group.label }}</h2>
+      {% if group.events %}
+      <div class="saga-event-list">
+        {% for event in group.events %}
+        <details class="saga-event saga-event--{{ event.source }}">
+          <summary>
+            <span class="saga-event__pip"></span>
+            <span class="saga-event__time">{{ event.time or "--:--" }}</span>
+            <span class="saga-event__source">{{ event.source_label }}</span>
+            <strong>{{ event.title }}</strong>
+          </summary>
+          <div class="saga-event__body">
+            <p>{{ event.summary }}</p>
+            {% if event.payload %}
+            <dl>
+              {% for key, value in event.payload.items() %}
+              {% if value %}
+              <div>
+                <dt>{{ key.replace("_", " ") }}</dt>
+                <dd>{{ value }}</dd>
+              </div>
+              {% endif %}
+              {% endfor %}
+            </dl>
+            {% endif %}
+          </div>
+        </details>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="saga-empty-line">No signals in this block yet.</p>
+      {% endif %}
+    </section>
+    {% endfor %}
+  </div>
+</section>

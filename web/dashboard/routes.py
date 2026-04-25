@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse
 
 from core.metrics import compute_metrics, compute_pomo_metrics
 from web.deps import get_quest_repo, get_pomo_repo
+from web.questlog_context import QuestlogContext, resolve_questlog_context
 
 router = APIRouter()
 
@@ -21,9 +22,10 @@ async def dashboard(
     request: Request,
     quest_repo=Depends(get_quest_repo),
     pomo_repo=Depends(get_pomo_repo),
+    qctx: QuestlogContext = Depends(resolve_questlog_context),
 ):
-    quests = await quest_repo.load_all()
-    sessions = await pomo_repo.load_all()
+    quests = await quest_repo.load_all(qctx.workspace_id)
+    sessions = await pomo_repo.load_all(qctx.workspace_id)
     quest_metrics = compute_metrics(quests)
     pomo_metrics = compute_pomo_metrics(sessions)
 

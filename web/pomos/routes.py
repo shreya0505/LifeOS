@@ -16,6 +16,7 @@ from core.pomo_queries import (
 )
 from web.deps import get_quest_repo, get_pomo_repo
 from web.pomos.engine import get_engine
+from web.questlog_context import QuestlogContext, resolve_questlog_context
 
 router = APIRouter(prefix="/pomos")
 
@@ -32,27 +33,36 @@ async def start_session(
     request: Request,
     quest_id: str = Form(...),
     pomo_repo=Depends(get_pomo_repo),
+    qctx: QuestlogContext = Depends(resolve_questlog_context),
 ):
     engine = get_engine()
 
     # If engine already has an active session, return the current state
     if engine.is_active:
+        if (engine.session or {}).get("workspace_id") != qctx.workspace_id:
+            return HTMLResponse("Finish the active pomo before switching workspaces.", status_code=409)
         return _render(request, "pomo/panel.html", _panel_context(engine))
 
     # Get quest info from async repo
     from web.deps import get_quest_repo as _get_quest_repo
     quest_repo = _get_quest_repo(request)
-    quests = await quest_repo.load_all()
+    quests = await quest_repo.load_all(qctx.workspace_id)
     quest = next((q for q in quests if q["id"] == quest_id), None)
     if quest is None or quest["status"] != "active":
         return HTMLResponse("<p>Quest must be active to start a pomo.</p>", status_code=400)
 
     # Get prior pomo count and lap history
-    sessions = await pomo_repo.load_all()
+    sessions = await pomo_repo.load_all(qctx.workspace_id)
     prior = get_quest_pomo_total(sessions, quest_id)
     lap_history = get_quest_lap_history(sessions, quest_id)
 
-    engine.start_session(quest_id, quest["title"], prior_pomos=prior, lap_history=lap_history)
+    engine.start_session(
+        quest_id,
+        quest["title"],
+        prior_pomos=prior,
+        lap_history=lap_history,
+        workspace_id=qctx.workspace_id,
+    )
 
     response = _render(request, "pomo/panel.html", {
         "engine": engine,
@@ -318,8 +328,12 @@ async def pomo_status(request: Request):
 # ── Receipt ──────────────────────────────────────────────────────────────
 
 @router.get("/receipt", response_class=HTMLResponse)
-async def receipt(request: Request, pomo_repo=Depends(get_pomo_repo)):
-    sessions = await pomo_repo.load_all()
+async def receipt(
+    request: Request,
+    pomo_repo=Depends(get_pomo_repo),
+    qctx: QuestlogContext = Depends(resolve_questlog_context),
+):
+    sessions = await pomo_repo.load_all(qctx.workspace_id)
     entries = get_today_receipt(sessions)
 
     formatted = []
@@ -392,7 +406,8 @@ def _build_journey_trail(engine) -> list[dict]:
         return []
     session_id = engine.session["id"]
     quest_id = engine.session["quest_id"]
-    all_sessions = get_quest_segment_journey(engine._repo.load_all(), quest_id)
+    workspace_id = engine.session.get("workspace_id", "work")
+    all_sessions = get_quest_segment_journey(engine._repo.load_all(workspace_id), quest_id)
     trail = []
     for sess_entry in all_sessions:
         for seg in sess_entry["segments"]:
