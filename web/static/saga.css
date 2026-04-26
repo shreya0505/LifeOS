@@ -362,8 +362,12 @@
 .saga-note {
   display: block;
   margin-top: 1.25rem;
-  padding-top: 1.25rem;
+  padding-top: 1.35rem;
   border-top: var(--saga-rule);
+}
+
+.saga-note {
+  padding-inline: 0.45rem;
 }
 
 .saga-intensity > div {
@@ -384,6 +388,16 @@
 .saga-note small {
   color: rgba(245, 241, 234, 0.46);
   font-size: 0.76rem;
+}
+
+.saga-note__prompt {
+  display: block;
+  margin-bottom: 0.65rem;
+  color: rgba(245, 241, 234, 0.28);
+  font-family: var(--saga-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
 }
 
 .saga-intensity input {
@@ -416,10 +430,13 @@
 
 .saga-note textarea {
   min-height: 6.5rem;
-  padding: 0.5rem 0;
-  font-family: var(--saga-serif);
+  padding: 0.75rem 0.85rem;
+  background:
+    linear-gradient(90deg, rgba(207, 157, 123, 0.06), transparent 42%),
+    rgba(245, 241, 234, 0.018);
+  font-family: var(--saga-mono);
   font-size: 1rem;
-  font-weight: 400;
+  font-weight: 600;
   line-height: 1.7;
   resize: vertical;
 }

@@ -127,7 +127,7 @@ def _local_date(timestamp: str) -> str:
 
 def _clean_note(note: str | None) -> str | None:
     cleaned = (note or "").strip()
-    return cleaned[:2000] or None
+    return cleaned or None
 
 
 def derive_dyad(primary_family: str, secondary_family: str | None) -> dict | None:

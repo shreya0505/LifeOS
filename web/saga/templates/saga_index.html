@@ -72,11 +72,11 @@
         </div>
 
         <label class="saga-note">
-          <textarea name="note" maxlength="2000" rows="5"
+          <span class="saga-note__prompt">What is on your mind today?</span>
+          <textarea name="note" rows="5"
                     x-ref="noteInput"
                     x-model="note"
                     placeholder="Write a note..."></textarea>
-          <small><span x-text="note.length"></span>/2000</small>
         </label>
 
         <div class="saga-capture__footer">
