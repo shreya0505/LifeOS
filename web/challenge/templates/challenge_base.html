@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}Hard 90{% endblock %}</title>
 <link rel="stylesheet" href="/static/tokens.css">
-<link rel="stylesheet" href="/static/challenge.css?v=30">
+<link rel="stylesheet" href="/static/challenge.css?v=31">
 <link rel="stylesheet" href="/static/sync.css?v=1">
 <script src="/static/htmx.min.js" defer></script>
 <script src="/static/alpine-collapse.min.js" defer></script>
@@ -22,6 +22,7 @@
   <nav class="ch-navbar__nav">
     <a href="/challenge/today" class="ch-nav-link{% if active_tab == 'today' %} is-active{% endif %}">Today</a>
     <a href="/challenge/metrics" class="ch-nav-link{% if active_tab == 'metrics' %} is-active{% endif %}">Metrics</a>
+    <a href="/challenge/experiments" class="ch-nav-link{% if active_tab == 'experiments' %} is-active{% endif %}">Tiny Experiments</a>
     <a href="/challenge/history" class="ch-nav-link{% if active_tab == 'history' %} is-active{% endif %}">History</a>
   </nav>
   <div class="ch-navbar__end">

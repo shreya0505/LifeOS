@@ -17,6 +17,7 @@ from core.storage.challenge_backend import (
     SqliteChallengeTaskRepo,
     SqliteChallengeEntryRepo,
     SqliteChallengeEraRepo,
+    SqliteChallengeExperimentRepo,
 )
 
 
@@ -50,6 +51,10 @@ def get_challenge_entry_repo(request: Request) -> SqliteChallengeEntryRepo:
 
 def get_challenge_era_repo(request: Request) -> SqliteChallengeEraRepo:
     return SqliteChallengeEraRepo(request.app.state.db)
+
+
+def get_challenge_experiment_repo(request: Request) -> SqliteChallengeExperimentRepo:
+    return SqliteChallengeExperimentRepo(request.app.state.db)
 
 
 def get_artifact_key_repo(request: Request) -> SqliteArtifactKeyRepo:

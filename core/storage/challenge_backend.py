@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import date, timedelta
 from core import clock
 
 import aiosqlite
+
+from core.challenge import config as C
 
 
 def _gen_id() -> str:
@@ -306,3 +308,235 @@ class SqliteChallengeEraRepo:
         cursor = await self._db.execute("SELECT DISTINCT era_name FROM challenge_eras")
         rows = await cursor.fetchall()
         return {r[0] for r in rows}
+
+
+def _experiment_row_to_dict(r: tuple) -> dict:
+    return {
+        "id": r[0],
+        "challenge_id": r[1],
+        "action": r[2],
+        "motivation": r[3],
+        "timeframe": r[4],
+        "status": r[5],
+        "started_at": r[6],
+        "ends_at": r[7],
+        "verdict": r[8],
+        "observation_notes": r[9],
+        "conclusion_notes": r[10],
+        "created_at": r[11],
+        "era_name": r[12] if len(r) > 12 else None,
+    }
+
+
+_EXPERIMENT_COLS = (
+    "e.id, e.challenge_id, e.action, e.motivation, e.timeframe, e.status, "
+    "e.started_at, e.ends_at, e.verdict, e.observation_notes, e.conclusion_notes, "
+    "e.created_at, c.era_name"
+)
+
+
+def _experiment_entry_row_to_dict(r: tuple) -> dict:
+    return {
+        "id": r[0],
+        "experiment_id": r[1],
+        "challenge_id": r[2],
+        "log_date": r[3],
+        "state": r[4],
+        "notes": r[5],
+        "created_at": r[6],
+    }
+
+
+_EXPERIMENT_ENTRY_COLS = "id, experiment_id, challenge_id, log_date, state, notes, created_at"
+
+
+class SqliteChallengeExperimentRepo:
+    def __init__(self, db: aiosqlite.Connection) -> None:
+        self._db = db
+
+    async def create(self, challenge_id: str, action: str, motivation: str, timeframe: str) -> dict:
+        eid = _gen_id()
+        now = _now_iso()
+        await self._db.execute(
+            "INSERT INTO challenge_experiments "
+            "(id, challenge_id, action, motivation, timeframe, status, created_at) "
+            "VALUES (?, ?, ?, ?, ?, 'draft', ?)",
+            (eid, challenge_id, action, motivation, timeframe, now),
+        )
+        await self._db.commit()
+        exp = await self.get_by_id(eid)
+        return exp or {
+            "id": eid,
+            "challenge_id": challenge_id,
+            "action": action,
+            "motivation": motivation,
+            "timeframe": timeframe,
+            "status": "draft",
+            "started_at": None,
+            "ends_at": None,
+            "verdict": None,
+            "observation_notes": None,
+            "conclusion_notes": None,
+            "created_at": now,
+            "era_name": None,
+        }
+
+    async def get_by_id(self, experiment_id: str) -> dict | None:
+        cursor = await self._db.execute(
+            f"SELECT {_EXPERIMENT_COLS} "
+            "FROM challenge_experiments e "
+            "LEFT JOIN challenges c ON c.id = e.challenge_id "
+            "WHERE e.id = ?",
+            (experiment_id,),
+        )
+        row = await cursor.fetchone()
+        return _experiment_row_to_dict(row) if row else None
+
+    async def get_all(self) -> list[dict]:
+        cursor = await self._db.execute(
+            f"SELECT {_EXPERIMENT_COLS} "
+            "FROM challenge_experiments e "
+            "LEFT JOIN challenges c ON c.id = e.challenge_id "
+            "ORDER BY CASE e.status WHEN 'running' THEN 1 WHEN 'draft' THEN 2 ELSE 3 END, "
+            "COALESCE(e.started_at, e.created_at) DESC, e.created_at DESC"
+        )
+        rows = await cursor.fetchall()
+        return [_experiment_row_to_dict(r) for r in rows]
+
+    async def get_for_today(self, log_date: str) -> list[dict]:
+        cursor = await self._db.execute(
+            f"SELECT {_EXPERIMENT_COLS}, ee.state, ee.notes "
+            "FROM challenge_experiments e "
+            "LEFT JOIN challenges c ON c.id = e.challenge_id "
+            "LEFT JOIN challenge_experiment_entries ee "
+            "  ON ee.experiment_id = e.id AND ee.log_date = ? "
+            "WHERE e.status IN ('draft','running') "
+            "ORDER BY CASE e.status WHEN 'running' THEN 1 ELSE 2 END, "
+            "COALESCE(e.started_at, e.created_at), e.created_at",
+            (log_date,),
+        )
+        rows = await cursor.fetchall()
+        out = []
+        for row in rows:
+            exp = _experiment_row_to_dict(row[:13])
+            exp["current_state"] = row[13]
+            exp["current_notes"] = row[14] or ""
+            out.append(exp)
+        return out
+
+    async def running_count(self) -> int:
+        cursor = await self._db.execute(
+            "SELECT COUNT(*) FROM challenge_experiments WHERE status = 'running'"
+        )
+        row = await cursor.fetchone()
+        return int(row[0] if row else 0)
+
+    async def start(self, experiment_id: str, start_date: str) -> dict | None:
+        exp = await self.get_by_id(experiment_id)
+        if exp is None or exp["status"] != "draft":
+            return None
+        if await self.running_count() >= 3:
+            return None
+        duration = C.EXPERIMENT_TIMEFRAME_DAYS[exp["timeframe"]]
+        ends_at = (date.fromisoformat(start_date) + timedelta(days=duration - 1)).isoformat()
+        await self._db.execute(
+            "UPDATE challenge_experiments "
+            "SET status = 'running', started_at = ?, ends_at = ? "
+            "WHERE id = ? AND status = 'draft'",
+            (start_date, ends_at, experiment_id),
+        )
+        await self._db.commit()
+        return await self.get_by_id(experiment_id)
+
+    async def judge(
+        self,
+        experiment_id: str,
+        verdict: str,
+        observation_notes: str | None,
+        conclusion_notes: str | None,
+    ) -> dict | None:
+        exp = await self.get_by_id(experiment_id)
+        if exp is None or exp["status"] != "running":
+            return None
+        await self._db.execute(
+            "UPDATE challenge_experiments "
+            "SET status = 'judged', verdict = ?, observation_notes = ?, conclusion_notes = ? "
+            "WHERE id = ? AND status = 'running'",
+            (verdict, observation_notes, conclusion_notes, experiment_id),
+        )
+        await self._db.commit()
+        return await self.get_by_id(experiment_id)
+
+    async def abandon(self, experiment_id: str) -> dict | None:
+        exp = await self.get_by_id(experiment_id)
+        if exp is None or exp["status"] != "running":
+            return None
+        await self._db.execute(
+            "UPDATE challenge_experiments SET status = 'abandoned' "
+            "WHERE id = ? AND status = 'running'",
+            (experiment_id,),
+        )
+        await self._db.commit()
+        return await self.get_by_id(experiment_id)
+
+    async def trash_draft(self, experiment_id: str) -> bool:
+        cursor = await self._db.execute(
+            "DELETE FROM challenge_experiments WHERE id = ? AND status = 'draft'",
+            (experiment_id,),
+        )
+        await self._db.commit()
+        return cursor.rowcount > 0
+
+    async def upsert_entry(
+        self,
+        experiment_id: str,
+        challenge_id: str,
+        log_date: str,
+        state: str,
+        notes: str | None,
+    ) -> dict:
+        cursor = await self._db.execute(
+            "SELECT id FROM challenge_experiment_entries "
+            "WHERE experiment_id = ? AND log_date = ?",
+            (experiment_id, log_date),
+        )
+        existing = await cursor.fetchone()
+        if existing:
+            entry_id = existing[0]
+            await self._db.execute(
+                "UPDATE challenge_experiment_entries SET state = ?, notes = ? "
+                "WHERE experiment_id = ? AND log_date = ?",
+                (state, notes, experiment_id, log_date),
+            )
+        else:
+            entry_id = _gen_id()
+            now = _now_iso()
+            await self._db.execute(
+                f"INSERT INTO challenge_experiment_entries ({_EXPERIMENT_ENTRY_COLS}) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (entry_id, experiment_id, challenge_id, log_date, state, notes, now),
+            )
+        await self._db.commit()
+        cursor = await self._db.execute(
+            f"SELECT {_EXPERIMENT_ENTRY_COLS} FROM challenge_experiment_entries WHERE id = ?",
+            (entry_id,),
+        )
+        row = await cursor.fetchone()
+        return _experiment_entry_row_to_dict(row)
+
+    async def get_entries_for_experiment(self, experiment_id: str) -> list[dict]:
+        cursor = await self._db.execute(
+            f"SELECT {_EXPERIMENT_ENTRY_COLS} FROM challenge_experiment_entries "
+            "WHERE experiment_id = ? ORDER BY log_date",
+            (experiment_id,),
+        )
+        rows = await cursor.fetchall()
+        return [_experiment_entry_row_to_dict(r) for r in rows]
+
+    async def get_all_entries(self) -> list[dict]:
+        cursor = await self._db.execute(
+            f"SELECT {_EXPERIMENT_ENTRY_COLS} FROM challenge_experiment_entries "
+            "ORDER BY log_date, experiment_id"
+        )
+        rows = await cursor.fetchall()
+        return [_experiment_entry_row_to_dict(r) for r in rows]

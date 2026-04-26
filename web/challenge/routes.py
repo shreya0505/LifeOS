@@ -15,6 +15,7 @@ from core.utils import today_local
 from web.deps import (
     get_challenge_entry_repo,
     get_challenge_era_repo,
+    get_challenge_experiment_repo,
     get_challenge_repo,
     get_challenge_task_repo,
 )
@@ -63,8 +64,47 @@ def _target_info(challenge: dict) -> dict:
     }
 
 
+def _decorate_experiment(exp: dict, today: date | None = None) -> dict:
+    today = today or today_local()
+    out = dict(exp)
+    out["timeframe_label"] = C.EXPERIMENT_TIMEFRAME_LABELS.get(
+        exp.get("timeframe"), exp.get("timeframe", "").title(),
+    )
+    out["duration_days"] = C.EXPERIMENT_TIMEFRAME_DAYS.get(exp.get("timeframe"), 0)
+    out["verdict_label"] = (
+        C.EXPERIMENT_VERDICTS.get(exp.get("verdict")) if exp.get("verdict") else None
+    )
+    out["is_overdue"] = False
+    out["days_remaining"] = None
+    out["trial_progress_pct"] = 0
+    out["time_signal"] = "Awaiting start"
+    if exp.get("status") == "running" and exp.get("started_at") and exp.get("ends_at"):
+        start = date.fromisoformat(exp["started_at"])
+        end = date.fromisoformat(exp["ends_at"])
+        duration = max(1, (end - start).days + 1)
+        elapsed = max(0, (today - start).days + 1)
+        out["trial_progress_pct"] = min(100, round(elapsed / duration * 100))
+        if today > end:
+            overdue = (today - end).days
+            out["is_overdue"] = True
+            out["days_remaining"] = -overdue
+            out["time_signal"] = f"{overdue} day{'s' if overdue != 1 else ''} overdue"
+        else:
+            remaining = (end - today).days + 1
+            out["days_remaining"] = remaining
+            out["time_signal"] = (
+                f"{remaining} day{'s' if remaining != 1 else ''} remaining"
+            )
+    return out
+
+
+def _decorate_experiments(experiments: list[dict]) -> list[dict]:
+    today = today_local()
+    return [_decorate_experiment(exp, today) for exp in experiments]
+
+
 async def _build_today_context(
-    challenge: dict, task_repo, entry_repo,
+    challenge: dict, task_repo, entry_repo, experiment_repo=None,
 ) -> dict:
     info = _target_info(challenge)
     target_date = info["target_date"]
@@ -83,6 +123,12 @@ async def _build_today_context(
             "current_notes": (ent["notes"] if ent else "") or "",
         }
         by_bucket[t["bucket"]].append(row)
+
+    experiments = []
+    if experiment_repo is not None:
+        experiments = _decorate_experiments(
+            await experiment_repo.get_for_today(target_date)
+        )
 
     start_dt = date.fromisoformat(challenge["start_date"])
     today_fmt = today_local().strftime("%b %d")
@@ -128,6 +174,9 @@ async def _build_today_context(
         "bucket_labels": C.BUCKET_LABELS,
         "bucket_descriptions": C.BUCKET_DESCRIPTIONS,
         "by_bucket": by_bucket,
+        "experiments": experiments,
+        "experiment_timeframe_labels": C.EXPERIMENT_TIMEFRAME_LABELS,
+        "experiment_verdicts": C.EXPERIMENT_VERDICTS,
         "states": C.STATES,
         "state_icons": C.STATE_ICONS,
         "state_labels": C.STATE_LABELS,
@@ -227,12 +276,13 @@ async def today_page(
     challenge_repo=Depends(get_challenge_repo),
     task_repo=Depends(get_challenge_task_repo),
     entry_repo=Depends(get_challenge_entry_repo),
+    experiment_repo=Depends(get_challenge_experiment_repo),
 ):
     ch = await challenge_repo.get_active()
     if ch is None:
         return RedirectResponse("/challenge/setup", status_code=303)
 
-    ctx = await _build_today_context(ch, task_repo, entry_repo)
+    ctx = await _build_today_context(ch, task_repo, entry_repo, experiment_repo)
     return _render(request, "challenge_today.html", ctx)
 
 
@@ -245,6 +295,7 @@ async def update_entry(
     challenge_repo=Depends(get_challenge_repo),
     task_repo=Depends(get_challenge_task_repo),
     entry_repo=Depends(get_challenge_entry_repo),
+    experiment_repo=Depends(get_challenge_experiment_repo),
 ):
     ch = await challenge_repo.get_active()
     if ch is None:
@@ -268,7 +319,7 @@ async def update_entry(
     await entry_repo.upsert(task_id, ch["id"], target_date, state, notes.strip() or None)
 
     # Recompute context, re-render single card + OOB seal button refresh
-    ctx = await _build_today_context(ch, task_repo, entry_repo)
+    ctx = await _build_today_context(ch, task_repo, entry_repo, experiment_repo)
     # Find updated task row
     task_row = None
     for b in C.BUCKETS:
@@ -293,6 +344,7 @@ async def seal_day(
     task_repo=Depends(get_challenge_task_repo),
     entry_repo=Depends(get_challenge_entry_repo),
     era_repo=Depends(get_challenge_era_repo),
+    experiment_repo=Depends(get_challenge_experiment_repo),
 ):
     ch = await challenge_repo.get_active()
     if ch is None:
@@ -300,7 +352,7 @@ async def seal_day(
 
     info = _target_info(ch)
     if info["caught_up_sealed"]:
-        ctx = await _build_today_context(ch, task_repo, entry_repo)
+        ctx = await _build_today_context(ch, task_repo, entry_repo, experiment_repo)
         return _render(request, "challenge_today.html", ctx)
 
     target_date = info["target_date"]
@@ -311,7 +363,7 @@ async def seal_day(
     # Verify all tracked tasks rated for target_date
     for t in tasks:
         if t["bucket"] in C.TRACKED_BUCKETS and t["id"] not in entries_by_task:
-            ctx = await _build_today_context(ch, task_repo, entry_repo)
+            ctx = await _build_today_context(ch, task_repo, entry_repo, experiment_repo)
             return _render(request, "challenge_today.html", ctx)
 
     # Check reset across tracked tasks (per-task rolling window) — runs every seal
@@ -409,7 +461,7 @@ async def seal_day(
 
     # Normal seal
     ch2 = await challenge_repo.get_active()
-    ctx = await _build_today_context(ch2, task_repo, entry_repo)
+    ctx = await _build_today_context(ch2, task_repo, entry_repo, experiment_repo)
     ctx["just_sealed"] = True
     ctx["just_sealed_day"] = new_days
     return _render(request, "challenge_today.html", ctx)
@@ -627,6 +679,196 @@ async def metrics_page(
 
 def STATE_RANK_for(entry: dict) -> int:
     return C.STATE_RANK.get(entry["state"], 0)
+
+
+# ── Tiny Experiments ────────────────────────────────────────────────────────
+
+async def _build_experiments_context(challenge: dict, experiment_repo) -> dict:
+    experiments = _decorate_experiments(await experiment_repo.get_all())
+    entries = await experiment_repo.get_all_entries()
+    entries_by_experiment: dict[str, list] = {e["id"]: [] for e in experiments}
+    for entry in entries:
+        entries_by_experiment.setdefault(entry["experiment_id"], []).append(entry)
+
+    verdict_counts = {key: 0 for key in C.EXPERIMENT_VERDICTS}
+    for exp in experiments:
+        exp_entries = entries_by_experiment.get(exp["id"], [])
+        exp["entries"] = exp_entries
+        exp["entry_count"] = len(exp_entries)
+        exp["notes_count"] = sum(1 for e in exp_entries if e.get("notes"))
+        ranks = [C.STATE_RANK.get(e["state"], 0) for e in exp_entries]
+        exp["avg_rank"] = round(sum(ranks) / len(ranks), 2) if ranks else None
+        if exp.get("verdict") in verdict_counts:
+            verdict_counts[exp["verdict"]] += 1
+
+    running_count = sum(1 for exp in experiments if exp["status"] == "running")
+    judged_count = sum(1 for exp in experiments if exp["status"] == "judged")
+    abandoned_count = sum(1 for exp in experiments if exp["status"] == "abandoned")
+    summary = {
+        "total": len(experiments),
+        "draft": sum(1 for exp in experiments if exp["status"] == "draft"),
+        "running": running_count,
+        "judged": judged_count,
+        "abandoned": abandoned_count,
+        "slots_remaining": max(0, 3 - running_count),
+        "entries": len(entries),
+        "notes": sum(1 for entry in entries if entry.get("notes")),
+    }
+    return {
+        "challenge": challenge,
+        "experiments": experiments,
+        "summary": summary,
+        "verdict_counts": verdict_counts,
+        "states": C.STATES,
+        "state_labels": C.STATE_LABELS,
+        "state_short": C.STATE_SHORT,
+        "experiment_timeframe_labels": C.EXPERIMENT_TIMEFRAME_LABELS,
+        "experiment_verdicts": C.EXPERIMENT_VERDICTS,
+    }
+
+
+@router.get("/experiments", response_class=HTMLResponse)
+async def experiments_page(
+    request: Request,
+    challenge_repo=Depends(get_challenge_repo),
+    experiment_repo=Depends(get_challenge_experiment_repo),
+):
+    ch = await challenge_repo.get_active()
+    if ch is None:
+        return RedirectResponse("/challenge/setup", status_code=303)
+    ctx = await _build_experiments_context(ch, experiment_repo)
+    return _render(request, "challenge_experiments.html", ctx)
+
+
+@router.post("/experiments", response_class=HTMLResponse)
+async def create_experiment(
+    request: Request,
+    action: str = Form(""),
+    motivation: str = Form(""),
+    timeframe: str = Form("week"),
+    challenge_repo=Depends(get_challenge_repo),
+    experiment_repo=Depends(get_challenge_experiment_repo),
+):
+    ch = await challenge_repo.get_active()
+    if ch is None:
+        return RedirectResponse("/challenge/setup", status_code=303)
+    action = action.strip()
+    motivation = motivation.strip()
+    if not action or not motivation or timeframe not in C.EXPERIMENT_TIMEFRAME_DAYS:
+        return HTMLResponse("Invalid experiment protocol", status_code=400)
+    await experiment_repo.create(ch["id"], action, motivation, timeframe)
+    return RedirectResponse("/challenge/experiments", status_code=303)
+
+
+@router.post("/experiments/{experiment_id}/start", response_class=HTMLResponse)
+async def start_experiment(
+    request: Request,
+    experiment_id: str,
+    experiment_repo=Depends(get_challenge_experiment_repo),
+):
+    exp = await experiment_repo.start(experiment_id, today_local().isoformat())
+    if exp is None:
+        return HTMLResponse("Could not begin trial", status_code=400)
+    return RedirectResponse(
+        request.headers.get("referer") or "/challenge/experiments",
+        status_code=303,
+    )
+
+
+@router.post("/experiments/{experiment_id}/entry", response_class=HTMLResponse)
+async def update_experiment_entry(
+    request: Request,
+    experiment_id: str,
+    state: str = Form(...),
+    notes: str = Form(""),
+    challenge_repo=Depends(get_challenge_repo),
+    task_repo=Depends(get_challenge_task_repo),
+    entry_repo=Depends(get_challenge_entry_repo),
+    experiment_repo=Depends(get_challenge_experiment_repo),
+):
+    ch = await challenge_repo.get_active()
+    if ch is None:
+        return HTMLResponse("", status_code=404)
+    exp = await experiment_repo.get_by_id(experiment_id)
+    if exp is None:
+        return HTMLResponse("", status_code=404)
+    if exp["status"] != "running":
+        return HTMLResponse("Trial is not running", status_code=400)
+    if state not in C.STATES:
+        return HTMLResponse("Invalid state", status_code=400)
+
+    info = _target_info(ch)
+    if info["caught_up_sealed"]:
+        return HTMLResponse("Nothing to fill — come back tomorrow.", status_code=400)
+    if info["target_day_num"] <= (ch["days_elapsed"] or 0):
+        return HTMLResponse("Day already sealed — entries are locked.", status_code=400)
+    await experiment_repo.upsert_entry(
+        experiment_id,
+        exp["challenge_id"],
+        info["target_date"],
+        state,
+        notes.strip() or None,
+    )
+    ctx = await _build_today_context(ch, task_repo, entry_repo, experiment_repo)
+    experiment = next((e for e in ctx["experiments"] if e["id"] == experiment_id), None)
+    if experiment is None:
+        return HTMLResponse("", status_code=404)
+    from web.app import templates
+    return HTMLResponse(templates.get_template("challenge_experiment_card.html").render(
+        {**ctx, "experiment": experiment, "request": request},
+    ))
+
+
+@router.post("/experiments/{experiment_id}/judge", response_class=HTMLResponse)
+async def judge_experiment(
+    request: Request,
+    experiment_id: str,
+    verdict: str = Form(...),
+    observation_notes: str = Form(""),
+    conclusion_notes: str = Form(""),
+    experiment_repo=Depends(get_challenge_experiment_repo),
+):
+    if verdict not in C.EXPERIMENT_VERDICTS:
+        return HTMLResponse("Invalid verdict", status_code=400)
+    exp = await experiment_repo.judge(
+        experiment_id,
+        verdict,
+        observation_notes.strip() or None,
+        conclusion_notes.strip() or None,
+    )
+    if exp is None:
+        return HTMLResponse("Could not archive verdict", status_code=400)
+    return RedirectResponse("/challenge/experiments", status_code=303)
+
+
+@router.post("/experiments/{experiment_id}/abandon", response_class=HTMLResponse)
+async def abandon_experiment(
+    request: Request,
+    experiment_id: str,
+    experiment_repo=Depends(get_challenge_experiment_repo),
+):
+    exp = await experiment_repo.abandon(experiment_id)
+    if exp is None:
+        return HTMLResponse("Could not abandon trial", status_code=400)
+    return RedirectResponse(
+        request.headers.get("referer") or "/challenge/experiments",
+        status_code=303,
+    )
+
+
+@router.post("/experiments/{experiment_id}/trash", response_class=HTMLResponse)
+async def trash_experiment(
+    request: Request,
+    experiment_id: str,
+    experiment_repo=Depends(get_challenge_experiment_repo),
+):
+    trashed = await experiment_repo.trash_draft(experiment_id)
+    if not trashed:
+        return HTMLResponse("Could not trash draft", status_code=400)
+    return RedirectResponse(
+        request.headers.get("referer") or "/challenge/experiments",
+        status_code=303,
+    )
 
 
 # ── History ─────────────────────────────────────────────────────────────────

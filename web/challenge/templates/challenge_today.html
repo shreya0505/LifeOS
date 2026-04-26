@@ -81,6 +81,19 @@ Day {{ days_elapsed }}/{{ days_total }} · {{ challenge.era_name }}
     {% endif %}
   {% endfor %}
 
+  {% if experiments %}
+  <section class="ch-bucket-section ch-bucket-experiment">
+    <header class="ch-bucket-head">
+      <h3>Tiny Experiments · Field Trials</h3>
+    </header>
+    <div class="ch-task-table">
+      {% for experiment in experiments %}
+        {% include "challenge_experiment_card.html" %}
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
   {% include "_ch_seal_bar.html" %}
 
 </div>

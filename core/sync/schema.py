@@ -26,6 +26,8 @@ SYNC_TABLES: tuple[SyncTable, ...] = (
     SyncTable("challenge_tasks", "id"),
     SyncTable("challenge_entries", "id"),
     SyncTable("challenge_eras", "id"),
+    SyncTable("challenge_experiments", "id"),
+    SyncTable("challenge_experiment_entries", "id"),
     SyncTable("quests", "id", duplicable=True),
     SyncTable("artifact_keys", "id"),
     SyncTable("pomo_sessions", "id"),

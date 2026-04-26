@@ -626,6 +626,322 @@
 .ch-task-row.is-locked .ch-notes-toggle { cursor: not-allowed; }
 .ch-task-row.is-locked .ch-task-notes { background: var(--ch-surface-2); color: var(--ch-muted); }
 
+/* ── Tiny Experiments ───────────────────────────────── */
+.ch-bucket-experiment .ch-bucket-head h3 { color: #a7f3d0; text-shadow: 0 0 14px rgba(34,197,94,0.12); }
+.ch-bucket-experiment .ch-bucket-head h3::before,
+.ch-bucket-experiment .ch-bucket-head h3::after { color: #2dd4bf; }
+.ch-bucket-dot-experiment { background: #2dd4bf; }
+
+.ch-task-table .ch-experiment-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+}
+.ch-experiment-row {
+  border-left-color: rgba(45, 212, 191, 0.45);
+  background: linear-gradient(90deg, rgba(45,212,191,0.035), transparent 42%);
+}
+.ch-experiment-row--draft { opacity: 0.82; }
+.ch-experiment-meta {
+  min-width: 0;
+  padding: 12px 14px;
+}
+.ch-experiment-action { margin-bottom: 7px; }
+.ch-experiment-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 12px;
+  color: var(--ch-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+.ch-experiment-sub span:not(:last-child)::after {
+  content: "";
+}
+.ch-experiment-disabled {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+}
+.ch-experiment-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ch-experiment-status,
+.ch-experiment-clock {
+  color: var(--ch-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.ch-experiment-start {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 7px 12px;
+  border: 1px solid rgba(34, 197, 94, 0.46);
+  border-radius: 6px;
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.09);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+.ch-experiment-start:hover {
+  border-color: var(--ch-green);
+  color: var(--ch-text-hi);
+  background: rgba(34, 197, 94, 0.16);
+}
+.ch-experiment-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 7px 12px;
+  border: 1px solid rgba(232, 93, 93, 0.4);
+  border-radius: 6px;
+  color: #fca5a5;
+  background: rgba(232, 93, 93, 0.06);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+.ch-experiment-danger:hover {
+  border-color: var(--ch-red);
+  color: var(--ch-text-hi);
+  background: rgba(232, 93, 93, 0.12);
+}
+.ch-experiment-form {
+  grid-template-columns: auto auto 28px;
+  padding-left: 0;
+}
+.ch-experiment-clock {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 122px;
+}
+.ch-experiment-clock.is-overdue,
+.ch-lab-meta .is-overdue { color: var(--ch-red); }
+.ch-experiment-progress {
+  display: block;
+  width: 100%;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+}
+.ch-experiment-progress i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #2dd4bf, #22c55e);
+}
+
+.ch-lab {
+  display: flex;
+  flex-direction: column;
+  gap: 34px;
+}
+.ch-lab-hero {
+  padding: 8px 0 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.ch-lab-hero h1 {
+  max-width: 780px;
+  margin: 0 0 18px;
+  color: var(--ch-text-hi);
+  font-size: 34px;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+.ch-lab-stats,
+.ch-lab-meta,
+.ch-lab-mini {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  color: var(--ch-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.ch-lab-stats strong { color: #a7f3d0; font-size: 16px; }
+.ch-lab-new {
+  padding-bottom: 4px;
+}
+.ch-lab-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(130px, 0.35fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+.ch-lab-form label,
+.ch-lab-judge form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ch-lab-form span {
+  color: var(--ch-muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+.ch-lab-form input,
+.ch-lab-form textarea,
+.ch-lab-form select,
+.ch-lab-judge textarea,
+.ch-lab-judge select {
+  width: 100%;
+  background: var(--ch-surface);
+  border: 1px solid var(--ch-border);
+  border-radius: 6px;
+  color: var(--ch-text);
+  font-family: var(--ch-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 9px 10px;
+}
+.ch-lab-form input,
+.ch-lab-form select,
+.ch-lab-form textarea {
+  height: 40px;
+}
+.ch-lab-form textarea {
+  min-height: 112px;
+  resize: vertical;
+  line-height: 1.45;
+}
+.ch-lab-form__motive {
+  grid-column: 1 / -1;
+}
+.ch-lab-judge textarea { min-height: 38px; resize: vertical; }
+.ch-lab-form input:focus,
+.ch-lab-form textarea:focus,
+.ch-lab-form select:focus,
+.ch-lab-judge textarea:focus,
+.ch-lab-judge select:focus {
+  outline: none;
+  border-color: #2dd4bf;
+}
+.ch-lab-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.ch-lab-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ch-lab-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, auto);
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--ch-border);
+  border-left: 2px solid rgba(45, 212, 191, 0.65);
+  border-radius: 8px;
+  background: rgba(26, 26, 31, 0.82);
+}
+.ch-lab-item--judged { border-left-color: var(--ch-muted-2); }
+.ch-lab-item__main h3 {
+  margin: 3px 0 6px;
+  color: var(--ch-text-hi);
+  font-size: 15px;
+  letter-spacing: 0;
+}
+.ch-lab-item__main p,
+.ch-lab-notes p {
+  margin: 0;
+  color: var(--ch-text);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.ch-lab-state {
+  color: #a7f3d0;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+.ch-lab-item__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 10px;
+}
+.ch-lab-judge {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: none;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  color: var(--ch-muted);
+}
+.ch-lab-judge summary {
+  cursor: pointer;
+  color: var(--ch-text);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+.ch-lab-judge form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  align-items: stretch;
+  margin-top: 10px;
+}
+.ch-lab-judge select {
+  max-width: 360px;
+}
+.ch-lab-judge textarea {
+  width: 100%;
+  min-height: 112px;
+}
+.ch-lab-judge .ch-experiment-start {
+  justify-self: start;
+}
+.ch-lab-verdicts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.ch-lab-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 360px;
+}
+.ch-lab-notes strong {
+  color: var(--ch-muted);
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+.ch-lab-empty {
+  padding: 18px;
+  border: 1px dashed var(--ch-border);
+  border-radius: 8px;
+  color: var(--ch-muted);
+  text-align: center;
+}
+
 /* ── Seal bar (daily execution lock strip) ──────────── */
 .ch-seal-bar {
   margin-top: 40px;
@@ -1435,7 +1751,7 @@
 /* ── Responsive ──────────────────────────────────────── */
 @media (max-width: 840px) {
   .ch-navbar { padding: 10px 16px; }
-  .ch-navbar__nav { gap: 16px; }
+  .ch-navbar__nav { gap: 12px; flex-wrap: wrap; justify-content: center; }
   .ch-nav-link { font-size: 11px; }
   .ch-navbar__switch { display: none; }
   .ch-main { padding-top: 60px; }
@@ -1447,6 +1763,14 @@
   .ch-tick.is-today { height: 10px; margin-top: -2px; }
   .ch-seal-strip { grid-template-columns: 1fr; gap: 14px; justify-items: center; text-align: center; }
   .ch-seal-meta { justify-self: center; }
+  .ch-task-table .ch-experiment-row,
+  .ch-lab-item,
+  .ch-lab-form,
+  .ch-lab-verdicts,
+  .ch-lab-judge form { grid-template-columns: 1fr; }
+  .ch-experiment-form { grid-template-columns: 1fr auto 28px; padding-left: 14px; }
+  .ch-experiment-disabled,
+  .ch-lab-item__side { align-items: flex-start; }
 }
 
 /* ── Backfill banner ───────────────────────────────────────── */

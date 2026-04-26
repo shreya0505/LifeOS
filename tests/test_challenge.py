@@ -9,6 +9,7 @@ from core.challenge.config import CHALLENGE_LENGTH_DAYS
 from core.storage.challenge_backend import (
     SqliteChallengeEntryRepo,
     SqliteChallengeEraRepo,
+    SqliteChallengeExperimentRepo,
     SqliteChallengeRepo,
     SqliteChallengeTaskRepo,
 )
@@ -306,6 +307,91 @@ async def test_era_used_names(db):
     assert names == {"Era A", "Era B"}
 
 
+# ── SqliteChallengeExperimentRepo ───────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_experiment_create_start_entry_and_judge(db):
+    ch_repo = SqliteChallengeRepo(db)
+    exp_repo = SqliteChallengeExperimentRepo(db)
+    today = today_local().isoformat()
+    ch = await ch_repo.create("Era X", today, "R")
+
+    exp = await exp_repo.create(ch["id"], "No-scroll morning", "Focus should rise", "week")
+    assert exp["status"] == "draft"
+    assert exp["timeframe"] == "week"
+
+    started = await exp_repo.start(exp["id"], today)
+    assert started["status"] == "running"
+    assert started["started_at"] == today
+    assert started["ends_at"] is not None
+
+    entry = await exp_repo.upsert_entry(
+        exp["id"], ch["id"], today, "COMPLETED_SATISFACTORY", "clean signal",
+    )
+    assert entry["state"] == "COMPLETED_SATISFACTORY"
+    assert entry["notes"] == "clean signal"
+
+    judged = await exp_repo.judge(exp["id"], "success", "worked", "keep it")
+    assert judged["status"] == "judged"
+    assert judged["verdict"] == "success"
+    assert judged["observation_notes"] == "worked"
+    assert judged["conclusion_notes"] == "keep it"
+
+
+@pytest.mark.asyncio
+async def test_experiment_abandon_frees_running_slot_and_trash_removes_draft(db):
+    ch_repo = SqliteChallengeRepo(db)
+    exp_repo = SqliteChallengeExperimentRepo(db)
+    today = today_local().isoformat()
+    ch = await ch_repo.create("Era X", today, "R")
+
+    running = await exp_repo.create(ch["id"], "Running Action", "Motive", "week")
+    await exp_repo.start(running["id"], today)
+    abandoned = await exp_repo.abandon(running["id"])
+    assert abandoned["status"] == "abandoned"
+    assert await exp_repo.running_count() == 0
+
+    draft = await exp_repo.create(ch["id"], "Draft Action", "Motive", "day")
+    assert await exp_repo.trash_draft(draft["id"])
+    assert await exp_repo.get_by_id(draft["id"]) is None
+
+
+@pytest.mark.asyncio
+async def test_experiment_fixed_duration_math(db):
+    ch_repo = SqliteChallengeRepo(db)
+    exp_repo = SqliteChallengeExperimentRepo(db)
+    ch = await ch_repo.create("Era X", "2026-04-01", "R")
+
+    expected = {
+        "day": "2026-04-01",
+        "weekend": "2026-04-02",
+        "week": "2026-04-07",
+        "month": "2026-04-30",
+    }
+    for timeframe, ends_at in expected.items():
+        exp = await exp_repo.create(ch["id"], f"Action {timeframe}", "Motive", timeframe)
+        started = await exp_repo.start(exp["id"], "2026-04-01")
+        assert started["ends_at"] == ends_at
+        await exp_repo.judge(exp["id"], "success", None, None)
+
+
+@pytest.mark.asyncio
+async def test_experiment_running_limit_blocks_fourth(db):
+    ch_repo = SqliteChallengeRepo(db)
+    exp_repo = SqliteChallengeExperimentRepo(db)
+    today = today_local().isoformat()
+    ch = await ch_repo.create("Era X", today, "R")
+
+    experiments = [
+        await exp_repo.create(ch["id"], f"Action {idx}", "Motive", "day")
+        for idx in range(4)
+    ]
+    for exp in experiments[:3]:
+        assert await exp_repo.start(exp["id"], today) is not None
+    assert await exp_repo.running_count() == 3
+    assert await exp_repo.start(experiments[3]["id"], today) is None
+
+
 # ── HTTP routes ──────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
@@ -414,6 +500,205 @@ async def test_challenge_entry_unknown_task_404(client):
         data={"state": "COMPLETED_SATISFACTORY"},
     )
     assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_challenge_experiments_page_create_start_judge_flow(client):
+    await client.post(
+        "/challenge/setup",
+        data={"anchor[]": "Morning run"},
+    )
+
+    page = await client.get("/challenge/experiments")
+    assert page.status_code == 200
+    assert "Protocol Action" in page.text
+
+    created = await client.post(
+        "/challenge/experiments",
+        data={
+            "action": "No-scroll morning",
+            "motivation": "Focus should rise",
+            "timeframe": "week",
+        },
+        follow_redirects=False,
+    )
+    assert created.status_code in (302, 303)
+
+    page = await client.get("/challenge/experiments")
+    assert "No-scroll morning" in page.text
+    assert "Protocol Draft" in page.text
+
+    import re
+    exp_id = re.search(r"/challenge/experiments/([a-f0-9]+)/start", page.text).group(1)
+    started = await client.post(
+        f"/challenge/experiments/{exp_id}/start",
+        headers={"referer": "http://test/challenge/experiments"},
+        follow_redirects=False,
+    )
+    assert started.status_code in (302, 303)
+
+    judged = await client.post(
+        f"/challenge/experiments/{exp_id}/judge",
+        data={
+            "verdict": "partial_success",
+            "observation_notes": "good signal",
+            "conclusion_notes": "keep smaller",
+        },
+        follow_redirects=False,
+    )
+    assert judged.status_code in (302, 303)
+
+    page = await client.get("/challenge/experiments")
+    assert "Partial Discovery" in page.text
+    assert "good signal" in page.text
+
+
+@pytest.mark.asyncio
+async def test_challenge_experiment_trash_and_abandon_routes(client):
+    await client.post(
+        "/challenge/setup",
+        data={"anchor[]": "Morning run"},
+    )
+    await client.post(
+        "/challenge/experiments",
+        data={"action": "Draft trial", "motivation": "Maybe useful", "timeframe": "day"},
+    )
+    page = await client.get("/challenge/experiments")
+    import re
+    draft_id = re.search(r"/challenge/experiments/([a-f0-9]+)/trash", page.text).group(1)
+    trashed = await client.post(
+        f"/challenge/experiments/{draft_id}/trash",
+        follow_redirects=False,
+    )
+    assert trashed.status_code in (302, 303)
+    page = await client.get("/challenge/experiments")
+    assert "Draft trial" not in page.text
+
+    await client.post(
+        "/challenge/experiments",
+        data={"action": "Running trial", "motivation": "Maybe useful", "timeframe": "day"},
+    )
+    page = await client.get("/challenge/experiments")
+    running_id = re.search(r"/challenge/experiments/([a-f0-9]+)/start", page.text).group(1)
+    await client.post(f"/challenge/experiments/{running_id}/start")
+    abandoned = await client.post(
+        f"/challenge/experiments/{running_id}/abandon",
+        follow_redirects=False,
+    )
+    assert abandoned.status_code in (302, 303)
+    page = await client.get("/challenge/experiments")
+    assert "Abandoned Trial" in page.text
+
+
+@pytest.mark.asyncio
+async def test_challenge_experiment_rejects_invalid_inputs(client):
+    await client.post(
+        "/challenge/setup",
+        data={"anchor[]": "Morning run"},
+    )
+    r = await client.post(
+        "/challenge/experiments",
+        data={"action": "A", "motivation": "B", "timeframe": "year"},
+    )
+    assert r.status_code == 400
+
+    r = await client.post("/challenge/experiments/deadbeef/judge", data={"verdict": "maybe"})
+    assert r.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_running_experiment_appears_on_today_and_accepts_daily_entry(client):
+    await client.post(
+        "/challenge/setup",
+        data={"anchor[]": "Morning run"},
+    )
+    await client.post(
+        "/challenge/experiments",
+        data={
+            "action": "No-scroll morning",
+            "motivation": "Focus should rise",
+            "timeframe": "day",
+        },
+    )
+    page = await client.get("/challenge/experiments")
+    import re
+    exp_id = re.search(r"/challenge/experiments/([a-f0-9]+)/start", page.text).group(1)
+    await client.post(f"/challenge/experiments/{exp_id}/start")
+
+    today_page = await client.get("/challenge/today")
+    assert "Tiny Experiments" in today_page.text
+    assert "No-scroll morning" in today_page.text
+    assert f"/challenge/experiments/{exp_id}/entry" in today_page.text
+
+    r = await client.post(
+        f"/challenge/experiments/{exp_id}/entry",
+        data={"state": "PARTIAL", "notes": "noticed the itch"},
+    )
+    assert r.status_code == 200
+    assert "PARTIAL" in r.text or "noticed the itch" in r.text
+
+
+@pytest.mark.asyncio
+async def test_experiment_entries_do_not_gate_day_seal(client):
+    await client.post(
+        "/challenge/setup",
+        data={"anchor[]": "Morning run"},
+    )
+    await client.post(
+        "/challenge/experiments",
+        data={
+            "action": "No-scroll morning",
+            "motivation": "Focus should rise",
+            "timeframe": "week",
+        },
+    )
+    page = await client.get("/challenge/experiments")
+    import re
+    exp_id = re.search(r"/challenge/experiments/([a-f0-9]+)/start", page.text).group(1)
+    await client.post(f"/challenge/experiments/{exp_id}/start")
+
+    today_page = await client.get("/challenge/today")
+    task_id = re.search(r"/challenge/today/entry/([a-f0-9]+)", today_page.text).group(1)
+    await client.post(
+        f"/challenge/today/entry/{task_id}",
+        data={"state": "COMPLETED_SATISFACTORY"},
+    )
+    sealed = await client.post("/challenge/today/seal")
+    assert sealed.status_code == 200
+    assert "Day 1 sealed" in sealed.text or "sealed" in sealed.text.lower()
+
+
+@pytest.mark.asyncio
+async def test_experiment_stays_linked_to_original_era_after_forfeit(client, db):
+    await client.post(
+        "/challenge/setup",
+        data={"anchor[]": "Morning run"},
+    )
+    await client.post(
+        "/challenge/experiments",
+        data={
+            "action": "Weekend prototype",
+            "motivation": "Validate the premise",
+            "timeframe": "weekend",
+        },
+    )
+    page = await client.get("/challenge/experiments")
+    import re
+    exp_id = re.search(r"/challenge/experiments/([a-f0-9]+)/start", page.text).group(1)
+    await client.post(f"/challenge/experiments/{exp_id}/start")
+
+    exp_repo = SqliteChallengeExperimentRepo(db)
+    before = await exp_repo.get_by_id(exp_id)
+    await client.post("/challenge/forfeit", data={"confirm": "yes", "restart_mode": "same"})
+
+    ch_repo = SqliteChallengeRepo(db)
+    active = await ch_repo.get_active()
+    after = await exp_repo.get_by_id(exp_id)
+    assert after["challenge_id"] == before["challenge_id"]
+    assert after["challenge_id"] != active["id"]
+
+    today_page = await client.get("/challenge/today")
+    assert "Weekend prototype" in today_page.text
 
 
 @pytest.mark.asyncio

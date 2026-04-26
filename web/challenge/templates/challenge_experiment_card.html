@@ -1,0 +1,73 @@
+{# Tiny Experiment row. Drafts are inert protocols; running trials use the daily rating rail. #}
+<div class="ch-task-row ch-experiment-row ch-experiment-row--{{ experiment.status }}{% if experiment.current_state %} is-rated{% endif %}{% if is_sealed_today and experiment.status == 'running' %} is-locked{% endif %}"
+     id="experiment-{{ experiment.id }}"
+     x-data="{ notesOpen: {{ 'true' if experiment.current_notes else 'false' }} }">
+  <div class="ch-experiment-meta">
+    <div class="ch-task-name ch-experiment-action">{{ experiment.action }}</div>
+    <div class="ch-experiment-sub">
+      <span>Hypothesis: {{ experiment.motivation }}</span>
+      <span>{{ experiment.timeframe_label }} trial</span>
+      {% if experiment.era_name %}<span>{{ experiment.era_name }}</span>{% endif %}
+    </div>
+  </div>
+
+  {% if experiment.status == 'draft' %}
+  <div class="ch-experiment-disabled">
+    <span class="ch-experiment-status">Protocol Draft</span>
+    <div class="ch-experiment-actions">
+      <form method="post" action="/challenge/experiments/{{ experiment.id }}/start">
+        <button type="submit" class="ch-experiment-start">Begin Trial</button>
+      </form>
+      <form method="post" action="/challenge/experiments/{{ experiment.id }}/trash">
+        <button type="submit" class="ch-experiment-danger">Trash Draft</button>
+      </form>
+    </div>
+  </div>
+  {% elif experiment.status == 'running' %}
+  <form class="ch-task-row__form ch-experiment-form"
+        hx-post="/challenge/experiments/{{ experiment.id }}/entry"
+        hx-target="#experiment-{{ experiment.id }}"
+        hx-swap="outerHTML"
+        hx-trigger="change from:input[type=radio] delay:80ms">
+    <div class="ch-experiment-clock{% if experiment.is_overdue %} is-overdue{% endif %}">
+      <span>{{ experiment.time_signal }}</span>
+      <span class="ch-experiment-progress"><i style="width: {{ experiment.trial_progress_pct }}%;"></i></span>
+    </div>
+    {% set sel_idx = states.index(experiment.current_state) if experiment.current_state in states else -1 %}
+    <div class="ch-slider{% if sel_idx >= 0 %} is-set lvl-{{ sel_idx }}{% endif %}"
+         role="radiogroup" aria-label="Experiment state">
+      <div class="ch-slider__track">
+        {% for s in states %}
+        <label class="ch-slider__seg ch-slider__seg-{{ s | lower }}{% if loop.index0 <= sel_idx %} is-lit{% endif %}{% if experiment.current_state == s %} is-selected{% endif %}"
+               title="{{ state_labels[s] }}"
+               aria-label="{{ state_labels[s] }}"
+               style="--seg-idx: {{ loop.index0 }};">
+          <input type="radio" name="state" value="{{ s }}"
+                 {% if experiment.current_state == s %}checked{% endif %}
+                 {% if is_sealed_today %}disabled{% endif %}>
+          <span class="ch-slider__bar"></span>
+        </label>
+        {% endfor %}
+      </div>
+      <div class="ch-slider__caption ch-slider__cap-{{ experiment.current_state | lower if experiment.current_state else 'none' }}">
+        {{ state_short[experiment.current_state] if experiment.current_state else '— RATE —' }}
+      </div>
+    </div>
+    <button type="button"
+            class="ch-notes-toggle{% if experiment.current_notes %} has-notes{% endif %}"
+            @click="notesOpen = !notesOpen"
+            :aria-expanded="notesOpen"
+            {% if is_sealed_today %}disabled aria-disabled="true"{% endif %}
+            aria-label="Toggle notes">✎</button>
+    <div class="ch-notes-row" x-show="notesOpen" x-cloak>
+      <textarea class="ch-task-notes" name="notes"
+                placeholder="Field notes..."
+                {% if is_sealed_today %}readonly{% endif %}
+                hx-post="/challenge/experiments/{{ experiment.id }}/entry"
+                hx-target="#experiment-{{ experiment.id }}"
+                hx-swap="outerHTML"
+                hx-trigger="blur changed">{{ experiment.current_notes }}</textarea>
+    </div>
+  </form>
+  {% endif %}
+</div>

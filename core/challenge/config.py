@@ -65,6 +65,30 @@ RESET_HARD_STATES = {"NOT_DONE"}             # hard streak set
 
 TRACKED_BUCKETS = {"anchor", "improver"}     # enrichers never trigger reset
 
+# ── Tiny Experiments ────────────────────────────────────────────────────────
+EXPERIMENT_TIMEFRAME_DAYS = {
+    "day": 1,
+    "weekend": 2,
+    "week": 7,
+    "month": 30,
+}
+
+EXPERIMENT_TIMEFRAME_LABELS = {
+    "day": "Day",
+    "weekend": "Weekend",
+    "week": "Week",
+    "month": "Month",
+}
+
+EXPERIMENT_STATUSES = {"draft", "running", "judged", "abandoned"}
+
+EXPERIMENT_VERDICTS = {
+    "success": "Breakthrough",
+    "partial_success": "Partial Discovery",
+    "failed_process": "Protocol Failure",
+    "failed_premise": "Premise Refuted",
+}
+
 # ── Challenge length ────────────────────────────────────────────────────────
 CHALLENGE_LENGTH_DAYS = 90
 
