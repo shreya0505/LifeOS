@@ -14,6 +14,8 @@
 <script src="/static/alpine-collapse.min.js" defer></script>
 <script src="/static/alpine.min.js" defer></script>
 <script src="/static/chart.min.js" defer></script>
+<script src="/static/apexcharts.min.js" defer></script>
+<script src="/static/saga_dashboard.js?v=1" defer></script>
 </head>
 <body class="saga-page" hx-headers='{"X-Requested-With": "htmx"}'>
 <header class="saga-navbar">
@@ -21,9 +23,9 @@
     <a href="/saga" class="saga-brand">Saga</a>
   </div>
   <nav class="saga-navbar__nav">
-    <button class="saga-nav-link is-active" data-saga-tab="today" type="button" onclick="switchSagaTab('today')">Campfire</button>
-    <button class="saga-nav-link" data-saga-tab="timeline" type="button" onclick="switchSagaTab('timeline')">Chronicle</button>
-    <button class="saga-nav-link" data-saga-tab="metrics" type="button" onclick="switchSagaTab('metrics')">Stats</button>
+    <button class="saga-nav-link{% if active_tab|default('today') == 'today' %} is-active{% endif %}" data-saga-tab="today" type="button" onclick="switchSagaTab('today')">Campfire</button>
+    <button class="saga-nav-link{% if active_tab|default('today') == 'timeline' %} is-active{% endif %}" data-saga-tab="timeline" type="button" onclick="switchSagaTab('timeline')">Chronicle</button>
+    <button class="saga-nav-link{% if active_tab|default('today') == 'metrics' %} is-active{% endif %}" data-saga-tab="metrics" type="button" onclick="switchSagaTab('metrics')">Stats</button>
   </nav>
   <div class="saga-navbar__end">
     <div hx-get="/sync/panel" hx-trigger="load, every {{ sync_ui_poll_seconds() }}s" hx-swap="outerHTML"></div>
@@ -48,6 +50,15 @@
     const root = document.querySelector('[data-saga-root]');
     if (root && root._x_dataStack) {
       root._x_dataStack[0].tab = tabName;
+    } else if (tabName === 'today') {
+      window.location.href = '/saga';
+      return;
+    } else if (tabName === 'metrics') {
+      window.location.href = '/saga/metrics';
+      return;
+    } else if (tabName === 'timeline') {
+      window.location.href = '/saga';
+      return;
     }
     if (tabName === 'timeline') htmx.trigger('#saga-timeline-slot', 'refresh');
     if (tabName === 'metrics') htmx.trigger('#saga-metrics-slot', 'refresh');

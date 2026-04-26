@@ -7,7 +7,7 @@ from datetime import date
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from core.saga import dyad_catalog, emotion_catalog, render_markdown_note, saga_metrics, timeline_days
+from core.saga import dyad_catalog, emotion_catalog, render_markdown_note, saga_dashboard, timeline_days
 from core.storage.saga_backend import SqliteSagaRepo
 from core.utils import today_local
 
@@ -55,8 +55,6 @@ async def saga_index(request: Request):
         "emotion_catalog": emotion_catalog(),
         "dyad_catalog": dyad_catalog(),
         "today_entries": _rendered_entries(await repo.list_by_date(today)),
-        "metrics": await saga_metrics(request.app.state.db),
-        "timeline": await timeline_days(request.app.state.db),
     })
 
 
@@ -73,10 +71,18 @@ async def saga_timeline(request: Request, page: int = 1):
 
 
 @router.get("/metrics", response_class=HTMLResponse)
-async def saga_metrics_panel(request: Request):
-    return _render(request, "saga_metrics.html", {
-        "metrics": await saga_metrics(request.app.state.db),
-    })
+async def saga_metrics_panel(request: Request, window: int = 35):
+    if window not in {7, 35, 90, 365}:
+        window = 35
+    dashboard = await saga_dashboard(request.app.state.db, window)
+    context = {
+        "active_tab": "metrics",
+        "dashboard": dashboard,
+        "selected_window": window,
+    }
+    if request.headers.get("HX-Request", "").lower() == "true":
+        return _render(request, "saga_metrics.html", context)
+    return _render(request, "saga_metrics_page.html", context)
 
 
 @router.post("/entries", response_class=HTMLResponse)

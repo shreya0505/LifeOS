@@ -273,12 +273,12 @@ async def test_saga_metrics_render(client, db):
 
     r = await client.get("/saga/metrics")
     assert r.status_code == 200
-    assert "Relational ledger" in r.text
+    assert "The Field Report" in r.text
     assert "Emotional Debt" in r.text
     assert "Load consumed execution" in r.text
-    assert "Saga state" in r.text
-    assert "Quest response" in r.text
+    assert "Mood × Output co-movement" in r.text
     assert "Challenge posture" in r.text
+    assert "Emotion Atlas" in r.text
 
 
 @pytest.mark.asyncio

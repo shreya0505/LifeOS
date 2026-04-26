@@ -28,18 +28,21 @@
             <h2>Entries</h2>
             <div class="saga-day-notes">
               {% for entry in day.entries %}
-              <div class="saga-day-note{% if entry.dyad_type %} saga-day-note--{{ entry.dyad_type }}{% endif %}"
+              <div class="saga-day-note{% if entry.dyad_type %} saga-day-note--{{ entry.dyad_type }}{% endif %}{% if entry.intensity >= 8 %} saga-day-note--intense{% endif %}"
                    style="--mood-accent: {{ entry.emotion_accent }}; --dyad-accent: {{ entry.dyad_accent }}; --mood-strength: {{ entry.intensity_pct }}%; --mood-wash: {{ entry.mood_wash_pct }}%; --mood-glow: {{ entry.mood_glow_pct }}%; --mood-chip: {{ entry.mood_chip_pct }}%;">
                 <time>{{ entry.time or "--:--" }}</time>
                 <div class="saga-day-note__body">{{ entry.note_html | safe }}</div>
                 <div class="saga-day-note__mood" aria-label="Entry mood">
                   <span class="saga-mood-pill saga-mood-pill--emotion">{{ entry.emotion }}</span>
+                  {% if entry.secondary_emotion %}
+                  <span class="saga-mood-pill saga-mood-pill--emotion" style="--mood-accent: {{ entry.secondary_accent }}">{{ entry.secondary_emotion }}</span>
+                  {% endif %}
                   {% if entry.dyad_type == "opposite" %}
                   <span class="saga-mood-pill saga-mood-pill--dyad">Opposites</span>
                   {% elif entry.dyad_label %}
-                  <span class="saga-mood-pill saga-mood-pill--dyad">{{ entry.dyad_label }}</span>
+                  <span class="saga-mood-pill saga-mood-pill--dyad">{{ entry.dyad_label }} &middot; {{ entry.dyad_type }}</span>
                   {% endif %}
-                  <span class="saga-mood-pill saga-mood-pill--intensity">{{ entry.intensity }}/10</span>
+                  <span class="saga-mood-pill saga-mood-pill--intensity{% if entry.intensity >= 8 %} is-high{% endif %}">{{ entry.intensity }}/10</span>
                 </div>
               </div>
               {% endfor %}
@@ -49,20 +52,28 @@
 
           {% if day.quests %}
           <section class="saga-day-section saga-day-section--quests">
-            <h2>Quest Data</h2>
+            <div class="saga-day-section__head">
+              <h2>Quest Data</h2>
+              <div class="saga-day-glance" aria-label="Quest summary">
+                <span class="saga-day-glance__metric">{{ day.quest_summary.status }}</span>
+                {% for item in day.quest_summary.contexts %}
+                <span>{{ item.label }}{% if item.count > 1 %} x{{ item.count }}{% endif %}</span>
+                {% endfor %}
+              </div>
+            </div>
             <div class="saga-day-list">
               {% for quest in day.quests %}
               <article class="saga-day-data-row saga-day-data-row--questlog">
                 <time>{{ quest.time or "--:--" }}</time>
-                <div>
+                <div class="saga-day-data-row__main">
                   <strong>{{ quest.title }}</strong>
-                  {% if quest.project or quest.labels or quest.workspace %}
-                  <p>
-                    {% if quest.project %}<span>{{ quest.project }}</span>{% endif %}
-                    {% if quest.labels %}<span>{{ quest.labels }}</span>{% endif %}
-                    {% if quest.workspace %}<span>{{ quest.workspace }}</span>{% endif %}
-                  </p>
+                  {% if quest.project or quest.workspace %}
+                  <span>{{ quest.project or quest.workspace }}</span>
                   {% endif %}
+                </div>
+                <div class="saga-day-data-row__status">
+                  <span>{{ quest.status }}</span>
+                  {% if quest.labels %}<span>{{ quest.labels }}</span>{% endif %}
                 </div>
               </article>
               {% endfor %}
@@ -72,23 +83,28 @@
 
           {% if day.challenges %}
           <section class="saga-day-section saga-day-section--challenges">
-            <h2>Challenge Data</h2>
+            <div class="saga-day-section__head">
+              <h2>Challenge Data</h2>
+              <div class="saga-day-glance" aria-label="Challenge summary">
+                <span class="saga-day-glance__metric">{{ day.challenge_summary.label }} &middot; {{ day.challenge_summary.score }}</span>
+                {% for state in day.challenge_summary.states %}
+                <span class="saga-day-glance__state saga-day-glance__state--{{ state.tone }}">{{ state.label }} x{{ state.count }}</span>
+                {% endfor %}
+              </div>
+            </div>
             <div class="saga-day-list">
               {% for item in day.challenges %}
-              <article class="saga-day-data-row saga-day-data-row--hard90">
+              <article class="saga-day-data-row saga-day-data-row--hard90 saga-day-data-row--{{ item.state_tone }}"{% if item.notes %} title="{{ item.notes }}"{% endif %}>
                 <time>{{ item.time or "--:--" }}</time>
-                <div>
+                <div class="saga-day-data-row__main">
                   <strong>{{ item.title }}</strong>
-                  {% if item.state or item.bucket or item.era %}
-                  <p>
-                    {% if item.state %}<span>{{ item.state }}</span>{% endif %}
-                    {% if item.bucket %}<span>{{ item.bucket }}</span>{% endif %}
-                    {% if item.era %}<span>{{ item.era }}</span>{% endif %}
-                  </p>
+                  {% if item.bucket or item.era %}
+                  <span>{{ item.bucket }}{% if item.era %} &middot; {{ item.era }}{% endif %}</span>
                   {% endif %}
-                  {% if item.notes %}
-                  <em>{{ item.notes }}</em>
-                  {% endif %}
+                </div>
+                <div class="saga-day-data-row__status">
+                  {% if item.state_short %}<span>{{ item.state_short }}</span>{% endif %}
+                  {% if item.notes %}<span>note</span>{% endif %}
                 </div>
               </article>
               {% endfor %}

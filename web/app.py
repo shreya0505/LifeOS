@@ -170,6 +170,9 @@ _jinja_env.globals["test_mode_enabled"] = clock.is_test_mode
 from core.utils import is_url as _is_url  # noqa: E402
 _jinja_env.globals["is_url"] = _is_url
 
+from core.saga import saga_wheel_svg as _saga_wheel_svg  # noqa: E402
+_jinja_env.globals["saga_wheel_svg"] = _saga_wheel_svg
+
 
 @app.get("/health")
 async def health_check():

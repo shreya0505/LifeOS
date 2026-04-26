@@ -1,165 +1,402 @@
-<section class="saga-metrics-panel saga-ledger">
-  {% set day = metrics.current %}
-  <header class="saga-ledger-hero" style="--day-accent: {{ day.saga.accent if day else '#CF9D7B' }}">
-    <div class="saga-ledger-hero__copy">
-      <p class="saga-kicker">Relational ledger</p>
-      <h1>{{ day.archetype if day else 'No Signal' }}</h1>
-      <p>{{ day.verdict if day else 'Capture emotion, complete quests, and log challenge progress to unlock the field report.' }}</p>
+{% set d = dashboard %}
+{% set k = d.headline.kpis %}
+{% set window = selected_window %}
+{% set kpi_help = {
+  "mood_load": "How emotionally heavy the day is. Built from intensity, number of entries, volatility, and dyads.",
+  "output": "Quest completion force for the day. Frogs and higher-priority quests count a little more.",
+  "challenge": "How well Hard 90 buckets held. Empty means no challenge signal was logged.",
+  "alignment": "Output and challenge integrity blended together. High means motion matched the long game."
+} %}
+{% set kpi_accent = {
+  "mood_load": "#E27F6F",
+  "output": "#F6D365",
+  "challenge": "#61D394",
+  "alignment": "#7C9CFF"
+} %}
+{% set streak_help = {
+  "capture": "Days in a row with at least one Saga entry.",
+  "aligned": "Days in a row where alignment scored 70 or higher.",
+  "challenge": "Days in a row where Challenge Hold scored 75 or higher.",
+  "frog": "Days in a row with at least one frog completed."
+} %}
+{% set streak_accent = {
+  "capture": "#CF9D7B",
+  "aligned": "#7C9CFF",
+  "challenge": "#61D394",
+  "frog": "#F6D365"
+} %}
+<section class="saga-dashboard" data-saga-dashboard
+         data-payload-id="saga-payload-{{ window }}"
+         hx-target="#saga-metrics-slot" hx-swap="innerHTML">
+
+  <header class="saga-cover">
+    <div class="saga-cover__head">
+      <div class="saga-cover__eyebrow">The Field Report · {{ window }}d</div>
+      <nav class="saga-window-pills" role="tablist">
+        {% for w in [7, 35, 90, 365] %}
+          <button type="button"
+                  class="saga-window-pill{% if w == window %} is-active{% endif %}"
+                  hx-get="/saga/metrics?window={{ w }}"
+                  hx-trigger="click"
+                  hx-target="#saga-metrics-slot" hx-swap="innerHTML">
+            {{ w }}d
+          </button>
+        {% endfor %}
+      </nav>
     </div>
-    {% if day %}
-    <div class="saga-ledger-hero__meta">
-      <span>{{ day.label }}</span>
-      <span>{{ day.weekday }}</span>
-      <span>{{ metrics.range_days }} day read</span>
-    </div>
+
+    <h1 class="saga-cover__archetype">{{ d.headline.archetype }}</h1>
+    <p class="saga-cover__verdict">{{ d.headline.verdict }}</p>
+    {% if d.headline.relations %}
+      <div class="saga-relation-row">
+        <span>{{ d.headline.relations.emotion_quest }}</span>
+        <span>{{ d.headline.relations.emotion_challenge }}</span>
+        <span>{{ d.headline.relations.quest_challenge }}</span>
+      </div>
     {% endif %}
+
+    <div class="saga-kpi-row">
+      {% for key in ["mood_load", "output", "challenge", "alignment"] %}
+        {% set kpi = k[key] %}
+        <article class="saga-kpi-tile" data-kpi="{{ key }}" style="--accent: {{ kpi_accent[key] }}">
+          <div class="saga-kpi-tile__label">{{ kpi.label }}</div>
+          <p class="saga-kpi-tile__explain">{{ kpi_help[key] }}</p>
+          <div class="saga-kpi-tile__value">
+            {% if kpi.value is none %}<span class="saga-kpi-tile__empty">—</span>
+            {% else %}{{ kpi.value }}{% endif %}
+          </div>
+          <div class="saga-kpi-tile__delta {% if kpi.delta_pct > 0 %}is-up{% elif kpi.delta_pct < 0 %}is-down{% endif %}">
+            {% if kpi.value is none %}No signal
+            {% else %}{{ kpi.trend_label }} · {{ '%+d'|format(kpi.delta_pct) }}% vs window
+            {% endif %}
+          </div>
+          <div class="saga-kpi-tile__spark" id="kpi-spark-{{ key }}"></div>
+        </article>
+      {% endfor %}
+    </div>
   </header>
 
-  {% if day %}
-  <section class="saga-ledger-strip" aria-label="Daily relational scores">
-    <div>
-      <span>Mood load</span>
-      <strong>{{ day.saga.mood_load }}</strong>
-      <small>{{ day.saga.load_label }}{% if day.saga.dominant_label %} / {{ day.saga.dominant_label }}{% endif %}</small>
-    </div>
-    <div>
-      <span>Quest output</span>
-      <strong>{{ day.quest.output_index }}</strong>
-      <small>{{ day.quest.label }} / {{ day.quest.count }} done</small>
-    </div>
-    <div>
-      <span>Challenge hold</span>
-      <strong>{% if day.challenge.score is not none %}{{ day.challenge.score }}{% else %}-{% endif %}</strong>
-      <small>{{ day.challenge.label }} / {{ day.challenge.count }} trials</small>
-    </div>
-    <div>
-      <span>Alignment</span>
-      <strong>{% if day.alignment.score is not none %}{{ day.alignment.score }}{% else %}-{% endif %}</strong>
-      <small>{{ day.alignment.label }}</small>
-    </div>
-  </section>
+  {# ─────────── CURRENT STATE ─────────── #}
+  <section class="saga-section saga-now">
+    <h2 class="saga-section__title">Current State</h2>
+    <p class="saga-section__deck">Last seven days. What today is made of.</p>
 
-  <section class="saga-relation-grid">
-    <article>
-      <span>Emotion to Quest</span>
-      <strong>{{ day.relations.emotion_quest }}</strong>
-      <p>Emotional load is read against completed tasks, not shown as a separate mood chart.</p>
-    </article>
-    <article>
-      <span>Emotion to Challenge</span>
-      <strong>{{ day.relations.emotion_challenge }}</strong>
-      <p>Intensity is tested against whether the long-term system held.</p>
-    </article>
-    <article>
-      <span>Quest to Challenge</span>
-      <strong>{{ day.relations.quest_challenge }}</strong>
-      <p>Output only counts as aligned when it moves with identity-level progress.</p>
-    </article>
-  </section>
-
-  <section class="saga-evidence-grid">
-    <article class="saga-evidence-card">
-      <div class="saga-section-head">
-        <span>Saga state</span>
-        <small>emotional cost</small>
-      </div>
-      <dl>
-        <div><dt>Entries</dt><dd>{{ day.saga.entry_count }}</dd></div>
-        <div><dt>Average</dt><dd>{{ day.saga.avg_intensity }}/10</dd></div>
-        <div><dt>Peak</dt><dd>{{ day.saga.peak_intensity }}/10</dd></div>
-        <div><dt>Volatility</dt><dd>{{ day.saga.volatility }}</dd></div>
-        <div><dt>Dyads</dt><dd>{{ day.saga.dyad_count }}</dd></div>
-      </dl>
-    </article>
-
-    <article class="saga-evidence-card">
-      <div class="saga-section-head">
-        <span>Quest response</span>
-        <small>execution under state</small>
-      </div>
-      <dl>
-        <div><dt>Completed</dt><dd>{{ day.quest.count }}</dd></div>
-        <div><dt>Weighted</dt><dd>{{ day.quest.weighted }}</dd></div>
-        <div><dt>Baseline</dt><dd>{{ day.quest.baseline }}</dd></div>
-        <div><dt>Delta</dt><dd>{% if day.quest.delta_pct > 0 %}+{% endif %}{{ day.quest.delta_pct }}%</dd></div>
-        <div><dt>Frogs</dt><dd>{{ day.quest.frog_count }}</dd></div>
-      </dl>
-    </article>
-
-    <article class="saga-evidence-card">
-      <div class="saga-section-head">
-        <span>Challenge posture</span>
-        <small>long-term system</small>
-      </div>
-      {% if day.challenge.bucket_rows %}
-      <div class="saga-bucket-read">
-        {% for bucket in day.challenge.bucket_rows %}
-        <div>
-          <span>{{ bucket.label }}</span>
-          <i style="width: {{ bucket.score }}%"></i>
-          <strong>{{ bucket.score }}</strong>
+    <div class="saga-arc-strip">
+      {% for day in d.recent_arc %}
+        <div class="saga-arc-card{% if day.is_today %} is-today{% endif %}"
+             style="--accent: {{ day.accent }}">
+          <div class="saga-arc-card__date">{{ day.weekday }} · {{ day.label }}</div>
+          <div class="saga-arc-card__archetype">{{ day.archetype }}</div>
+          <div class="saga-arc-card__chips">
+            <span class="saga-chip" title="Mood load: emotional heaviness score">Mood {{ day.mood_load }}</span>
+            <span class="saga-chip saga-chip--alt" title="Output index: weighted quest completion score">Output {{ day.output_index }}</span>
+          </div>
         </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <p class="saga-empty-line">Challenge data has not entered this day.</p>
-      {% endif %}
-    </article>
-  </section>
-
-  <section class="saga-pattern-panel">
-    <div class="saga-section-head">
-      <span>Pattern memory</span>
-      <small>relationships over time</small>
-    </div>
-    <div class="saga-pattern-grid">
-      <article>
-        <span>Common day type</span>
-        <strong>{{ metrics.trends.common_archetype }}</strong>
-      </article>
-      <article>
-        <span>Pressure and output</span>
-        <strong>{{ metrics.trends.pressure_output }}</strong>
-      </article>
-      <article>
-        <span>Keystone mood</span>
-        <strong>{{ metrics.trends.keystone_mood or 'Still resolving' }}</strong>
-      </article>
-      <article>
-        <span>Risk mood</span>
-        <strong>{{ metrics.trends.risk_mood or 'Still resolving' }}</strong>
-      </article>
-      <article>
-        <span>Recovery read</span>
-        <strong>{{ metrics.trends.recovery }}</strong>
-      </article>
-    </div>
-    {% if metrics.trends.arc %}
-    <div class="saga-arc">
-      {% for item in metrics.trends.arc %}
-      <span style="--arc-accent: {{ item.accent }}">
-        <small>{{ item.date }}</small>
-        {{ item.archetype }}
-      </span>
       {% endfor %}
+    </div>
+
+    {% if d.today_card %}
+    <div class="saga-today-grid">
+      <article class="saga-today-card">
+        <h3 class="saga-today-card__title">Today's Emotion Stack</h3>
+        <p class="saga-card-subtext">Each bar is a logged emotion. Taller bars were felt more intensely.</p>
+        {% if d.today_card.emotion_stack %}
+          <div class="saga-emotion-stack">
+            {% for e in d.today_card.emotion_stack %}
+              <div class="saga-emotion-bar"
+                   style="--accent: {{ e.accent }}; --h: {{ (e.intensity * 9) }}%"
+                   title="{{ e.label }} · intensity {{ e.intensity }} · {{ e.time }}">
+                <span class="saga-emotion-bar__time">{{ e.time }}</span>
+                <span class="saga-emotion-bar__label">{{ e.label }}</span>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="saga-empty">No entries logged today.</p>
+        {% endif %}
+      </article>
+
+      <article class="saga-today-card">
+        <h3 class="saga-today-card__title">Today's Output</h3>
+        <p class="saga-card-subtext">Quest count compared with your recent baseline. Frogs mark high-leverage work.</p>
+        <div class="saga-today-output">
+          <div class="saga-today-output__big">{{ d.today_card.quest_count }}</div>
+          <div class="saga-today-output__sub">quests · baseline {{ d.today_card.quest_baseline }}</div>
+          {% if d.today_card.frog_count %}
+            <span class="saga-pill saga-pill--frog">🐸 {{ d.today_card.frog_count }} frog{% if d.today_card.frog_count != 1 %}s{% endif %}</span>
+          {% endif %}
+        </div>
+      </article>
+
+      <article class="saga-today-card">
+        <h3 class="saga-today-card__title">Challenge posture</h3>
+        <p class="saga-card-subtext">Bucket bars show whether identity-level habits held today.</p>
+        {% if d.today_card.challenge_buckets %}
+          <ul class="saga-bucket-bars">
+            {% for b in d.today_card.challenge_buckets %}
+              <li class="saga-bucket-bar">
+                <span class="saga-bucket-bar__label">{{ b.label }}</span>
+                <span class="saga-bucket-bar__track"><span class="saga-bucket-bar__fill" style="--pct: {{ b.score }}%"></span></span>
+                <span class="saga-bucket-bar__score">{{ b.score }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+          <div class="saga-bucket-meta">
+            Composite <strong>{{ d.today_card.challenge_score or '—' }}</strong> · {{ d.today_card.challenge_label }}
+          </div>
+        {% else %}
+          <p class="saga-empty">No challenge log today.</p>
+        {% endif %}
+      </article>
     </div>
     {% endif %}
   </section>
 
-  <section class="saga-relationship-heat">
-    <div class="saga-section-head">
-      <span>Recent field states</span>
-      <small>archetype arc</small>
-    </div>
-    <div class="saga-day-type-list">
-      {% for item in metrics.recent_days %}
-      <article style="--row-accent: {{ item.saga.accent }}">
-        <span>{{ item.label }}</span>
-        <strong>{{ item.archetype }}</strong>
-        <small>{{ item.relations.emotion_quest }} / {{ item.alignment.label }}</small>
+  {# ─────────── TRENDS ─────────── #}
+  <section class="saga-section saga-trends">
+    <h2 class="saga-section__title">Trends</h2>
+    <p class="saga-section__deck">How the field has been moving across {{ window }} days.</p>
+
+    <div class="saga-grid">
+      <article class="saga-chart-card saga-grid__span-12">
+        <h3 class="saga-chart-card__title">Mood × Output co-movement</h3>
+        <p class="saga-chart-card__deck">Pressure (area) versus execution (line). Coupling vs decoupling shows up at the gaps.</p>
+        <div class="saga-chart" id="chart-comove"></div>
       </article>
-      {% endfor %}
+
+      <article class="saga-chart-card saga-grid__span-7">
+        <h3 class="saga-chart-card__title">Emotion family stream</h3>
+        <p class="saga-chart-card__deck">Daily share by family. Phase shifts visible as wide bands.</p>
+        <div class="saga-chart" id="chart-stream"></div>
+      </article>
+
+      <article class="saga-chart-card saga-grid__span-5">
+        <h3 class="saga-chart-card__title">Intensity heatmap</h3>
+        <p class="saga-chart-card__deck">Average intensity per day. Empty cells = no capture.</p>
+        <div class="saga-chart" id="chart-heatmap"></div>
+      </article>
+
+      <article class="saga-chart-card saga-grid__span-12">
+        <h3 class="saga-chart-card__title">Challenge integrity by bucket</h3>
+        <p class="saga-chart-card__deck">Anchor / Improver / Enricher posture and the composite hold.</p>
+        <div class="saga-chart" id="chart-buckets"></div>
+      </article>
     </div>
   </section>
-  {% endif %}
+
+  {# ─────────── RISKS ─────────── #}
+  <section class="saga-section saga-risks">
+    <h2 class="saga-section__title">Risks</h2>
+    <p class="saga-section__deck">Patterns that look like they're getting worse.</p>
+
+    {% if d.risk_signals %}
+      <div class="saga-risk-grid">
+        {% for r in d.risk_signals %}
+          <article class="saga-risk-card saga-risk-card--{{ r.severity }}">
+            <div class="saga-risk-card__kind">{{ r.kind | replace('_', ' ') }}</div>
+            <h3 class="saga-risk-card__head">{{ r.headline }}</h3>
+            <p class="saga-risk-card__detail">{{ r.detail }}</p>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="saga-empty">No risk signals detected in this window. The field is steady.</p>
+    {% endif %}
+
+    <div class="saga-grid">
+      <article class="saga-chart-card saga-grid__span-7">
+        <h3 class="saga-chart-card__title">Pressure × Output map</h3>
+        <p class="saga-chart-card__deck">Each dot is a day. Quadrants name the archetype zones.</p>
+        <div class="saga-chart saga-chart--scatter" id="chart-scatter"></div>
+      </article>
+
+      <article class="saga-chart-card saga-grid__span-5">
+        <h3 class="saga-chart-card__title">Archetype distribution</h3>
+        <p class="saga-chart-card__deck">How the {{ window }}-day window split across nine archetypes.</p>
+        <div class="saga-chart" id="chart-archetypes"></div>
+      </article>
+    </div>
+  </section>
+
+  {# ─────────── STRENGTHS ─────────── #}
+  <section class="saga-section saga-strengths">
+    <h2 class="saga-section__title">Strengths</h2>
+    <p class="saga-section__deck">Streaks held, keystone moods, best days.</p>
+
+    <div class="saga-streak-row">
+      {% for key, label in [('capture','Capture'),('aligned','Aligned'),('challenge','Challenge'),('frog','Frog')] %}
+        {% set s = d.streaks[key] %}
+        <article class="saga-streak-chip" style="--accent: {{ streak_accent[key] }}">
+          <div class="saga-streak-chip__label">{{ label }}</div>
+          <div class="saga-streak-chip__current">{{ s.current }}<span>d</span></div>
+          <p class="saga-streak-chip__explain">{{ streak_help[key] }}</p>
+          <div class="saga-streak-chip__best">best · {{ s.best }}d</div>
+        </article>
+      {% endfor %}
+    </div>
+
+    <div class="saga-grid">
+      <article class="saga-callout-card saga-grid__span-4" style="--accent: #F6D365">
+        <div class="saga-callout-card__kicker">Keystone Mood</div>
+        <div class="saga-callout-card__big">{{ d.keystone_mood or '—' }}</div>
+        <p class="saga-callout-card__sub">The emotion family most associated with useful output and Challenge Hold in this window.</p>
+      </article>
+
+      <article class="saga-callout-card saga-grid__span-4" style="--accent: {{ d.best_day.accent if d.best_day else '#7C9CFF' }}">
+        <div class="saga-callout-card__kicker">Best Day</div>
+        {% if d.best_day %}
+          <div class="saga-callout-card__big" style="color: {{ d.best_day.accent }}">{{ d.best_day.label }}</div>
+          <div class="saga-callout-card__meta">{{ d.best_day.archetype }} · alignment {{ d.best_day.alignment_score }}</div>
+          <p class="saga-callout-card__sub">{{ d.best_day.verdict }}</p>
+        {% else %}
+          <div class="saga-callout-card__big">—</div>
+          <p class="saga-callout-card__sub">Need challenge data to score alignment.</p>
+        {% endif %}
+      </article>
+
+      <article class="saga-callout-card saga-grid__span-4" style="--accent: #61D394">
+        <div class="saga-callout-card__kicker">Recovery Cadence</div>
+        <div class="saga-callout-card__big">
+          {% if d.recovery.mean_days %}{{ d.recovery.mean_days }}<span class="saga-callout-card__unit">d</span>
+          {% else %}—{% endif %}
+        </div>
+        <p class="saga-callout-card__sub">{{ d.recovery.prose }}</p>
+      </article>
+    </div>
+  </section>
+
+  {# ─────────── PATTERNS ─────────── #}
+  <section class="saga-section saga-patterns">
+    <h2 class="saga-section__title">Patterns</h2>
+    <p class="saga-section__deck">Weekly rhythm, time-of-day emotion, dyad fingerprints.</p>
+
+    <div class="saga-grid">
+      <article class="saga-chart-card saga-grid__span-5">
+        <h3 class="saga-chart-card__title">Day-of-week rhythm</h3>
+        <p class="saga-chart-card__deck">Mood load and output averaged by weekday.</p>
+        <div class="saga-chart" id="chart-dow"></div>
+      </article>
+
+      <article class="saga-chart-card saga-grid__span-7">
+        <h3 class="saga-chart-card__title">Emotion by time-of-day</h3>
+        <p class="saga-chart-card__deck">Which families show up Morning · Afternoon · Evening · Night.</p>
+        <div class="saga-chart" id="chart-block"></div>
+      </article>
+
+      <article class="saga-chart-card saga-grid__span-12">
+        <h3 class="saga-chart-card__title">Top Plutchik dyads</h3>
+        <p class="saga-chart-card__deck">Most-frequent emotion combinations. Opposites count: <strong>{{ d.opposite_count }}</strong>.</p>
+        {% if d.top_dyads %}
+          <ul class="saga-dyad-list">
+            {% for dy in d.top_dyads %}
+              <li class="saga-dyad-row" style="--accent: {{ dy.accent }}">
+                <span class="saga-dyad-row__swatch"></span>
+                <span class="saga-dyad-row__label">{{ dy.label }}</span>
+                <span class="saga-dyad-row__type">{{ dy.type }}</span>
+                <span class="saga-dyad-row__bar">
+                  <span class="saga-dyad-row__fill" style="width: {{ (dy.count * 100 / (d.top_dyads[0].count or 1)) | round }}%"></span>
+                </span>
+                <span class="saga-dyad-row__count">{{ dy.count }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="saga-empty">No dyads logged in this window.</p>
+        {% endif %}
+      </article>
+    </div>
+  </section>
+
+  {# ─────────── EMOTION ATLAS ─────────── #}
+  <section class="saga-section saga-atlas">
+    <h2 class="saga-section__title">Emotion Atlas</h2>
+    <p class="saga-section__deck">Plutchik's wheel, opacity = how often you visited each emotion.</p>
+
+    <div class="saga-grid">
+      <article class="saga-chart-card saga-grid__span-6 saga-wheel-card">
+        {{ saga_wheel_svg(d.wheel) }}
+      </article>
+
+      <article class="saga-chart-card saga-grid__span-6">
+        <h3 class="saga-chart-card__title">Family distribution</h3>
+        <div class="saga-chart" id="chart-family-donut"></div>
+        {% if d.top_labels %}
+        <div class="saga-top-labels">
+          <h4 class="saga-top-labels__title">Most-named feelings</h4>
+          <ul class="saga-top-labels__list">
+            {% for lbl in d.top_labels %}
+              <li>
+                <span class="saga-top-labels__name">{{ lbl.label }}</span>
+                <span class="saga-top-labels__bar"><span style="width: {{ (lbl.count * 100 / (d.top_labels[0].count or 1)) | round }}%"></span></span>
+                <span class="saga-top-labels__count">{{ lbl.count }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+      </article>
+    </div>
+  </section>
+
+  {# ─────────── META-ANALYSIS ─────────── #}
+  <section class="saga-section saga-meta">
+    <h2 class="saga-section__title">Meta-Analysis</h2>
+    <p class="saga-section__deck">What the whole pattern suggests.</p>
+
+    <article class="saga-meta-panel">
+      <div class="saga-meta-panel__confidence">Confidence · {{ d.meta_summary.confidence }}</div>
+      <p class="saga-meta-panel__lede">{{ d.meta_summary.dominant_pattern }}</p>
+      <div class="saga-meta-panel__claims">
+        <div>
+          <span>Primary risk</span>
+          <strong>{{ d.meta_summary.primary_risk }}</strong>
+        </div>
+        <div>
+          <span>Primary strength</span>
+          <strong>{{ d.meta_summary.primary_strength }}</strong>
+        </div>
+        <div>
+          <span>Watchpoint</span>
+          <strong>{{ d.meta_summary.watchpoint }}</strong>
+        </div>
+      </div>
+    </article>
+
+    <div class="saga-meta-facts">
+      <article style="--accent: #CF9D7B">
+        <span>Capture coverage</span>
+        <strong>{{ d.meta_analysis.capture.coverage_pct }}%</strong>
+        <small>How much of this window has Saga data. {{ d.meta_analysis.capture.active_days }} of {{ d.meta_analysis.capture.window_days }} days · longest gap {{ d.meta_analysis.capture.longest_gap }}d.</small>
+      </article>
+      <article style="--accent: #D58BFF">
+        <span>Emotional diversity</span>
+        <strong>{{ d.meta_analysis.emotion_load.emotional_diversity }}%</strong>
+        <small>How broad the emotional range was. Dominant family: {{ d.meta_analysis.emotion_load.dominant_family or 'none yet' }}.</small>
+      </article>
+      <article style="--accent: #7C9CFF">
+        <span>Alignment consistency</span>
+        <strong>{{ d.meta_analysis.alignment.alignment_consistency }}%</strong>
+        <small>How often Quest output and Challenge Hold moved together. {{ d.meta_analysis.alignment.aligned_day_count }} aligned days.</small>
+      </article>
+      <article style="--accent: #E27F6F">
+        <span>Opposite ratio</span>
+        <strong>{{ d.meta_analysis.dyads.opposite_ratio }}%</strong>
+        <small>Share of emotion pairs that were opposites, like joy plus sadness. {{ d.meta_analysis.dyads.dyad_count }} dyads logged.</small>
+      </article>
+    </div>
+  </section>
+
+  <script id="saga-payload-{{ window }}" type="application/json">{{ d | tojson | safe }}</script>
+  <script>
+    (function () {
+      function go() {
+        if (window.SagaDashboard && window.SagaDashboard.init) {
+          window.SagaDashboard.init({{ window }});
+        } else {
+          setTimeout(go, 80);
+        }
+      }
+      go();
+    })();
+  </script>
 </section>

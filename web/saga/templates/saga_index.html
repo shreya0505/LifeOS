@@ -81,7 +81,7 @@
 
         <div class="saga-capture__footer">
           <p class="saga-confirm" x-text="confirmation"></p>
-          <button class="saga-capture__submit" type="submit">Save</button>
+          <button class="saga-capture__submit" type="submit" :disabled="!canSubmit()">Save</button>
         </div>
       </form>
     </div>
@@ -92,7 +92,6 @@
          hx-get="/saga/timeline"
          hx-trigger="load, saga-changed from:body, quest-done from:body, refresh"
          hx-swap="innerHTML">
-      {% include "saga_timeline.html" %}
     </div>
   </section>
 
@@ -101,7 +100,6 @@
          hx-get="/saga/metrics"
          hx-trigger="load, saga-changed from:body, quest-done from:body, refresh"
          hx-swap="innerHTML">
-      {% include "saga_metrics.html" %}
     </div>
   </section>
 </div>
@@ -115,6 +113,7 @@
       intensity: 5,
       note: '',
       confirmation: '',
+      draftPaused: false,
       init() {
         const saved = localStorage.getItem('saga.draft.v1');
         if (saved) {
@@ -134,6 +133,7 @@
         this.$watch('note', () => this.saveDraft());
       },
       saveDraft() {
+        if (this.draftPaused) return;
         localStorage.setItem('saga.draft.v1', JSON.stringify({
           selected: this.selected,
           intensity: this.intensity,
@@ -141,10 +141,14 @@
         }));
       },
       primaryEmotion() {
-        return this.selected[0] || { family: 'joy', label: 'joy', intensity: 5 };
+        return this.selected[0] || { family: '', label: '', intensity: 5 };
       },
       secondaryEmotion() {
         return this.selected[1] || null;
+      },
+      canSubmit() {
+        const primary = this.primaryEmotion();
+        return Boolean(primary.family && primary.label);
       },
       pairKey() {
         if (this.selected.length < 2) return '';
@@ -181,10 +185,8 @@
       toggleEmotion(family, label, intensity) {
         const existing = this.selected.findIndex(item => item.family === family && item.label === label);
         if (existing >= 0) {
-          if (this.selected.length > 1) {
-            this.selected.splice(existing, 1);
-          }
-          this.intensity = Math.max(...this.selected.map(item => item.intensity || 5));
+          this.selected.splice(existing, 1);
+          this.intensity = this.selected.length ? Math.max(...this.selected.map(item => item.intensity || 5)) : 5;
           return;
         }
         const sameFamily = this.selected.findIndex(item => item.family === family);
@@ -207,10 +209,17 @@
         return 'high tier';
       },
       finishCapture() {
+        this.draftPaused = true;
+        this.selected = [];
+        this.intensity = 5;
         this.note = '';
         this.confirmation = 'Entry saved.';
         localStorage.removeItem('saga.draft.v1');
-        this.$nextTick(() => this.$refs.noteInput && this.$refs.noteInput.focus());
+        this.$nextTick(() => {
+          localStorage.removeItem('saga.draft.v1');
+          this.draftPaused = false;
+          if (this.$refs.noteInput) this.$refs.noteInput.focus();
+        });
         setTimeout(() => this.confirmation = '', 1800);
       }
     }

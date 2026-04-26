@@ -1,0 +1,11 @@
+{% extends "saga_base.html" %}
+
+{% block title %}Saga Stats{% endblock %}
+
+{% block content %}
+<div class="saga-root saga-root--metrics" data-saga-root>
+  <div id="saga-metrics-slot">
+    {% include "saga_metrics.html" %}
+  </div>
+</div>
+{% endblock %}
