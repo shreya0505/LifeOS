@@ -1158,7 +1158,7 @@
 .saga-day-data-row time {
   color: rgba(245, 241, 234, 0.45);
   font-family: var(--saga-mono);
-  font-size: 0.7rem;
+  font-size: 0.58rem;
   font-weight: 400;
 }
 
@@ -1174,7 +1174,7 @@
 .saga-day-data-row__main > span {
   color: rgba(245, 241, 234, 0.42);
   font-family: var(--saga-mono);
-  font-size: 0.62rem;
+  font-size: 0.54rem;
   font-weight: 800;
   text-transform: uppercase;
 }
@@ -1234,9 +1234,9 @@
 
 .saga-day-data-row strong {
   color: rgba(245, 241, 234, 0.86);
-  font-size: 0.92rem;
+  font-size: 0.76rem;
   font-weight: 400;
-  line-height: 1.35;
+  line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1245,6 +1245,7 @@
 .saga-day-data-row__main > span {
   overflow: hidden;
   color: color-mix(in srgb, var(--saga-row-accent) 32%, rgba(245, 241, 234, 0.36));
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1260,15 +1261,15 @@
 .saga-day-data-row__status span {
   display: inline-flex;
   align-items: center;
-  min-height: 1.05rem;
-  padding: 0.08rem 0.34rem;
+  min-height: 0.92rem;
+  padding: 0.05rem 0.28rem;
   border: 0;
   border-radius: 999px;
   background:
     linear-gradient(180deg, rgba(245, 241, 234, 0.035), rgba(245, 241, 234, 0.01)),
     color-mix(in srgb, var(--saga-row-accent) 9%, rgba(12, 21, 25, 0.2));
   color: color-mix(in srgb, var(--saga-row-accent) 46%, rgba(245, 241, 234, 0.46));
-  font-size: 0.58rem;
+  font-size: 0.5rem;
   font-weight: 800;
   text-transform: uppercase;
 }
