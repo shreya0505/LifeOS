@@ -47,9 +47,11 @@
       {% set active_ns = namespace(any=false) %}
       {% for exp in experiments if exp.status in ['running', 'draft'] %}
         {% set active_ns.any = true %}
-        <div class="ch-lab-item ch-lab-item--{{ exp.status }}">
+        <div class="ch-lab-item ch-lab-item--{{ exp.status }}{% if exp.needs_verdict %} ch-lab-item--needs-verdict{% endif %}">
           <div class="ch-lab-item__main">
-            <span class="ch-lab-state">{{ 'Running Trial' if exp.status == 'running' else 'Protocol Draft' }}</span>
+            <span class="ch-lab-state">
+              {{ 'Verdict Pending' if exp.needs_verdict else ('Running Trial' if exp.status == 'running' else 'Protocol Draft') }}
+            </span>
             <h3>{{ exp.action }}</h3>
             <p>{{ exp.motivation }}</p>
             <div class="ch-lab-meta">
@@ -76,12 +78,80 @@
               <span>{{ exp.notes_count }} notes</span>
               {% if exp.avg_rank %}<span>quality {{ exp.avg_rank }}/5</span>{% endif %}
             </div>
+            {% if not exp.needs_verdict %}
             <form method="post" action="/challenge/experiments/{{ exp.id }}/abandon">
               <button type="submit" class="ch-experiment-danger">Abandon Trial</button>
             </form>
             {% endif %}
+            {% endif %}
           </div>
           {% if exp.status == 'running' %}
+          {% if exp.needs_verdict %}
+          <div class="ch-lab-verdict-panel">
+            <div class="ch-lab-verdict-panel__head">
+              <div>
+                <p class="ch-mag-eyebrow">TRIAL CONCLUDED</p>
+                <h4>Record Verdict</h4>
+              </div>
+              <span class="ch-verdict-chip">Pending · {{ exp.days_overdue }}d overdue</span>
+            </div>
+
+            <div class="ch-evidence-chips" aria-label="Trial evidence">
+              {% for state in states if exp.signal_breakdown.get(state) %}
+              <span title="{{ state_labels[state] }}">{{ state_short[state] }} · {{ exp.signal_breakdown[state] }}</span>
+              {% else %}
+              <span>No daily signals logged</span>
+              {% endfor %}
+              {% if exp.avg_rank %}<span>Avg rank · {{ exp.avg_rank }}/5</span>{% endif %}
+            </div>
+
+            {% if exp.recent_notes %}
+            <div class="ch-recent-notes">
+              {% for note in exp.recent_notes %}
+              <blockquote>{{ note | truncate(180) }}</blockquote>
+              {% endfor %}
+            </div>
+            {% endif %}
+
+            <form method="post" action="/challenge/experiments/{{ exp.id }}/judge" class="ch-lab-verdict-form">
+              <label>
+                <span>Verdict</span>
+                <select name="verdict" required>
+                  {% for key, label in experiment_verdicts.items() %}
+                  <option value="{{ key }}"{% if key == exp.suggested_verdict %} selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label class="ch-lab-verdict-field--full">
+                <span>Observation</span>
+                <textarea name="observation_notes" placeholder="What did the signals show?"></textarea>
+              </label>
+              <label class="ch-lab-verdict-field--full">
+                <span>Conclusion</span>
+                <textarea name="conclusion_notes" placeholder="What changes now?">{{ exp.draft_conclusion }}</textarea>
+              </label>
+              <div class="ch-lab-verdict-primary">
+                <button type="submit" class="ch-experiment-start">Seal Verdict</button>
+              </div>
+            </form>
+
+            <div class="ch-lab-verdict-actions">
+              <div class="ch-lab-verdict-actions__head">
+                <span>Not ready to judge?</span>
+                <form method="post" action="/challenge/experiments/{{ exp.id }}/extend">
+                  <button type="submit" class="ch-link-button">Need more time -> +{{ exp.extend_days }} days</button>
+                </form>
+              </div>
+              <details class="ch-lab-inconclusive">
+                <summary>Archive as inconclusive instead</summary>
+                <form method="post" action="/challenge/experiments/{{ exp.id }}/abandon">
+                  <textarea name="reason" placeholder="Why is this inconclusive?"></textarea>
+                  <button type="submit" class="ch-experiment-danger">Archive Inconclusive</button>
+                </form>
+              </details>
+            </div>
+          </div>
+          {% else %}
           <details class="ch-lab-judge">
             <summary>Archive Verdict</summary>
             <form method="post" action="/challenge/experiments/{{ exp.id }}/judge">
@@ -95,6 +165,7 @@
               <button type="submit" class="ch-experiment-start">Seal Finding</button>
             </form>
           </details>
+          {% endif %}
           {% endif %}
         </div>
       {% endfor %}
@@ -111,7 +182,7 @@
     </header>
     <div class="ch-lab-verdicts">
       {% for key, label in experiment_verdicts.items() %}
-      <div class="ch-stat-block">
+      <div class="ch-stat-block ch-stat-block--{{ key }}">
         <span class="ch-stat-eyebrow">{{ label | upper }}</span>
         <span class="ch-stat-num">{{ verdict_counts[key] }}</span>
       </div>
@@ -122,7 +193,7 @@
       {% set judged_ns = namespace(any=false) %}
       {% for exp in experiments if exp.status in ['judged', 'abandoned'] %}
       {% set judged_ns.any = true %}
-      <div class="ch-lab-item ch-lab-item--judged">
+      <div class="ch-lab-item ch-lab-item--judged ch-lab-item--finish-{{ exp.verdict if exp.status == 'judged' else 'abandoned' }}">
         <div class="ch-lab-item__main">
           <span class="ch-lab-state">{{ exp.verdict_label if exp.status == 'judged' else 'Abandoned Trial' }}</span>
           <h3>{{ exp.action }}</h3>

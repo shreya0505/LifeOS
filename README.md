@@ -190,8 +190,11 @@ scripts/clear_docker_data.sh
 # Clear QuestLog data only.
 LIFEOS_CLEAR_SCOPE=questlog scripts/clear_docker_data.sh
 
-# Clear only Hard 90 challenge data.
+# Clear only Hard 90 challenge data, including Tiny Experiments.
 LIFEOS_CLEAR_SCOPE=challenge scripts/clear_docker_data.sh
+
+# Clear only Tiny Experiments protocols and daily signals.
+LIFEOS_CLEAR_SCOPE=tiny_experiments scripts/clear_docker_data.sh
 
 # Clear Saga data only.
 LIFEOS_CLEAR_SCOPE=saga scripts/clear_docker_data.sh
@@ -217,7 +220,7 @@ LIFEOS_SERVICE=questlog scripts/clear_docker_data.sh
 # SQLite path inside the container. Defaults to /app/data/web/questlog.db.
 LIFEOS_DB=/app/data/web/questlog.db scripts/clear_docker_data.sh
 
-# Scope: questlog, challenge, saga, or all. When omitted, the script asks.
+# Scope: questlog, challenge, tiny_experiments, saga, or all. When omitted, the script asks.
 LIFEOS_CLEAR_SCOPE=saga scripts/clear_docker_data.sh
 ```
 

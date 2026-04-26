@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # clear_challenge_data.sh — Reset Hard 90 Challenge data only.
-# Wipes challenges, challenge_tasks, challenge_entries, challenge_eras.
+# Wipes challenges, challenge_tasks, challenge_entries, challenge_eras,
+# challenge_experiments, and challenge_experiment_entries.
 # Keeps schema, migrations, and all QuestLog/pomo/trophy data intact.
 # Backs up the DB first, then optionally deletes all backups.
 
@@ -24,6 +25,7 @@ echo ""
 echo "Database: $DB"
 echo ""
 echo "This will permanently delete:"
+echo "  • All tiny experiment protocols and daily signals"
 echo "  • All challenges (active + completed)"
 echo "  • All challenge tasks"
 echo "  • All challenge entries (daily ratings + notes)"
@@ -52,15 +54,20 @@ try:
     db.execute("UPDATE sync_runtime SET value = '1' WHERE key = 'suppress'")
 except sqlite3.OperationalError:
     pass
-for t in ("challenge_entries", "challenge_tasks", "challenge_eras", "challenges"):
+tables = (
+    "challenge_experiment_entries", "challenge_experiments",
+    "challenge_entries", "challenge_tasks", "challenge_eras", "challenges",
+)
+for t in tables:
     try:
         db.execute(f"DELETE FROM {t}")
     except sqlite3.OperationalError as e:
         print(f"  skip {t}: {e}")
 try:
-    for t in ("challenge_entries", "challenge_tasks", "challenge_eras", "challenges"):
+    for t in tables:
         db.execute("DELETE FROM sync_changes WHERE table_name = ?", (t,))
-    db.execute("DELETE FROM sync_conflicts WHERE table_name IN ('challenge_entries', 'challenge_tasks', 'challenge_eras', 'challenges')")
+    placeholders = ",".join("?" * len(tables))
+    db.execute(f"DELETE FROM sync_conflicts WHERE table_name IN ({placeholders})", tables)
 finally:
     try:
         db.execute("UPDATE sync_runtime SET value = '0' WHERE key = 'suppress'")
@@ -74,7 +81,9 @@ PYEOF
 echo "Challenge data cleared. Schema and migrations intact."
 
 echo ""
-EXISTING_BACKUPS=( "$BACKUP_DIR"/questlog.db.backup.* 2>/dev/null ) || true
+shopt -s nullglob
+EXISTING_BACKUPS=( "$BACKUP_DIR"/questlog.db.backup.* )
+shopt -u nullglob
 BACKUP_COUNT=0
 for f in "${EXISTING_BACKUPS[@]}"; do [[ -f "$f" ]] && (( BACKUP_COUNT++ )) || true; done
 

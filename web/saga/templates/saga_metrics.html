@@ -87,9 +87,19 @@
              style="--accent: {{ day.accent }}">
           <div class="saga-arc-card__date">{{ day.weekday }} · {{ day.label }}</div>
           <div class="saga-arc-card__archetype">{{ day.archetype }}</div>
-          <div class="saga-arc-card__chips">
-            <span class="saga-chip" title="Mood load: emotional heaviness score">Mood {{ day.mood_load }}</span>
-            <span class="saga-chip saga-chip--alt" title="Output index: weighted quest completion score">Output {{ day.output_index }}</span>
+          <div class="saga-arc-card__signals" aria-label="Mood and output signals">
+            <div class="saga-arc-signal saga-arc-signal--mood"
+                 style="--signal: {{ day.mood_load }}%; --accent: {{ day.accent }}"
+                 title="Mood load: emotional heaviness score {{ day.mood_load }}">
+              <span class="saga-arc-signal__orb"><span>{{ day.mood_load }}</span></span>
+              <span class="saga-arc-signal__label">Mood</span>
+            </div>
+            <div class="saga-arc-signal saga-arc-signal--output"
+                 style="--signal: {{ day.output_index }}%"
+                 title="Output index: weighted quest completion score {{ day.output_index }}">
+              <span class="saga-arc-signal__bar"><span></span></span>
+              <span class="saga-arc-signal__label">Output {{ day.output_index }}</span>
+            </div>
           </div>
         </div>
       {% endfor %}
@@ -99,15 +109,18 @@
     <div class="saga-today-grid">
       <article class="saga-today-card">
         <h3 class="saga-today-card__title">Today's Emotion Stack</h3>
-        <p class="saga-card-subtext">Each bar is a logged emotion. Taller bars were felt more intensely.</p>
+        <p class="saga-card-subtext">Each rune is a logged emotion. Brighter rings carried more intensity.</p>
         {% if d.today_card.emotion_stack %}
-          <div class="saga-emotion-stack">
+          <div class="saga-emotion-constellation">
             {% for e in d.today_card.emotion_stack %}
-              <div class="saga-emotion-bar"
-                   style="--accent: {{ e.accent }}; --h: {{ (e.intensity * 9) }}%"
+              <div class="saga-emotion-rune"
+                   style="--accent: {{ e.accent }}; --signal: {{ (e.intensity * 10) }}%"
                    title="{{ e.label }} · intensity {{ e.intensity }} · {{ e.time }}">
-                <span class="saga-emotion-bar__time">{{ e.time }}</span>
-                <span class="saga-emotion-bar__label">{{ e.label }}</span>
+                <span class="saga-emotion-rune__mark"><span>{{ e.intensity }}</span></span>
+                <span class="saga-emotion-rune__body">
+                  <span class="saga-emotion-rune__label">{{ e.label }}</span>
+                  <span class="saga-emotion-rune__meta">{{ e.time }}{% if e.role == 'secondary' %} · paired{% endif %}</span>
+                </span>
               </div>
             {% endfor %}
           </div>
@@ -166,7 +179,7 @@
 
       <article class="saga-chart-card saga-grid__span-7">
         <h3 class="saga-chart-card__title">Emotion family stream</h3>
-        <p class="saga-chart-card__deck">Daily share by family. Phase shifts visible as wide bands.</p>
+        <p class="saga-chart-card__deck">Daily emotion mentions by family. Two-emotion logs count in both families.</p>
         <div class="saga-chart" id="chart-stream"></div>
       </article>
 
@@ -310,11 +323,22 @@
   {# ─────────── EMOTION ATLAS ─────────── #}
   <section class="saga-section saga-atlas">
     <h2 class="saga-section__title">Emotion Atlas</h2>
-    <p class="saga-section__deck">Plutchik's wheel, opacity = how often you visited each emotion.</p>
+    <p class="saga-section__deck">Plutchik's wheel, opacity = how often you visited each emotion. Two-emotion logs count both emotions.</p>
 
     <div class="saga-grid">
       <article class="saga-chart-card saga-grid__span-6 saga-wheel-card">
         {{ saga_wheel_svg(d.wheel) }}
+        <div class="saga-wheel-key" aria-label="Plutchik wheel emotion counts">
+          {% for cell in d.wheel %}
+            <span class="saga-wheel-key__item"
+                  style="--accent: {{ cell.accent }}; --alpha: {{ (cell.opacity * 100) | round }}%"
+                  title="{{ cell.label | title }} · {{ cell.family | title }} · {{ cell.count }} visit{{ 's' if cell.count != 1 else '' }}">
+              <span class="saga-wheel-key__swatch"></span>
+              <span class="saga-wheel-key__label">{{ cell.label }}</span>
+              <span class="saga-wheel-key__count">{{ cell.count }}</span>
+            </span>
+          {% endfor %}
+        </div>
       </article>
 
       <article class="saga-chart-card saga-grid__span-6">

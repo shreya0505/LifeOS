@@ -25,7 +25,7 @@
   <nav class="saga-navbar__nav">
     <button class="saga-nav-link{% if active_tab|default('today') == 'today' %} is-active{% endif %}" data-saga-tab="today" type="button" onclick="switchSagaTab('today')">Campfire</button>
     <button class="saga-nav-link{% if active_tab|default('today') == 'timeline' %} is-active{% endif %}" data-saga-tab="timeline" type="button" onclick="switchSagaTab('timeline')">Chronicle</button>
-    <button class="saga-nav-link{% if active_tab|default('today') == 'metrics' %} is-active{% endif %}" data-saga-tab="metrics" type="button" onclick="switchSagaTab('metrics')">Stats</button>
+    <button class="saga-nav-link{% if active_tab|default('today') == 'metrics' %} is-active{% endif %}" data-saga-tab="metrics" type="button" onclick="switchSagaTab('metrics')">Grimoire</button>
   </nav>
   <div class="saga-navbar__end">
     <div hx-get="/sync/panel" hx-trigger="load, every {{ sync_ui_poll_seconds() }}s" hx-swap="outerHTML"></div>

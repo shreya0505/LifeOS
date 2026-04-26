@@ -493,3 +493,28 @@ def directive(
             return f"Pulse is drifting. Protect {keystone['name']} for the next three days."
         return "Pulse is drifting. Tighten the anchors for the next three days."
     return "System is holding. Keep the anchors clean."
+
+
+# ── Tiny experiment verdict suggestion ──────────────────────────────────────
+
+def suggest_verdict(entries: list[dict], duration_days: int | None = None) -> str | None:
+    """Suggest a verdict from experiment signals without making the judgment."""
+    total_days = duration_days if duration_days is not None else len(entries)
+    if total_days <= 0:
+        return None
+    logged = [e for e in entries if e.get("state")]
+    log_ratio = len(logged) / total_days
+    if log_ratio < 0.3:
+        return "failed_premise"
+    ranks = [STATE_RANK.get(e.get("state"), 0) for e in logged]
+    if not ranks:
+        return "failed_premise"
+    avg = sum(ranks) / len(ranks)
+    sat_ratio = sum(
+        1 for e in logged if e.get("state") == "COMPLETED_SATISFACTORY"
+    ) / len(logged)
+    if avg >= 3.5 and sat_ratio >= 0.6:
+        return "success"
+    if avg >= 2.5:
+        return "partial_success"
+    return "failed_process"

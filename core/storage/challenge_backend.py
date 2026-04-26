@@ -424,10 +424,17 @@ class SqliteChallengeExperimentRepo:
             out.append(exp)
         return out
 
-    async def running_count(self) -> int:
-        cursor = await self._db.execute(
-            "SELECT COUNT(*) FROM challenge_experiments WHERE status = 'running'"
-        )
+    async def running_count(self, as_of: str | None = None) -> int:
+        if as_of:
+            cursor = await self._db.execute(
+                "SELECT COUNT(*) FROM challenge_experiments "
+                "WHERE status = 'running' AND (ends_at IS NULL OR date(ends_at) >= date(?))",
+                (as_of,),
+            )
+        else:
+            cursor = await self._db.execute(
+                "SELECT COUNT(*) FROM challenge_experiments WHERE status = 'running'"
+            )
         row = await cursor.fetchone()
         return int(row[0] if row else 0)
 
@@ -435,7 +442,7 @@ class SqliteChallengeExperimentRepo:
         exp = await self.get_by_id(experiment_id)
         if exp is None or exp["status"] != "draft":
             return None
-        if await self.running_count() >= 3:
+        if await self.running_count(start_date) >= 3:
             return None
         duration = C.EXPERIMENT_TIMEFRAME_DAYS[exp["timeframe"]]
         ends_at = (date.fromisoformat(start_date) + timedelta(days=duration - 1)).isoformat()
@@ -467,14 +474,39 @@ class SqliteChallengeExperimentRepo:
         await self._db.commit()
         return await self.get_by_id(experiment_id)
 
-    async def abandon(self, experiment_id: str) -> dict | None:
+    async def abandon(self, experiment_id: str, reason: str = "") -> dict | None:
         exp = await self.get_by_id(experiment_id)
         if exp is None or exp["status"] != "running":
             return None
+        reason = (reason or "").strip()
+        if reason:
+            conclusion_notes = f"[abandoned] {reason}"
+            if exp.get("conclusion_notes"):
+                conclusion_notes = f"{conclusion_notes}\n\n{exp['conclusion_notes']}"
+            await self._db.execute(
+                "UPDATE challenge_experiments "
+                "SET status = 'abandoned', conclusion_notes = ? "
+                "WHERE id = ? AND status = 'running'",
+                (conclusion_notes, experiment_id),
+            )
+        else:
+            await self._db.execute(
+                "UPDATE challenge_experiments SET status = 'abandoned' "
+                "WHERE id = ? AND status = 'running'",
+                (experiment_id,),
+            )
+        await self._db.commit()
+        return await self.get_by_id(experiment_id)
+
+    async def extend(self, experiment_id: str, extra_days: int) -> dict | None:
+        exp = await self.get_by_id(experiment_id)
+        if exp is None or exp["status"] != "running" or not exp.get("ends_at"):
+            return None
+        new_end = (date.fromisoformat(exp["ends_at"]) + timedelta(days=extra_days)).isoformat()
         await self._db.execute(
-            "UPDATE challenge_experiments SET status = 'abandoned' "
+            "UPDATE challenge_experiments SET ends_at = ? "
             "WHERE id = ? AND status = 'running'",
-            (experiment_id,),
+            (new_end, experiment_id),
         )
         await self._db.commit()
         return await self.get_by_id(experiment_id)
@@ -532,6 +564,9 @@ class SqliteChallengeExperimentRepo:
         )
         rows = await cursor.fetchall()
         return [_experiment_entry_row_to_dict(r) for r in rows]
+
+    async def get_entries(self, experiment_id: str) -> list[dict]:
+        return await self.get_entries_for_experiment(experiment_id)
 
     async def get_all_entries(self) -> list[dict]:
         cursor = await self._db.execute(

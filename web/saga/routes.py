@@ -71,9 +71,9 @@ async def saga_timeline(request: Request, page: int = 1):
 
 
 @router.get("/metrics", response_class=HTMLResponse)
-async def saga_metrics_panel(request: Request, window: int = 35):
+async def saga_metrics_panel(request: Request, window: int = 7):
     if window not in {7, 35, 90, 365}:
-        window = 35
+        window = 7
     dashboard = await saga_dashboard(request.app.state.db, window)
     context = {
         "active_tab": "metrics",

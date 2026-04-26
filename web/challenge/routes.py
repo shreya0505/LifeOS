@@ -76,6 +76,13 @@ def _decorate_experiment(exp: dict, today: date | None = None) -> dict:
     )
     out["is_overdue"] = False
     out["days_remaining"] = None
+    out["days_overdue"] = 0
+    out["needs_verdict"] = False
+    out["signal_breakdown"] = {}
+    out["suggested_verdict"] = None
+    out["recent_notes"] = []
+    out["draft_conclusion"] = ""
+    out["extend_days"] = out["duration_days"] or 1
     out["trial_progress_pct"] = 0
     out["time_signal"] = "Awaiting start"
     if exp.get("status") == "running" and exp.get("started_at") and exp.get("ends_at"):
@@ -87,7 +94,9 @@ def _decorate_experiment(exp: dict, today: date | None = None) -> dict:
         if today > end:
             overdue = (today - end).days
             out["is_overdue"] = True
+            out["needs_verdict"] = True
             out["days_remaining"] = -overdue
+            out["days_overdue"] = overdue
             out["time_signal"] = f"{overdue} day{'s' if overdue != 1 else ''} overdue"
         else:
             remaining = (end - today).days + 1
@@ -125,9 +134,15 @@ async def _build_today_context(
         by_bucket[t["bucket"]].append(row)
 
     experiments = []
+    pending_verdict_count = 0
     if experiment_repo is not None:
         experiments = _decorate_experiments(
             await experiment_repo.get_for_today(target_date)
+        )
+        all_experiments = _decorate_experiments(await experiment_repo.get_all())
+        pending_verdict_count = sum(
+            1 for e in all_experiments
+            if e.get("needs_verdict")
         )
 
     start_dt = date.fromisoformat(challenge["start_date"])
@@ -175,6 +190,7 @@ async def _build_today_context(
         "bucket_descriptions": C.BUCKET_DESCRIPTIONS,
         "by_bucket": by_bucket,
         "experiments": experiments,
+        "pending_verdict_count": pending_verdict_count,
         "experiment_timeframe_labels": C.EXPERIMENT_TIMEFRAME_LABELS,
         "experiment_verdicts": C.EXPERIMENT_VERDICTS,
         "states": C.STATES,
@@ -698,10 +714,34 @@ async def _build_experiments_context(challenge: dict, experiment_repo) -> dict:
         exp["notes_count"] = sum(1 for e in exp_entries if e.get("notes"))
         ranks = [C.STATE_RANK.get(e["state"], 0) for e in exp_entries]
         exp["avg_rank"] = round(sum(ranks) / len(ranks), 2) if ranks else None
+        breakdown = {s: 0 for s in C.STATES}
+        for e in exp_entries:
+            if e.get("state") in breakdown:
+                breakdown[e["state"]] += 1
+        exp["signal_breakdown"] = breakdown
+        if exp["needs_verdict"]:
+            exp["suggested_verdict"] = metrics_engine.suggest_verdict(
+                exp_entries, exp.get("duration_days") or 1
+            )
+            exp["recent_notes"] = [
+                e["notes"] for e in exp_entries if e.get("notes")
+            ][-3:]
+            exp["draft_conclusion"] = exp["recent_notes"][-1] if exp["recent_notes"] else ""
+        else:
+            exp["suggested_verdict"] = None
+            exp["recent_notes"] = []
+            exp["draft_conclusion"] = ""
         if exp.get("verdict") in verdict_counts:
             verdict_counts[exp["verdict"]] += 1
 
+    # Sort: needs-verdict cards first, then other running, then drafts/judged/abandoned (preserve repo order)
+    experiments.sort(key=lambda e: (0 if e.get("needs_verdict") else 1))
+
     running_count = sum(1 for exp in experiments if exp["status"] == "running")
+    active_running_count = sum(
+        1 for exp in experiments
+        if exp["status"] == "running" and not exp.get("needs_verdict")
+    )
     judged_count = sum(1 for exp in experiments if exp["status"] == "judged")
     abandoned_count = sum(1 for exp in experiments if exp["status"] == "abandoned")
     summary = {
@@ -710,7 +750,7 @@ async def _build_experiments_context(challenge: dict, experiment_repo) -> dict:
         "running": running_count,
         "judged": judged_count,
         "abandoned": abandoned_count,
-        "slots_remaining": max(0, 3 - running_count),
+        "slots_remaining": max(0, 3 - active_running_count),
         "entries": len(entries),
         "notes": sum(1 for entry in entries if entry.get("notes")),
     }
@@ -718,6 +758,7 @@ async def _build_experiments_context(challenge: dict, experiment_repo) -> dict:
         "challenge": challenge,
         "experiments": experiments,
         "summary": summary,
+        "pending_verdict_count": sum(1 for exp in experiments if exp.get("needs_verdict")),
         "verdict_counts": verdict_counts,
         "states": C.STATES,
         "state_labels": C.STATE_LABELS,
@@ -845,11 +886,31 @@ async def judge_experiment(
 async def abandon_experiment(
     request: Request,
     experiment_id: str,
+    reason: str = Form(""),
     experiment_repo=Depends(get_challenge_experiment_repo),
 ):
-    exp = await experiment_repo.abandon(experiment_id)
+    exp = await experiment_repo.abandon(experiment_id, reason)
     if exp is None:
         return HTMLResponse("Could not abandon trial", status_code=400)
+    return RedirectResponse(
+        request.headers.get("referer") or "/challenge/experiments",
+        status_code=303,
+    )
+
+
+@router.post("/experiments/{experiment_id}/extend", response_class=HTMLResponse)
+async def extend_experiment(
+    request: Request,
+    experiment_id: str,
+    experiment_repo=Depends(get_challenge_experiment_repo),
+):
+    exp = await experiment_repo.get_by_id(experiment_id)
+    if exp is None:
+        return HTMLResponse("Trial not found", status_code=404)
+    extra = C.EXPERIMENT_TIMEFRAME_DAYS.get(exp.get("timeframe"), 1)
+    updated = await experiment_repo.extend(experiment_id, extra)
+    if updated is None:
+        return HTMLResponse("Could not extend trial", status_code=400)
     return RedirectResponse(
         request.headers.get("referer") or "/challenge/experiments",
         status_code=303,

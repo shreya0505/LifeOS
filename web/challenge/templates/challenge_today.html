@@ -45,6 +45,13 @@ Day {{ days_elapsed }}/{{ days_total }} · {{ challenge.era_name }}
     </div>
   </div>
 
+  {% if pending_verdict_count > 0 %}
+  <a class="ch-pending-banner" href="/challenge/experiments">
+    <span class="ch-pending-banner__eyebrow">VERDICT PENDING</span>
+    <span>{{ pending_verdict_count }} trial{{ 's' if pending_verdict_count != 1 else '' }} concluded. Seal the finding to free the lab slot.</span>
+  </a>
+  {% endif %}
+
   {% if is_backfill %}
   <div class="ch-backfill-banner" role="status">
     <span class="ch-backfill-kicker">Filling</span>

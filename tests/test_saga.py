@@ -147,10 +147,12 @@ async def test_saga_today_tab_is_input_only_with_rpg_nav_labels(client, db):
     assert r.status_code == 200
     assert ">Campfire</button>" in r.text
     assert ">Chronicle</button>" in r.text
-    assert ">Stats</button>" in r.text
+    assert ">Grimoire</button>" in r.text
     assert ">Today</button>" not in r.text
     assert ">Timeline</button>" not in r.text
     assert ">Metrics</button>" not in r.text
+    assert ">Stats</button>" not in r.text
+    assert ">Oracle</button>" not in r.text
     assert "saga-today-notes" not in r.text
     assert "existing note should stay out of input tab" not in r.text
 

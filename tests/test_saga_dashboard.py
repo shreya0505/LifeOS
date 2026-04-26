@@ -116,7 +116,7 @@ async def test_saga_metrics_route_window_fallback_and_modes(client):
     full = await client.get("/saga/metrics?window=999")
     assert full.status_code == 200
     assert "<!DOCTYPE html>" in full.text
-    assert "The Field Report · 35d" in full.text
+    assert "The Field Report · 7d" in full.text
 
     fragment = await client.get("/saga/metrics?window=7", headers={"HX-Request": "true"})
     assert fragment.status_code == 200
@@ -231,3 +231,48 @@ async def test_saga_dashboard_dyads(db):
     assert dashboard["opposite_count"] == 1
     assert dashboard["meta_analysis"]["dyads"]["dyad_count"] == 2
     assert dashboard["top_dyads"][0]["count"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_saga_dashboard_counts_secondary_emotions_in_family_metrics(db):
+    today = _day()
+    await _insert_saga(
+        db,
+        "multi-emotion",
+        today,
+        "joy",
+        "joy",
+        6,
+        secondary_family="trust",
+        secondary_label="trust",
+        dyad_label="love",
+        dyad_type="primary",
+    )
+    await db.commit()
+
+    dashboard = await saga_dashboard(db, 7)
+
+    stream = {item["family"]: item["data"][-1] for item in dashboard["family_stream"]["series"]}
+    distribution = {item["family"]: item["count"] for item in dashboard["distribution"]}
+    top_labels = {item["label"]: item["count"] for item in dashboard["top_labels"]}
+    wheel_counts = {
+        (cell["family"], cell["label"]): cell["count"]
+        for cell in dashboard["wheel"]
+    }
+    today_stack = {
+        (item["family"], item["label"])
+        for item in dashboard["today_card"]["emotion_stack"]
+    }
+
+    assert stream["joy"] == 1
+    assert stream["trust"] == 1
+    assert distribution["joy"] == 1
+    assert distribution["trust"] == 1
+    assert top_labels["joy"] == 1
+    assert top_labels["trust"] == 1
+    assert wheel_counts[("joy", "joy")] == 1
+    assert wheel_counts[("trust", "trust")] == 1
+    assert ("joy", "joy") in today_stack
+    assert ("trust", "trust") in today_stack
+    assert dashboard["total_entries"] == 1
+    assert dashboard["total_emotion_mentions"] == 2

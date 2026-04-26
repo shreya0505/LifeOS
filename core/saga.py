@@ -562,8 +562,13 @@ def _saga_day_profile(
         + dyad_count * 4
         + opposite_count * 5
     )))
-    dominant_family = _dominant([entry["family"] for entry in entries])
-    dominant_label = _dominant([entry["label"] for entry in entries])
+    emotion_mentions = [
+        mention
+        for entry in entries
+        for mention in _entry_emotion_mentions(entry)
+    ]
+    dominant_family = _dominant([mention["family"] for mention in emotion_mentions])
+    dominant_label = _dominant([mention["label"] for mention in emotion_mentions])
     latest = entries[-1] if entries else None
 
     quest_count = len(quests)
@@ -622,6 +627,30 @@ def _saga_day_profile(
         },
         "relations": relations,
     }
+
+
+def _entry_emotion_mentions(entry: dict) -> list[dict]:
+    mentions: list[dict] = []
+    seen: set[tuple[str, str | None]] = set()
+
+    def add(family: str | None, label: str | None, role: str) -> None:
+        if not family or family not in EMOTION_FAMILIES:
+            return
+        key = (family, label)
+        if key in seen:
+            return
+        seen.add(key)
+        mentions.append({
+            "family": family,
+            "label": label or family,
+            "intensity": entry.get("intensity", 0),
+            "timestamp": entry.get("timestamp"),
+            "role": role,
+        })
+
+    add(entry.get("family"), entry.get("label"), "primary")
+    add(entry.get("secondary_family"), entry.get("secondary_label"), "secondary")
+    return mentions
 
 
 def _day_relations(
@@ -800,7 +829,7 @@ def _saga_relationship_trends(day_profiles: list[dict]) -> dict:
     }
 
 
-async def saga_metrics(db: aiosqlite.Connection, days: int = 35) -> dict:
+async def saga_metrics(db: aiosqlite.Connection, days: int = 7) -> dict:
     bundle = await _collect_window(db, days)
     calendar_days = bundle["calendar_days"]
     saga_by_day = bundle["saga_by_day"]
@@ -884,7 +913,8 @@ async def saga_metrics(db: aiosqlite.Connection, days: int = 35) -> dict:
         "stability": stability,
         "volatility": volatility,
         "correlation": correlation,
-        "total_entries": total,
+        "total_entries": len(bundle["raw_rows"]),
+        "total_emotion_mentions": total,
         "current": latest_profiles[0] if latest_profiles else None,
         "recent_days": latest_profiles[:7],
         "trends": _saga_relationship_trends(day_profiles),
@@ -921,9 +951,10 @@ async def _collect_window(db: aiosqlite.Connection, days: int) -> dict:
         }
         saga_by_day[row[0]].append(record)
         raw_rows.append(record)
-        family_counts[row[2]] += 1
-        if row[3]:
-            label_counts[row[3]] += 1
+        for mention in _entry_emotion_mentions(record):
+            family_counts[mention["family"]] += 1
+            if mention["label"]:
+                label_counts[mention["label"]] += 1
 
     quest_cursor = await db.execute(
         "SELECT id, completed_at, frog, priority, project, labels, workspace_id "
@@ -1228,9 +1259,10 @@ def _block_emotion_matrix(rows: list[dict]) -> dict:
     matrix: dict[str, dict[str, int]] = {b: {f: 0 for f in EMOTION_FAMILIES} for b in blocks}
     for row in rows:
         block = block_for_timestamp(row["timestamp"])
-        family = row["family"]
-        if family in matrix[block]:
-            matrix[block][family] += 1
+        for mention in _entry_emotion_mentions(row):
+            family = mention["family"]
+            if family in matrix[block]:
+                matrix[block][family] += 1
     return {
         "blocks": blocks,
         "families": list(EMOTION_FAMILIES.keys()),
@@ -1264,15 +1296,16 @@ def _wheel_cells(rows: list[dict]) -> list[dict]:
     cells: list[dict] = []
     family_tier_counts: Counter[tuple[str, int]] = Counter()
     for row in rows:
-        family = row["family"]
-        intensity = row["intensity"]
-        if intensity <= 3:
-            tier = 0
-        elif intensity <= 6:
-            tier = 1
-        else:
-            tier = 2
-        family_tier_counts[(family, tier)] += 1
+        for mention in _entry_emotion_mentions(row):
+            family = mention["family"]
+            intensity = mention["intensity"]
+            if intensity <= 3:
+                tier = 0
+            elif intensity <= 6:
+                tier = 1
+            else:
+                tier = 2
+            family_tier_counts[(family, tier)] += 1
     max_count = max(family_tier_counts.values()) if family_tier_counts else 1
     for family, tier_labels in EMOTION_FAMILIES.items():
         for tier in range(3):
@@ -1407,10 +1440,11 @@ def _meta_analysis(
     family_block_counts: Counter[tuple[str, str]] = Counter()
     for row in raw_rows:
         block = block_for_timestamp(row["timestamp"])
-        family = row["family"]
-        family_block_counts[(block, family)] += 1
-        if family in {"joy", "trust", "anticipation"}:
-            steady_blocks[block] += 1
+        for mention in _entry_emotion_mentions(row):
+            family = mention["family"]
+            family_block_counts[(block, family)] += 1
+            if family in {"joy", "trust", "anticipation"}:
+                steady_blocks[block] += 1
     best_time_block = steady_blocks.most_common(1)[0][0] if steady_blocks else None
     block_family_concentration = None
     if family_block_counts:
@@ -1587,28 +1621,39 @@ def saga_wheel_svg(cells: list[dict]) -> Markup:
         end = (idx + 1) * step - 1.2
         for tier, (inner, outer) in enumerate(rings):
             cell = by_key.get((family, tier), {})
-            label = html.escape(str(cell.get("label") or family), quote=True)
+            raw_label = str(cell.get("label") or family)
+            label = html.escape(raw_label, quote=True)
+            family_label = html.escape(family.title(), quote=True)
             count = int(cell.get("count") or 0)
             accent = html.escape(str(cell.get("accent") or EMOTION_ACCENTS[family]), quote=True)
             opacity = float(cell.get("opacity") or 0.08)
+            visits = "visit" if count == 1 else "visits"
+            strength = "none" if count == 0 else f"{round(opacity * 100)}% opacity"
+            tooltip = html.escape(
+                f"{raw_label.title()} · {family.title()} · tier {tier + 1} · {count} {visits} · {strength}",
+                quote=True,
+            )
             parts.append(
+                f'<g class="saga-wheel-cell" tabindex="0" role="img" '
+                f'aria-label="{tooltip}" data-label="{label}" data-count="{count}">'
+                f'<title>{tooltip}</title>'
                 f'<path d="{wedge(inner, outer, start, end)}" fill="{accent}" '
-                f'fill-opacity="{opacity:.2f}" stroke="rgba(12,21,25,0.72)" stroke-width="1">'
-                f'<title>{label}: {count}</title></path>'
+                f'fill-opacity="{opacity:.2f}" stroke="rgba(12,21,25,0.72)" stroke-width="1" />'
+                f'</g>'
             )
         lx, ly = point(112, start + step / 2)
         parts.append(
             f'<text x="{lx:.2f}" y="{ly:.2f}" text-anchor="middle" dominant-baseline="middle">'
-            f'{html.escape(family[:3].title())}</text>'
+            f'<title>{family_label}</title>{html.escape(family[:3].title())}</text>'
         )
     parts.append('<circle cx="130" cy="130" r="19" fill="rgba(12,21,25,0.92)" stroke="rgba(234,206,170,0.2)" />')
     parts.append("</svg>")
     return Markup("".join(parts))
 
 
-async def saga_dashboard(db: aiosqlite.Connection, days: int = 35) -> dict:
+async def saga_dashboard(db: aiosqlite.Connection, days: int = 7) -> dict:
     if days not in {7, 35, 90, 365}:
-        days = 35
+        days = 7
     bundle = await _collect_window(db, days)
     day_profiles = bundle["day_profiles"]
     calendar_days = bundle["calendar_days"]
@@ -1654,13 +1699,15 @@ async def saga_dashboard(db: aiosqlite.Connection, days: int = 35) -> dict:
     today_emotion_stack = []
     if today_profile:
         for entry in bundle["saga_by_day"].get(today_profile["date"], []):
-            today_emotion_stack.append({
-                "label": entry["label"],
-                "family": entry["family"],
-                "intensity": entry["intensity"],
-                "accent": EMOTION_ACCENTS.get(entry["family"], "#CF9D7B"),
-                "time": display_time(entry["timestamp"]),
-            })
+            for mention in _entry_emotion_mentions(entry):
+                today_emotion_stack.append({
+                    "label": mention["label"],
+                    "family": mention["family"],
+                    "intensity": mention["intensity"],
+                    "accent": EMOTION_ACCENTS.get(mention["family"], "#CF9D7B"),
+                    "time": display_time(entry["timestamp"]),
+                    "role": mention["role"],
+                })
 
     today_quests_list = []
     if today_profile:
@@ -1677,8 +1724,9 @@ async def saga_dashboard(db: aiosqlite.Connection, days: int = 35) -> dict:
     family_stream = {family: [0] * len(calendar_days) for family in EMOTION_FAMILIES}
     for idx, day in enumerate(calendar_days):
         for entry in bundle["saga_by_day"].get(day, []):
-            if entry["family"] in family_stream:
-                family_stream[entry["family"]][idx] += 1
+            for mention in _entry_emotion_mentions(entry):
+                if mention["family"] in family_stream:
+                    family_stream[mention["family"]][idx] += 1
 
     bucket_series: dict[str, list[float | None]] = {"anchor": [], "improver": [], "enricher": [], "composite": []}
     for p in day_profiles:
@@ -1841,7 +1889,8 @@ async def saga_dashboard(db: aiosqlite.Connection, days: int = 35) -> dict:
         "distribution": distribution,
         "top_labels": top_labels,
         "wheel": wheel,
-        "total_entries": distribution_total,
+        "total_entries": len(raw_rows),
+        "total_emotion_mentions": distribution_total,
         "meta_analysis": meta_analysis,
         "meta_summary": meta_summary,
     }

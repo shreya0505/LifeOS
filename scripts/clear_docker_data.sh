@@ -6,12 +6,13 @@ set -euo pipefail
 # Config:
 #   LIFEOS_SERVICE=questlog          docker compose service name
 #   LIFEOS_DB=/app/data/web/questlog.db
-#   LIFEOS_CLEAR_SCOPE=questlog|challenge|saga|all
+#   LIFEOS_CLEAR_SCOPE=questlog|challenge|tiny_experiments|saga|all
 #
 # Examples:
 #   scripts/clear_docker_data.sh
 #   LIFEOS_CLEAR_SCOPE=questlog scripts/clear_docker_data.sh
 #   LIFEOS_CLEAR_SCOPE=challenge scripts/clear_docker_data.sh
+#   LIFEOS_CLEAR_SCOPE=tiny_experiments scripts/clear_docker_data.sh
 #   LIFEOS_CLEAR_SCOPE=saga scripts/clear_docker_data.sh
 #   LIFEOS_CLEAR_SCOPE=all scripts/clear_docker_data.sh
 #   LIFEOS_SERVICE=questlog scripts/clear_docker_data.sh
@@ -31,16 +32,18 @@ if [[ -z "$SCOPE" ]]; then
   echo ""
   echo "What data do you want to clear?"
   echo "  1) QuestLog      quests, artifacts, pomos, trophies"
-  echo "  2) Hard 90       challenges, tasks, entries, eras"
-  echo "  3) Saga          emotion log entries"
-  echo "  4) All Web Apps  QuestLog, Hard 90, and Saga"
+  echo "  2) Hard 90       challenges, tasks, entries, eras, tiny experiments"
+  echo "  3) Tiny Expts    experiment protocols and daily experiment signals only"
+  echo "  4) Saga          emotion log entries"
+  echo "  5) All Web Apps  QuestLog, Hard 90, Tiny Experiments, and Saga"
   echo ""
-  read -p "Choose 1-4, or q to cancel: " choice
+  read -p "Choose 1-5, or q to cancel: " choice
   case "$choice" in
     1) SCOPE="questlog" ;;
     2) SCOPE="challenge" ;;
-    3) SCOPE="saga" ;;
-    4) SCOPE="all" ;;
+    3) SCOPE="tiny_experiments" ;;
+    4) SCOPE="saga" ;;
+    5) SCOPE="all" ;;
     q|Q) echo "Cancelled."; exit 0 ;;
     *) echo "Invalid choice."; exit 1 ;;
   esac
@@ -49,9 +52,12 @@ fi
 if [[ "$SCOPE" == "quests" ]]; then
   SCOPE="questlog"
 fi
+if [[ "$SCOPE" == "tiny" || "$SCOPE" == "experiments" || "$SCOPE" == "tiny-experiments" ]]; then
+  SCOPE="tiny_experiments"
+fi
 
-if [[ "$SCOPE" != "questlog" && "$SCOPE" != "challenge" && "$SCOPE" != "saga" && "$SCOPE" != "all" ]]; then
-  echo "LIFEOS_CLEAR_SCOPE must be 'questlog', 'challenge', 'saga', or 'all'."
+if [[ "$SCOPE" != "questlog" && "$SCOPE" != "challenge" && "$SCOPE" != "tiny_experiments" && "$SCOPE" != "saga" && "$SCOPE" != "all" ]]; then
+  echo "LIFEOS_CLEAR_SCOPE must be 'questlog', 'challenge', 'tiny_experiments', 'saga', or 'all'."
   exit 1
 fi
 
@@ -72,10 +78,17 @@ case "$SCOPE" in
     ;;
   challenge)
     echo "This will delete Hard 90 challenge data only:"
+    echo "  - Tiny experiment daily signals"
+    echo "  - Tiny experiment protocols"
     echo "  - Challenges"
     echo "  - Challenge tasks"
     echo "  - Daily challenge entries"
     echo "  - Archived challenge eras"
+    ;;
+  tiny_experiments)
+    echo "This will delete Tiny Experiments data only:"
+    echo "  - Tiny experiment daily signals"
+    echo "  - Tiny experiment protocols"
     ;;
   saga)
     echo "This will delete Saga data only:"
@@ -85,6 +98,7 @@ case "$SCOPE" in
     echo "This will delete all LifeOS Web app data:"
     echo "  - QuestLog data"
     echo "  - Hard 90 challenge data"
+    echo "  - Tiny Experiments data"
     echo "  - Saga emotion log data"
     ;;
 esac
@@ -115,11 +129,17 @@ except sqlite3.OperationalError:
 if scope == "questlog":
     tables = ("pomo_segments", "pomo_sessions", "trophy_records", "artifact_keys", "quests")
 elif scope == "challenge":
-    tables = ("challenge_entries", "challenge_tasks", "challenge_eras", "challenges")
+    tables = (
+        "challenge_experiment_entries", "challenge_experiments",
+        "challenge_entries", "challenge_tasks", "challenge_eras", "challenges",
+    )
+elif scope == "tiny_experiments":
+    tables = ("challenge_experiment_entries", "challenge_experiments")
 elif scope == "saga":
     tables = ("saga_entries",)
 else:
     tables = (
+        "challenge_experiment_entries", "challenge_experiments",
         "challenge_entries", "challenge_tasks", "challenge_eras", "challenges",
         "pomo_segments", "pomo_sessions", "trophy_records", "artifact_keys", "quests",
         "saga_entries",
