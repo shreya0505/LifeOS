@@ -7,8 +7,8 @@ from datetime import date
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from core.saga import dyad_catalog, emotion_catalog, render_markdown_note, saga_dashboard, timeline_days
-from core.storage.saga_backend import SqliteSagaRepo
+from core.saga import render_markdown_note, saga_dashboard, timeline_days
+from core.storage.saga_backend import SqliteSagaRepo, mood_catalog
 from core.utils import today_local
 
 router = APIRouter(prefix="/saga")
@@ -20,7 +20,7 @@ def _render(request: Request, name: str, context: dict):
 
 
 def _entry_context(entries: list[dict]) -> dict:
-    return {"entries": _rendered_entries(entries), "emotion_catalog": emotion_catalog()}
+    return {"entries": _rendered_entries(entries), "mood_catalog": mood_catalog()}
 
 
 def _rendered_entries(entries: list[dict]) -> list[dict]:
@@ -52,8 +52,7 @@ async def saga_index(request: Request):
         "active_tab": "today",
         "today": today,
         "today_label": date.fromisoformat(today).strftime("%b %d"),
-        "emotion_catalog": emotion_catalog(),
-        "dyad_catalog": dyad_catalog(),
+        "mood_catalog": mood_catalog(),
         "today_entries": _rendered_entries(await repo.list_by_date(today)),
     })
 
@@ -88,22 +87,18 @@ async def saga_metrics_panel(request: Request, window: int = 7):
 @router.post("/entries", response_class=HTMLResponse)
 async def create_entry(
     request: Request,
-    emotion_family: str = Form(...),
-    emotion_label: str = Form(...),
-    intensity: int = Form(...),
+    energy: int = Form(...),
+    pleasantness: int = Form(...),
+    mood_word: str = Form(...),
     note: str = Form(""),
-    secondary_emotion_family: str = Form(""),
-    secondary_emotion_label: str = Form(""),
 ):
     repo = SqliteSagaRepo(request.app.state.db)
     try:
         await repo.create(
-            emotion_family,
-            emotion_label,
-            intensity,
+            energy,
+            pleasantness,
+            mood_word,
             note,
-            secondary_emotion_family=secondary_emotion_family,
-            secondary_emotion_label=secondary_emotion_label,
         )
     except ValueError as exc:
         return HTMLResponse(str(exc), status_code=400)
@@ -116,22 +111,18 @@ async def create_entry(
 async def update_entry(
     request: Request,
     entry_id: str,
-    emotion_family: str = Form(...),
-    emotion_label: str = Form(...),
-    intensity: int = Form(...),
+    energy: int = Form(...),
+    pleasantness: int = Form(...),
+    mood_word: str = Form(...),
     note: str = Form(""),
-    secondary_emotion_family: str = Form(""),
-    secondary_emotion_label: str = Form(""),
 ):
     repo = SqliteSagaRepo(request.app.state.db)
     updated = await repo.update(
         entry_id,
-        emotion_family,
-        emotion_label,
-        intensity,
+        energy,
+        pleasantness,
+        mood_word,
         note,
-        secondary_emotion_family=secondary_emotion_family,
-        secondary_emotion_label=secondary_emotion_label,
     )
     if updated is None:
         return HTMLResponse("Entry not found.", status_code=404)

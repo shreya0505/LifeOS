@@ -2,7 +2,7 @@
 {% set k = d.headline.kpis %}
 {% set window = selected_window %}
 {% set kpi_help = {
-  "mood_load": "How emotionally heavy the day is. Built from intensity, number of entries, volatility, and dyads.",
+  "mood_load": "How heavy the mood field is. Built from energy, pleasantness, coordinate spread, and capture density.",
   "output": "Quest completion force for the day. Frogs and higher-priority quests count a little more.",
   "challenge": "How well Hard 90 buckets held. Empty means no challenge signal was logged.",
   "alignment": "Output and challenge integrity blended together. High means motion matched the long game."
@@ -108,18 +108,18 @@
     {% if d.today_card %}
     <div class="saga-today-grid">
       <article class="saga-today-card">
-        <h3 class="saga-today-card__title">Today's Emotion Stack</h3>
-        <p class="saga-card-subtext">Each rune is a logged emotion. Brighter rings carried more intensity.</p>
+        <h3 class="saga-today-card__title">Today's Mood Stack</h3>
+        <p class="saga-card-subtext">Each mark is a logged mood coordinate. Larger numbers mean farther from the center.</p>
         {% if d.today_card.emotion_stack %}
           <div class="saga-emotion-constellation">
             {% for e in d.today_card.emotion_stack %}
               <div class="saga-emotion-rune"
-                   style="--accent: {{ e.accent }}; --signal: {{ (e.intensity * 10) }}%"
-                   title="{{ e.label }} · intensity {{ e.intensity }} · {{ e.time }}">
-                <span class="saga-emotion-rune__mark"><span>{{ e.intensity }}</span></span>
+                   style="--accent: {{ e.accent }}; --signal: {{ e.distance_pct }}%"
+                   title="{{ e.label }} · E:{{ e.energy }} P:{{ e.pleasantness }} · {{ e.time }}">
+                <span class="saga-emotion-rune__mark"><span>{{ e.energy }}</span></span>
                 <span class="saga-emotion-rune__body">
                   <span class="saga-emotion-rune__label">{{ e.label }}</span>
-                  <span class="saga-emotion-rune__meta">{{ e.time }}{% if e.role == 'secondary' %} · paired{% endif %}</span>
+                  <span class="saga-emotion-rune__meta">{{ e.time }} · P:{{ e.pleasantness }}</span>
                 </span>
               </div>
             {% endfor %}
@@ -177,15 +177,21 @@
         <div class="saga-chart" id="chart-comove"></div>
       </article>
 
+      <article class="saga-chart-card saga-grid__span-12">
+        <h3 class="saga-chart-card__title">Energy × Pleasantness drift</h3>
+        <p class="saga-chart-card__deck">Daily center of gravity on the Mood Meter axes.</p>
+        <div class="saga-chart" id="chart-affect"></div>
+      </article>
+
       <article class="saga-chart-card saga-grid__span-7">
-        <h3 class="saga-chart-card__title">Emotion family stream</h3>
-        <p class="saga-chart-card__deck">Daily emotion mentions by family. Two-emotion logs count in both families.</p>
+        <h3 class="saga-chart-card__title">Quadrant stream</h3>
+        <p class="saga-chart-card__deck">Daily mood mentions by mood-meter quadrant.</p>
         <div class="saga-chart" id="chart-stream"></div>
       </article>
 
       <article class="saga-chart-card saga-grid__span-5">
-        <h3 class="saga-chart-card__title">Intensity heatmap</h3>
-        <p class="saga-chart-card__deck">Average intensity per day. Empty cells = no capture.</p>
+        <h3 class="saga-chart-card__title">Mood load heatmap</h3>
+        <p class="saga-chart-card__deck">Daily mood load. Empty cells = no capture.</p>
         <div class="saga-chart" id="chart-heatmap"></div>
       </article>
 
@@ -252,7 +258,7 @@
       <article class="saga-callout-card saga-grid__span-4" style="--accent: #F6D365">
         <div class="saga-callout-card__kicker">Keystone Mood</div>
         <div class="saga-callout-card__big">{{ d.keystone_mood or '—' }}</div>
-        <p class="saga-callout-card__sub">The emotion family most associated with useful output and Challenge Hold in this window.</p>
+        <p class="saga-callout-card__sub">The mood quadrant most associated with useful output and Challenge Hold in this window.</p>
       </article>
 
       <article class="saga-callout-card saga-grid__span-4" style="--accent: {{ d.best_day.accent if d.best_day else '#7C9CFF' }}">
@@ -281,7 +287,7 @@
   {# ─────────── PATTERNS ─────────── #}
   <section class="saga-section saga-patterns">
     <h2 class="saga-section__title">Patterns</h2>
-    <p class="saga-section__deck">Weekly rhythm, time-of-day emotion, dyad fingerprints.</p>
+    <p class="saga-section__deck">Weekly rhythm, time-of-day quadrant, and repeated mood coordinates.</p>
 
     <div class="saga-grid">
       <article class="saga-chart-card saga-grid__span-5">
@@ -291,30 +297,30 @@
       </article>
 
       <article class="saga-chart-card saga-grid__span-7">
-        <h3 class="saga-chart-card__title">Emotion by time-of-day</h3>
-        <p class="saga-chart-card__deck">Which families show up Morning · Afternoon · Evening · Night.</p>
+        <h3 class="saga-chart-card__title">Mood by time-of-day</h3>
+        <p class="saga-chart-card__deck">Which quadrants show up Morning · Afternoon · Evening · Night.</p>
         <div class="saga-chart" id="chart-block"></div>
       </article>
 
       <article class="saga-chart-card saga-grid__span-12">
-        <h3 class="saga-chart-card__title">Top Plutchik dyads</h3>
-        <p class="saga-chart-card__deck">Most-frequent emotion combinations. Opposites count: <strong>{{ d.opposite_count }}</strong>.</p>
-        {% if d.top_dyads %}
-          <ul class="saga-dyad-list">
-            {% for dy in d.top_dyads %}
-              <li class="saga-dyad-row" style="--accent: {{ dy.accent }}">
-                <span class="saga-dyad-row__swatch"></span>
-                <span class="saga-dyad-row__label">{{ dy.label }}</span>
-                <span class="saga-dyad-row__type">{{ dy.type }}</span>
-                <span class="saga-dyad-row__bar">
-                  <span class="saga-dyad-row__fill" style="width: {{ (dy.count * 100 / (d.top_dyads[0].count or 1)) | round }}%"></span>
+        <h3 class="saga-chart-card__title">Most visited mood words</h3>
+        <p class="saga-chart-card__deck">Repeated coordinates are often more useful than a broad category.</p>
+        {% if d.top_moods %}
+          <ul class="saga-mood-word-list">
+            {% for dy in d.top_moods %}
+              <li class="saga-mood-word-row" style="--accent: #EACEAA">
+                <span class="saga-mood-word-row__swatch"></span>
+                <span class="saga-mood-word-row__label">{{ dy.label }}</span>
+                <span class="saga-mood-word-row__type">mood</span>
+                <span class="saga-mood-word-row__bar">
+                  <span class="saga-mood-word-row__fill" style="width: {{ (dy.count * 100 / (d.top_moods[0].count or 1)) | round }}%"></span>
                 </span>
-                <span class="saga-dyad-row__count">{{ dy.count }}</span>
+                <span class="saga-mood-word-row__count">{{ dy.count }}</span>
               </li>
             {% endfor %}
           </ul>
         {% else %}
-          <p class="saga-empty">No dyads logged in this window.</p>
+          <p class="saga-empty">No repeated mood words in this window.</p>
         {% endif %}
       </article>
     </div>
@@ -322,27 +328,27 @@
 
   {# ─────────── EMOTION ATLAS ─────────── #}
   <section class="saga-section saga-atlas">
-    <h2 class="saga-section__title">Emotion Atlas</h2>
-    <p class="saga-section__deck">Plutchik's wheel, opacity = how often you visited each emotion. Two-emotion logs count both emotions.</p>
+    <h2 class="saga-section__title">Mood Atlas</h2>
+    <p class="saga-section__deck">Mood meter cells, opacity = how often you visited each coordinate.</p>
 
     <div class="saga-grid">
-      <article class="saga-chart-card saga-grid__span-6 saga-wheel-card">
-        {{ saga_wheel_svg(d.wheel) }}
-        <div class="saga-wheel-key" aria-label="Plutchik wheel emotion counts">
-          {% for cell in d.wheel %}
-            <span class="saga-wheel-key__item"
+      <article class="saga-chart-card saga-grid__span-6 saga-meter-card">
+        {{ saga_mood_meter_svg(d.mood_grid) }}
+        <div class="saga-meter-key" aria-label="Mood meter cell counts">
+          {% for cell in d.mood_grid %}
+            <span class="saga-meter-key__item"
                   style="--accent: {{ cell.accent }}; --alpha: {{ (cell.opacity * 100) | round }}%"
-                  title="{{ cell.label | title }} · {{ cell.family | title }} · {{ cell.count }} visit{{ 's' if cell.count != 1 else '' }}">
-              <span class="saga-wheel-key__swatch"></span>
-              <span class="saga-wheel-key__label">{{ cell.label }}</span>
-              <span class="saga-wheel-key__count">{{ cell.count }}</span>
+                  title="{{ cell.label | title }} · E:{{ cell.energy }} P:{{ cell.pleasantness }} · {{ cell.count }} visit{{ 's' if cell.count != 1 else '' }}">
+              <span class="saga-meter-key__swatch"></span>
+              <span class="saga-meter-key__label">{{ cell.label }}</span>
+              <span class="saga-meter-key__count">{{ cell.count }}</span>
             </span>
           {% endfor %}
         </div>
       </article>
 
       <article class="saga-chart-card saga-grid__span-6">
-        <h3 class="saga-chart-card__title">Family distribution</h3>
+        <h3 class="saga-chart-card__title">Quadrant distribution</h3>
         <div class="saga-chart" id="chart-family-donut"></div>
         {% if d.top_labels %}
         <div class="saga-top-labels">
@@ -393,9 +399,9 @@
         <small>How much of this window has Saga data. {{ d.meta_analysis.capture.active_days }} of {{ d.meta_analysis.capture.window_days }} days · longest gap {{ d.meta_analysis.capture.longest_gap }}d.</small>
       </article>
       <article style="--accent: #D58BFF">
-        <span>Emotional diversity</span>
-        <strong>{{ d.meta_analysis.emotion_load.emotional_diversity }}%</strong>
-        <small>How broad the emotional range was. Dominant family: {{ d.meta_analysis.emotion_load.dominant_family or 'none yet' }}.</small>
+        <span>Quadrant diversity</span>
+        <strong>{{ d.meta_analysis.emotion_load.quadrant_diversity }}%</strong>
+        <small>How broad the mood range was. Dominant quadrant: {{ d.meta_analysis.emotion_load.dominant_quadrant or 'none yet' }}.</small>
       </article>
       <article style="--accent: #7C9CFF">
         <span>Alignment consistency</span>
@@ -403,9 +409,9 @@
         <small>How often Quest output and Challenge Hold moved together. {{ d.meta_analysis.alignment.aligned_day_count }} aligned days.</small>
       </article>
       <article style="--accent: #E27F6F">
-        <span>Opposite ratio</span>
-        <strong>{{ d.meta_analysis.dyads.opposite_ratio }}%</strong>
-        <small>Share of emotion pairs that were opposites, like joy plus sadness. {{ d.meta_analysis.dyads.dyad_count }} dyads logged.</small>
+        <span>Red/blue ratio</span>
+        <strong>{{ d.meta_analysis.mood_map.red_blue_ratio }}%</strong>
+        <small>Share of entries in unpleasant quadrants. Pleasant-side entries: {{ d.meta_analysis.mood_map.pleasant_ratio }}%.</small>
       </article>
     </div>
   </section>

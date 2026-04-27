@@ -1,19 +1,13 @@
 {% if entries %}
 <div class="saga-note-cards">
   {% for entry in entries %}
-  <article class="saga-note-card{% if entry.dyad_type %} saga-note-card--{{ entry.dyad_type }}{% endif %}"
-           {% if entry.dyad_type %}style="--dyad-accent: {{ entry.dyad_accent }}"{% endif %}>
+  <article class="saga-note-card saga-note-card--{{ entry.quadrant }}"
+           style="--quadrant-accent: {{ entry.quadrant_accent }}">
     <div class="saga-note-card__body">{{ entry.note_html | safe }}</div>
     <footer>
       <time>{{ entry.timestamp[11:16] }}</time>
-      <span>
-        {{ entry.emotion_label }}{% if entry.secondary_emotion_label %} + {{ entry.secondary_emotion_label }}{% endif %} / {{ entry.intensity }}
-      </span>
-      {% if entry.dyad_type == "opposite" %}
-      <span>Opposites</span>
-      {% elif entry.dyad_label %}
-      <span>{{ entry.dyad_label }} / {{ entry.dyad_type }}</span>
-      {% endif %}
+      <span class="saga-quadrant-badge">{{ entry.quadrant }}</span>
+      <span>{{ entry.mood_word }} · E:{{ entry.energy }} P:{{ entry.pleasantness }}</span>
     </footer>
   </article>
   {% endfor %}

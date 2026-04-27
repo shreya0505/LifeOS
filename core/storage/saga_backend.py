@@ -1,8 +1,9 @@
-"""SQLite storage backend for Saga emotion entries."""
+"""SQLite storage backend for Saga mood-meter entries."""
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import math
 import uuid
 
 import aiosqlite
@@ -11,100 +12,40 @@ from core import clock
 from core.config import USER_TZ
 
 
-EMOTION_FAMILIES = {
-    "joy": ("serenity", "joy", "ecstasy"),
-    "trust": ("acceptance", "trust", "admiration"),
-    "fear": ("apprehension", "fear", "terror"),
-    "surprise": ("distraction", "surprise", "amazement"),
-    "sadness": ("pensiveness", "sadness", "grief"),
-    "disgust": ("boredom", "disgust", "loathing"),
-    "anger": ("annoyance", "anger", "rage"),
-    "anticipation": ("interest", "anticipation", "vigilance"),
+QUADRANT_COLORS = {
+    "yellow": "#F4C430",
+    "red": "#E25555",
+    "green": "#5BB97C",
+    "blue": "#3F7CCB",
 }
 
-EMOTION_ACCENTS = {
-    "joy": "#F6D365",
-    "trust": "#61D394",
-    "fear": "#7C9CFF",
-    "surprise": "#D58BFF",
-    "sadness": "#6FB7D8",
-    "disgust": "#9DBA5A",
-    "anger": "#FF6B5F",
-    "anticipation": "#F4A261",
+VALID_MOOD_COORDS = {-5, -4, -3, -2, -1, 1, 2, 3, 4, 5}
+
+MOOD_WORDS: dict[tuple[int, int], str] = {
+    (5, -5): "enraged", (5, -4): "panicked", (5, -3): "furious", (5, -2): "alarmed", (5, -1): "tense",
+    (5, 1): "energized", (5, 2): "excited", (5, 3): "thrilled", (5, 4): "elated", (5, 5): "ecstatic",
+    (4, -5): "livid", (4, -4): "terrified", (4, -3): "anxious", (4, -2): "agitated", (4, -1): "stressed",
+    (4, 1): "upbeat", (4, 2): "eager", (4, 3): "inspired", (4, 4): "joyful", (4, 5): "radiant",
+    (3, -5): "resentful", (3, -4): "frantic", (3, -3): "overwhelmed", (3, -2): "nervous", (3, -1): "restless",
+    (3, 1): "alert", (3, 2): "motivated", (3, 3): "optimistic", (3, 4): "cheerful", (3, 5): "delighted",
+    (2, -5): "irritated", (2, -4): "worried", (2, -3): "uneasy", (2, -2): "pressured", (2, -1): "impatient",
+    (2, 1): "interested", (2, 2): "hopeful", (2, 3): "pleased", (2, 4): "happy", (2, 5): "playful",
+    (1, -5): "annoyed", (1, -4): "concerned", (1, -3): "frustrated", (1, -2): "edgy", (1, -1): "unsettled",
+    (1, 1): "engaged", (1, 2): "open", (1, 3): "warm", (1, 4): "grateful", (1, 5): "lighthearted",
+    (-1, -5): "hurt", (-1, -4): "disappointed", (-1, -3): "discouraged", (-1, -2): "lonely", (-1, -1): "down",
+    (-1, 1): "at ease", (-1, 2): "mellow", (-1, 3): "content", (-1, 4): "tender", (-1, 5): "peaceful",
+    (-2, -5): "sad", (-2, -4): "gloomy", (-2, -3): "weary", (-2, -2): "drained", (-2, -1): "flat",
+    (-2, 1): "settled", (-2, 2): "calm", (-2, 3): "relieved", (-2, 4): "balanced", (-2, 5): "serene",
+    (-3, -5): "desolate", (-3, -4): "heavy", (-3, -3): "exhausted", (-3, -2): "detached", (-3, -1): "numb",
+    (-3, 1): "quiet", (-3, 2): "restful", (-3, 3): "secure", (-3, 4): "comforted", (-3, 5): "tranquil",
+    (-4, -5): "miserable", (-4, -4): "hopeless", (-4, -3): "depleted", (-4, -2): "isolated", (-4, -1): "apathetic",
+    (-4, 1): "still", (-4, 2): "patient", (-4, 3): "safe", (-4, 4): "grounded", (-4, 5): "restored",
+    (-5, -5): "despondent", (-5, -4): "grieving", (-5, -3): "burned out", (-5, -2): "empty", (-5, -1): "shut down",
+    (-5, 1): "sleepy", (-5, 2): "soft", (-5, 3): "unhurried", (-5, 4): "placid", (-5, 5): "blissful",
 }
 
-MIXED_EMOTIONS = {
-    "anticipation": {"with": "joy", "label": "optimism"},
-    "joy": {"with": "trust", "label": "love"},
-    "trust": {"with": "fear", "label": "submission"},
-    "fear": {"with": "surprise", "label": "awe"},
-    "surprise": {"with": "sadness", "label": "disapproval"},
-    "sadness": {"with": "disgust", "label": "remorse"},
-    "disgust": {"with": "anger", "label": "contempt"},
-    "anger": {"with": "anticipation", "label": "aggression"},
-}
-
-DYAD_PAIRS = {
-    frozenset(("joy", "trust")): {"label": "love", "type": "primary"},
-    frozenset(("trust", "fear")): {"label": "submission", "type": "primary"},
-    frozenset(("fear", "surprise")): {"label": "awe", "type": "primary"},
-    frozenset(("surprise", "sadness")): {"label": "disapproval", "type": "primary"},
-    frozenset(("sadness", "disgust")): {"label": "remorse", "type": "primary"},
-    frozenset(("disgust", "anger")): {"label": "contempt", "type": "primary"},
-    frozenset(("anger", "anticipation")): {"label": "aggression", "type": "primary"},
-    frozenset(("anticipation", "joy")): {"label": "optimism", "type": "primary"},
-    frozenset(("joy", "fear")): {"label": "guilt", "type": "secondary"},
-    frozenset(("trust", "surprise")): {"label": "curiosity", "type": "secondary"},
-    frozenset(("fear", "sadness")): {"label": "despair", "type": "secondary"},
-    frozenset(("surprise", "disgust")): {"label": "unbelief", "type": "secondary"},
-    frozenset(("sadness", "anger")): {"label": "envy", "type": "secondary"},
-    frozenset(("disgust", "anticipation")): {"label": "cynicism", "type": "secondary"},
-    frozenset(("anger", "joy")): {"label": "pride", "type": "secondary"},
-    frozenset(("anticipation", "trust")): {"label": "hope", "type": "secondary"},
-    frozenset(("joy", "surprise")): {"label": "delight", "type": "tertiary"},
-    frozenset(("trust", "sadness")): {"label": "sentimentality", "type": "tertiary"},
-    frozenset(("fear", "disgust")): {"label": "shame", "type": "tertiary"},
-    frozenset(("surprise", "anger")): {"label": "outrage", "type": "tertiary"},
-    frozenset(("sadness", "anticipation")): {"label": "pessimism", "type": "tertiary"},
-    frozenset(("disgust", "joy")): {"label": "morbidness", "type": "tertiary"},
-    frozenset(("anger", "trust")): {"label": "dominance", "type": "tertiary"},
-    frozenset(("anticipation", "fear")): {"label": "anxiety", "type": "tertiary"},
-}
-
-OPPOSITE_PAIRS = {
-    frozenset(("joy", "sadness")),
-    frozenset(("trust", "disgust")),
-    frozenset(("fear", "anger")),
-    frozenset(("surprise", "anticipation")),
-}
-
-DYAD_ACCENTS = {
-    "love": "#FF7BA7",
-    "submission": "#65CFA6",
-    "awe": "#8DA2FF",
-    "disapproval": "#A7A0B8",
-    "remorse": "#7FB69A",
-    "contempt": "#B5A64E",
-    "aggression": "#FF7043",
-    "optimism": "#FFC857",
-    "guilt": "#BFA2DB",
-    "curiosity": "#4ECDC4",
-    "despair": "#5A7BA8",
-    "unbelief": "#C084FC",
-    "envy": "#87B957",
-    "cynicism": "#9A9E53",
-    "pride": "#F08A5D",
-    "hope": "#6AD7A7",
-    "delight": "#FFB86B",
-    "sentimentality": "#D9A7C7",
-    "shame": "#8C7AA9",
-    "outrage": "#FF5A76",
-    "pessimism": "#6F8191",
-    "morbidness": "#A77F63",
-    "dominance": "#D9824B",
-    "anxiety": "#7DA0D6",
-    "opposite": "#E4E7EC",
-}
+MOOD_COORDS = [5, 4, 3, 2, 1, -1, -2, -3, -4, -5]
+PLEASANTNESS_COORDS = [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5]
 
 
 def _gen_id() -> str:
@@ -130,37 +71,75 @@ def _clean_note(note: str | None) -> str | None:
     return cleaned or None
 
 
-def derive_dyad(primary_family: str, secondary_family: str | None) -> dict | None:
-    first = (primary_family or "").strip().lower()
-    second = (secondary_family or "").strip().lower()
-    if not first or not second or first == second:
-        return None
-    pair = frozenset((first, second))
-    if pair in OPPOSITE_PAIRS:
-        return {"label": None, "type": "opposite"}
-    found = DYAD_PAIRS.get(pair)
-    if found is None:
-        return None
-    return {"label": found["label"], "type": found["type"]}
+def _validate_coord(value: int | str, axis: str) -> int:
+    try:
+        coord = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{axis.title()} must be an integer mood-meter coordinate.") from exc
+    if coord not in VALID_MOOD_COORDS:
+        raise ValueError(f"{axis.title()} must be one of -5..-1 or 1..5.")
+    return coord
+
+
+def quadrant_for(energy: int, pleasantness: int) -> str:
+    if energy > 0 and pleasantness > 0:
+        return "yellow"
+    if energy > 0 and pleasantness <= 0:
+        return "red"
+    if energy <= 0 and pleasantness > 0:
+        return "green"
+    if energy < 0 and pleasantness <= 0:
+        return "blue"
+    return "green"
+
+
+def _mood_word(energy: int, pleasantness: int, supplied: str | None = None) -> str:
+    cleaned = (supplied or "").strip().lower()
+    if cleaned:
+        return cleaned
+    return MOOD_WORDS.get((energy, pleasantness), "neutral")
+
+
+def _cell_saturation(energy: int, pleasantness: int) -> float:
+    distance = math.sqrt((energy * energy) + (pleasantness * pleasantness))
+    return round(min(1.0, distance / math.sqrt(50)), 3)
+
+
+def _cell_axis_intensity(energy: int, pleasantness: int) -> float:
+    return round((abs(energy) * abs(pleasantness)) / 25, 3)
+
+
+def mood_catalog() -> list[dict]:
+    """Return the serializable 100-cell mood meter catalog for templates."""
+    cells = []
+    for energy in MOOD_COORDS:
+        for pleasantness in PLEASANTNESS_COORDS:
+            quadrant = quadrant_for(energy, pleasantness)
+            cells.append({
+                "energy": energy,
+                "pleasantness": pleasantness,
+                "word": MOOD_WORDS[(energy, pleasantness)],
+                "quadrant": quadrant,
+                "accent": QUADRANT_COLORS[quadrant],
+                "saturation": _cell_saturation(energy, pleasantness),
+                "axis_intensity": _cell_axis_intensity(energy, pleasantness),
+            })
+    return cells
 
 
 def _row_to_entry(row: tuple) -> dict:
-    dyad_label = row[10]
-    dyad_type = row[11]
+    quadrant = row[5]
     return {
         "id": row[0],
         "timestamp": row[1],
         "local_date": row[2],
-        "emotion_family": row[3],
-        "emotion_label": row[4],
-        "intensity": row[5],
-        "note": row[6],
-        "created_at": row[7],
-        "secondary_emotion_family": row[8],
-        "secondary_emotion_label": row[9],
-        "dyad_label": dyad_label,
-        "dyad_type": dyad_type,
-        "dyad_accent": DYAD_ACCENTS.get(dyad_label or dyad_type or "", DYAD_ACCENTS["opposite"]),
+        "energy": row[3],
+        "pleasantness": row[4],
+        "quadrant": quadrant,
+        "mood_word": row[6],
+        "note": row[7],
+        "created_at": row[8],
+        "quadrant_accent": QUADRANT_COLORS.get(quadrant, "#CF9D7B"),
     }
 
 
@@ -172,78 +151,42 @@ class SqliteSagaRepo:
 
     async def create(
         self,
-        emotion_family: str,
-        emotion_label: str,
-        intensity: int,
+        energy: int,
+        pleasantness: int,
+        mood_word: str,
         note: str | None = None,
         timestamp: str | None = None,
-        secondary_emotion_family: str | None = None,
-        secondary_emotion_label: str | None = None,
     ) -> dict:
-        family = emotion_family.strip().lower()
-        if family not in EMOTION_FAMILIES:
-            raise ValueError("Unknown emotion family.")
-        label = emotion_label.strip().lower()
-        if not label:
-            raise ValueError("Emotion label is required.")
-        secondary_family = (secondary_emotion_family or "").strip().lower() or None
-        secondary_label = (secondary_emotion_label or "").strip().lower() or None
-        if secondary_family:
-            if secondary_family not in EMOTION_FAMILIES:
-                raise ValueError("Unknown secondary emotion family.")
-            if secondary_family == family:
-                secondary_family = None
-                secondary_label = None
-            elif not secondary_label:
-                raise ValueError("Secondary emotion label is required.")
-        else:
-            secondary_label = None
-        dyad = derive_dyad(family, secondary_family)
-        value = max(1, min(10, int(intensity)))
+        e = _validate_coord(energy, "energy")
+        p = _validate_coord(pleasantness, "pleasantness")
+        word = _mood_word(e, p, mood_word)
+        quadrant = quadrant_for(e, p)
         ts = timestamp or _now_iso()
         eid = _gen_id()
         now = _now_iso()
         await self._db.execute(
             "INSERT INTO saga_entries "
-            "(id, timestamp, local_date, emotion_family, emotion_label, intensity, note, created_at, "
-            "secondary_emotion_family, secondary_emotion_label, dyad_label, dyad_type) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                eid,
-                ts,
-                _local_date(ts),
-                family,
-                label,
-                value,
-                _clean_note(note),
-                now,
-                secondary_family,
-                secondary_label,
-                dyad["label"] if dyad else None,
-                dyad["type"] if dyad else None,
-            ),
+            "(id, timestamp, local_date, energy, pleasantness, quadrant, mood_word, note, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (eid, ts, _local_date(ts), e, p, quadrant, word, _clean_note(note), now),
         )
         await self._db.commit()
         return await self.get(eid) or {
             "id": eid,
             "timestamp": ts,
             "local_date": _local_date(ts),
-            "emotion_family": family,
-            "emotion_label": label,
-            "intensity": value,
+            "energy": e,
+            "pleasantness": p,
+            "quadrant": quadrant,
+            "mood_word": word,
             "note": _clean_note(note),
             "created_at": now,
-            "secondary_emotion_family": secondary_family,
-            "secondary_emotion_label": secondary_label,
-            "dyad_label": dyad["label"] if dyad else None,
-            "dyad_type": dyad["type"] if dyad else None,
-            "dyad_accent": DYAD_ACCENTS.get((dyad or {}).get("label") or (dyad or {}).get("type") or "", DYAD_ACCENTS["opposite"]),
+            "quadrant_accent": QUADRANT_COLORS[quadrant],
         }
 
     async def get(self, entry_id: str) -> dict | None:
         cursor = await self._db.execute(
-            "SELECT id, timestamp, local_date, emotion_family, emotion_label, intensity, note, created_at, "
-            "secondary_emotion_family, secondary_emotion_label, dyad_label, dyad_type "
+            "SELECT id, timestamp, local_date, energy, pleasantness, quadrant, mood_word, note, created_at "
             "FROM saga_entries WHERE id = ?",
             (entry_id,),
         )
@@ -253,48 +196,19 @@ class SqliteSagaRepo:
     async def update(
         self,
         entry_id: str,
-        emotion_family: str,
-        emotion_label: str,
-        intensity: int,
+        energy: int,
+        pleasantness: int,
+        mood_word: str,
         note: str | None = None,
-        secondary_emotion_family: str | None = None,
-        secondary_emotion_label: str | None = None,
     ) -> dict | None:
-        family = emotion_family.strip().lower()
-        if family not in EMOTION_FAMILIES:
-            return None
-        label = emotion_label.strip().lower()
-        if not label:
-            return None
-        secondary_family = (secondary_emotion_family or "").strip().lower() or None
-        secondary_label = (secondary_emotion_label or "").strip().lower() or None
-        if secondary_family:
-            if secondary_family not in EMOTION_FAMILIES:
-                return None
-            if secondary_family == family:
-                secondary_family = None
-                secondary_label = None
-            elif not secondary_label:
-                return None
-        else:
-            secondary_label = None
-        dyad = derive_dyad(family, secondary_family)
-        value = max(1, min(10, int(intensity)))
+        e = _validate_coord(energy, "energy")
+        p = _validate_coord(pleasantness, "pleasantness")
+        word = _mood_word(e, p, mood_word)
+        quadrant = quadrant_for(e, p)
         await self._db.execute(
-            "UPDATE saga_entries SET emotion_family = ?, emotion_label = ?, intensity = ?, note = ?, "
-            "secondary_emotion_family = ?, secondary_emotion_label = ?, dyad_label = ?, dyad_type = ? "
+            "UPDATE saga_entries SET energy = ?, pleasantness = ?, quadrant = ?, mood_word = ?, note = ? "
             "WHERE id = ?",
-            (
-                family,
-                label,
-                value,
-                _clean_note(note),
-                secondary_family,
-                secondary_label,
-                dyad["label"] if dyad else None,
-                dyad["type"] if dyad else None,
-                entry_id,
-            ),
+            (e, p, quadrant, word, _clean_note(note), entry_id),
         )
         await self._db.commit()
         return await self.get(entry_id)
@@ -305,8 +219,7 @@ class SqliteSagaRepo:
 
     async def list_recent(self, limit: int = 8) -> list[dict]:
         cursor = await self._db.execute(
-            "SELECT id, timestamp, local_date, emotion_family, emotion_label, intensity, note, created_at, "
-            "secondary_emotion_family, secondary_emotion_label, dyad_label, dyad_type "
+            "SELECT id, timestamp, local_date, energy, pleasantness, quadrant, mood_word, note, created_at "
             "FROM saga_entries ORDER BY timestamp DESC LIMIT ?",
             (limit,),
         )
@@ -314,8 +227,7 @@ class SqliteSagaRepo:
 
     async def list_by_date(self, local_date: str) -> list[dict]:
         cursor = await self._db.execute(
-            "SELECT id, timestamp, local_date, emotion_family, emotion_label, intensity, note, created_at, "
-            "secondary_emotion_family, secondary_emotion_label, dyad_label, dyad_type "
+            "SELECT id, timestamp, local_date, energy, pleasantness, quadrant, mood_word, note, created_at "
             "FROM saga_entries WHERE local_date = ? ORDER BY timestamp",
             (local_date,),
         )
@@ -323,8 +235,7 @@ class SqliteSagaRepo:
 
     async def list_since(self, local_date: str) -> list[dict]:
         cursor = await self._db.execute(
-            "SELECT id, timestamp, local_date, emotion_family, emotion_label, intensity, note, created_at, "
-            "secondary_emotion_family, secondary_emotion_label, dyad_label, dyad_type "
+            "SELECT id, timestamp, local_date, energy, pleasantness, quadrant, mood_word, note, created_at "
             "FROM saga_entries WHERE local_date >= ? ORDER BY timestamp",
             (local_date,),
         )

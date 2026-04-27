@@ -16,12 +16,11 @@ from markupsafe import Markup
 from core.challenge.config import STATE_LABELS, STATE_RANK, STATE_SHORT, STATES, TRACKED_BUCKETS
 from core.config import USER_TZ
 from core.storage.saga_backend import (
-    DYAD_ACCENTS,
-    DYAD_PAIRS,
-    EMOTION_ACCENTS,
-    EMOTION_FAMILIES,
-    MIXED_EMOTIONS,
-    OPPOSITE_PAIRS,
+    MOOD_WORDS,
+    PLEASANTNESS_COORDS,
+    QUADRANT_COLORS,
+    VALID_MOOD_COORDS,
+    quadrant_for,
 )
 from core.utils import today_local, to_local_date
 
@@ -31,6 +30,16 @@ SOURCE_LABELS = {
     "questlog": "Questlog",
     "hard90": "Hard 90",
 }
+
+QUADRANT_LABELS = {
+    "yellow": "High energy pleasant",
+    "red": "High energy unpleasant",
+    "green": "Low energy pleasant",
+    "blue": "Low energy unpleasant",
+}
+
+QUADRANT_ORDER = ("yellow", "red", "green", "blue")
+MOOD_ROWS = (5, 4, 3, 2, 1, -1, -2, -3, -4, -5)
 
 
 def render_markdown_note(value: str | None) -> str:
@@ -156,17 +165,11 @@ async def unified_events(db: aiosqlite.Connection, local_date: str | None = None
     events: list[dict] = []
 
     saga_cursor = await db.execute(
-        "SELECT id, timestamp, emotion_family, emotion_label, intensity, note, "
-        "secondary_emotion_family, secondary_emotion_label, dyad_label, dyad_type "
+        "SELECT id, timestamp, energy, pleasantness, quadrant, mood_word, note "
         "FROM saga_entries WHERE local_date = ? ORDER BY timestamp",
         (day,),
     )
     for row in await saga_cursor.fetchall():
-        dyad_title = None
-        if row[9] == "opposite":
-            dyad_title = "Opposites"
-        elif row[8]:
-            dyad_title = row[8].title()
         events.append({
             "id": f"saga:{row[0]}",
             "source": "saga",
@@ -174,17 +177,14 @@ async def unified_events(db: aiosqlite.Connection, local_date: str | None = None
             "timestamp": row[1],
             "time": display_time(row[1]),
             "block": block_for_timestamp(row[1]),
-            "title": f"{row[3].title()} / {row[4]}/10" + (f" / {dyad_title}" if dyad_title else ""),
-            "summary": row[5] or "Moment captured.",
+            "title": f"{row[5].title()} / E:{row[2]} P:{row[3]}",
+            "summary": row[6] or "Moment captured.",
             "payload": {
-                "family": row[2],
-                "emotion": row[3],
-                "intensity": row[4],
-                "note": row[5],
-                "secondary_family": row[6],
-                "secondary_emotion": row[7],
-                "dyad": row[8],
-                "dyad_type": row[9],
+                "energy": row[2],
+                "pleasantness": row[3],
+                "quadrant": row[4],
+                "mood_word": row[5],
+                "note": row[6],
             },
         })
 
@@ -349,12 +349,13 @@ def _timeline_day_title_meta(day: dict) -> dict:
         _count_label(len(challenges), "trial"),
     ]
     if latest:
-        bits.insert(1, f"latest {latest['emotion']} {latest['intensity']}/10")
+        bits.insert(1, f"latest {latest['mood_word']} E:{latest['energy']} P:{latest['pleasantness']}")
     return {
         "title_meta": bits,
-        "latest_mood": latest["emotion"] if latest else None,
-        "latest_intensity": latest["intensity"] if latest else None,
-        "latest_mood_accent": latest["emotion_accent"] if latest else "#CF9D7B",
+        "latest_mood": latest["mood_word"] if latest else None,
+        "latest_energy": latest["energy"] if latest else None,
+        "latest_pleasantness": latest["pleasantness"] if latest else None,
+        "latest_mood_accent": latest["quadrant_accent"] if latest else "#CF9D7B",
     }
 
 
@@ -365,33 +366,29 @@ async def timeline_days(db: aiosqlite.Connection, page: int = 1, per_page: int =
     days: dict[str, dict] = {}
 
     saga_cursor = await db.execute(
-        "SELECT id, timestamp, local_date, emotion_family, emotion_label, intensity, note, "
-        "secondary_emotion_family, secondary_emotion_label, dyad_label, dyad_type "
+        "SELECT id, timestamp, local_date, energy, pleasantness, quadrant, mood_word, note "
         "FROM saga_entries WHERE local_date >= ? ORDER BY timestamp",
         (start.isoformat(),),
     )
     for row in await saga_cursor.fetchall():
         day = days.setdefault(row[2], _empty_timeline_day(row[2]))
-        intensity = max(1, min(10, int(row[5] or 1)))
-        dyad_key = row[9] or row[10] or ""
+        energy = int(row[3] or 0)
+        pleasantness = int(row[4] or 0)
+        distance = math.sqrt((energy * energy) + (pleasantness * pleasantness))
+        strength = min(100, int(round((distance / math.sqrt(50)) * 100)))
         day["entries"].append({
             "id": row[0],
             "time": display_time(row[1]),
-            "note_html": render_markdown_note(row[6]),
-            "emotion_family": row[3],
-            "emotion": row[4],
-            "emotion_accent": EMOTION_ACCENTS.get(row[3], "#CF9D7B"),
-            "intensity": intensity,
-            "intensity_pct": min(92, 12 + intensity * 8),
-            "mood_wash_pct": min(24, 3 + intensity * 2),
-            "mood_glow_pct": min(28, 4 + intensity * 2),
-            "mood_chip_pct": min(26, 5 + intensity * 2),
-            "secondary_family": row[7],
-            "secondary_emotion": row[8],
-            "secondary_accent": EMOTION_ACCENTS.get(row[7], "#CF9D7B"),
-            "dyad_label": row[9],
-            "dyad_type": row[10],
-            "dyad_accent": DYAD_ACCENTS.get(dyad_key, DYAD_ACCENTS["opposite"]),
+            "note_html": render_markdown_note(row[7]),
+            "energy": energy,
+            "pleasantness": pleasantness,
+            "quadrant": row[5],
+            "quadrant_accent": QUADRANT_COLORS.get(row[5], "#CF9D7B"),
+            "mood_word": row[6],
+            "mood_strength": strength,
+            "mood_wash_pct": min(24, 5 + int(strength * 0.18)),
+            "mood_glow_pct": min(28, 6 + int(strength * 0.20)),
+            "mood_chip_pct": min(26, 7 + int(strength * 0.18)),
         })
 
     quest_cursor = await db.execute(
@@ -545,30 +542,60 @@ def _saga_day_profile(
     challenges: list[dict],
     quest_baseline: float,
 ) -> dict:
-    intensities = [entry["intensity"] for entry in entries]
-    avg_intensity = round(mean(intensities), 1) if intensities else 0
-    peak_intensity = max(intensities) if intensities else 0
-    intensity_range = max(intensities) - min(intensities) if len(intensities) > 1 else 0
-    if len(intensities) > 1:
-        volatility = round(mean(abs(intensities[i] - intensities[i - 1]) for i in range(1, len(intensities))), 1)
+    energies = [int(entry["energy"]) for entry in entries]
+    pleasantness_values = [int(entry["pleasantness"]) for entry in entries]
+    avg_energy = round(mean(energies), 1) if energies else 0
+    avg_pleasantness = round(mean(pleasantness_values), 1) if pleasantness_values else 0
+    quadrant_distribution = {quadrant: 0 for quadrant in QUADRANT_ORDER}
+    for entry in entries:
+        quadrant_distribution[entry["quadrant"]] = quadrant_distribution.get(entry["quadrant"], 0) + 1
+    dominant_quadrant = _dominant([entry.get("quadrant") for entry in entries])
+    if entries:
+        centroid_energy = mean(energies)
+        centroid_pleasantness = mean(pleasantness_values)
+        distances = [
+            math.sqrt((entry["energy"] - centroid_energy) ** 2 + (entry["pleasantness"] - centroid_pleasantness) ** 2)
+            for entry in entries
+        ]
+        if len(distances) > 1:
+            volatility = round(math.sqrt(mean(distance ** 2 for distance in distances)), 2)
+        else:
+            volatility = 0
     else:
         volatility = 0
-    dyad_count = sum(1 for entry in entries if entry.get("dyad_label") or entry.get("dyad_type"))
-    opposite_count = sum(1 for entry in entries if entry.get("dyad_type") == "opposite")
-    mood_load = int(round(_clamp(
-        avg_intensity * 7
-        + min(len(entries), 8) * 3
-        + volatility * 5
-        + dyad_count * 4
-        + opposite_count * 5
-    )))
-    emotion_mentions = [
-        mention
-        for entry in entries
-        for mention in _entry_emotion_mentions(entry)
+    quadrant_switches = sum(
+        1
+        for previous, current in zip(entries, entries[1:])
+        if previous.get("quadrant") != current.get("quadrant")
+    )
+    entry_count = len(entries)
+    if entry_count:
+        red_share = quadrant_distribution.get("red", 0) / entry_count
+        blue_share = quadrant_distribution.get("blue", 0) / entry_count
+        green_share = quadrant_distribution.get("green", 0) / entry_count
+        unpleasant_pressure = ((5 - avg_pleasantness) / 10) * 34
+        activation_pressure = (max(avg_energy, 0) / 5) * 16
+        depletion_pressure = (max(-avg_energy, 0) / 5) * 12
+        volatility_pressure = min(volatility / 5, 1) * 24
+        quadrant_pressure = red_share * 14 + blue_share * 10 - green_share * 6
+        capture_pressure = min(entry_count, 6) * 3
+        switch_pressure = min(quadrant_switches, 4) * 2
+        mood_load = int(round(_clamp(
+            unpleasant_pressure
+            + activation_pressure
+            + depletion_pressure
+            + volatility_pressure
+            + quadrant_pressure
+            + capture_pressure
+            + switch_pressure
+        )))
+    else:
+        mood_load = 0
+    dominant_label = _dominant([entry.get("mood_word") for entry in entries])
+    top_mood_words = [
+        {"label": label, "count": count}
+        for label, count in Counter(entry.get("mood_word") for entry in entries if entry.get("mood_word")).most_common(3)
     ]
-    dominant_family = _dominant([mention["family"] for mention in emotion_mentions])
-    dominant_label = _dominant([mention["label"] for mention in emotion_mentions])
     latest = entries[-1] if entries else None
 
     quest_count = len(quests)
@@ -586,9 +613,19 @@ def _saga_day_profile(
         alignment_score = int(round((output_index * 0.45) + (challenge_score * 0.55)))
 
     relations = _day_relations(mood_load, output_index, challenge_score, quest_count, len(entries))
-    archetype = _day_archetype(mood_load, output_index, challenge_score, quest_count, len(entries))
+    archetype = _day_archetype(
+        mood_load,
+        output_index,
+        challenge_score,
+        quest_count,
+        len(entries),
+        dominant_quadrant,
+        avg_energy,
+        avg_pleasantness,
+    )
 
     day = date.fromisoformat(local_date)
+    accent = QUADRANT_COLORS.get(dominant_quadrant or "", "#CF9D7B")
     return {
         "date": local_date,
         "label": day.strftime("%b %d"),
@@ -597,19 +634,20 @@ def _saga_day_profile(
         "verdict": _day_verdict(archetype, relations),
         "saga": {
             "entry_count": len(entries),
-            "avg_intensity": avg_intensity,
-            "peak_intensity": peak_intensity,
-            "intensity_range": intensity_range,
+            "avg_energy": avg_energy,
+            "avg_pleasantness": avg_pleasantness,
             "volatility": volatility,
+            "quadrant_switches": quadrant_switches,
             "mood_load": mood_load,
-            "load_label": _band(mood_load, (25, 50, 70), ("Quiet", "Textured", "Charged", "Heavy")),
-            "dominant_family": dominant_family,
+            "load_label": _band(mood_load, (25, 50, 70), ("Settled", "Activated", "Taxed", "Overloaded")),
+            "dominant_quadrant": dominant_quadrant,
+            "quadrant_distribution": quadrant_distribution,
             "dominant_label": dominant_label,
-            "latest_label": latest["label"] if latest else None,
-            "latest_intensity": latest["intensity"] if latest else None,
-            "accent": EMOTION_ACCENTS.get(dominant_family, "#CF9D7B"),
-            "dyad_count": dyad_count,
-            "opposite_count": opposite_count,
+            "top_mood_words": top_mood_words,
+            "latest_label": latest["mood_word"] if latest else None,
+            "latest_energy": latest["energy"] if latest else None,
+            "latest_pleasantness": latest["pleasantness"] if latest else None,
+            "accent": accent,
         },
         "quest": {
             "count": quest_count,
@@ -630,27 +668,16 @@ def _saga_day_profile(
 
 
 def _entry_emotion_mentions(entry: dict) -> list[dict]:
-    mentions: list[dict] = []
-    seen: set[tuple[str, str | None]] = set()
-
-    def add(family: str | None, label: str | None, role: str) -> None:
-        if not family or family not in EMOTION_FAMILIES:
-            return
-        key = (family, label)
-        if key in seen:
-            return
-        seen.add(key)
-        mentions.append({
-            "family": family,
-            "label": label or family,
-            "intensity": entry.get("intensity", 0),
-            "timestamp": entry.get("timestamp"),
-            "role": role,
-        })
-
-    add(entry.get("family"), entry.get("label"), "primary")
-    add(entry.get("secondary_family"), entry.get("secondary_label"), "secondary")
-    return mentions
+    if not entry.get("mood_word"):
+        return []
+    return [{
+        "quadrant": entry.get("quadrant"),
+        "label": entry.get("mood_word"),
+        "energy": entry.get("energy", 0),
+        "pleasantness": entry.get("pleasantness", 0),
+        "timestamp": entry.get("timestamp"),
+        "role": "primary",
+    }]
 
 
 def _day_relations(
@@ -661,26 +688,26 @@ def _day_relations(
     entry_count: int,
 ) -> dict:
     if mood_load >= 65 and output_index >= 55:
-        emotion_quest = "Output held under pressure"
+        emotion_quest = "Output held under mood load"
     elif mood_load >= 65:
-        emotion_quest = "Load consumed execution"
+        emotion_quest = "Mood load consumed execution"
     elif mood_load < 30 and output_index >= 55:
         emotion_quest = "Quiet execution"
     elif entry_count == 0 and quest_count == 0:
         emotion_quest = "Low capture, low output"
     else:
-        emotion_quest = "Emotion and output moved evenly"
+        emotion_quest = "Mood and output moved evenly"
 
     if challenge_score is None:
         emotion_challenge = "Challenge signal missing"
     elif mood_load >= 65 and challenge_score >= 75:
-        emotion_challenge = "Discipline held under pressure"
+        emotion_challenge = "Discipline held under load"
     elif mood_load >= 65 and challenge_score < 65:
-        emotion_challenge = "Pressure reached long-term systems"
+        emotion_challenge = "Mood load reached long-term systems"
     elif mood_load < 30 and challenge_score < 60:
         emotion_challenge = "Calm did not protect discipline"
     else:
-        emotion_challenge = "Long-term posture tracked normally"
+        emotion_challenge = "Long-term posture tracked the mood field"
 
     quest_challenge = _alignment_label(output_index, challenge_score)
     return {
@@ -710,36 +737,41 @@ def _day_archetype(
     challenge_score: int | None,
     quest_count: int,
     entry_count: int,
+    dominant_quadrant: str | None,
+    avg_energy: float,
+    avg_pleasantness: float,
 ) -> str:
     if entry_count == 0 and quest_count == 0 and challenge_score is None:
         return "No Signal"
-    if entry_count <= 1 and quest_count == 0 and challenge_score is not None and challenge_score < 60:
-        return "False Calm"
-    if mood_load >= 65 and output_index < 45 and (challenge_score is None or challenge_score < 70):
-        return "Emotional Debt"
     if output_index >= 55 and challenge_score is not None and challenge_score < 65:
         return "Busy Drift"
-    if mood_load >= 65 and output_index >= 55 and (challenge_score is None or challenge_score >= 70):
-        return "Storm Forge"
-    if mood_load >= 65 and output_index >= 55:
-        return "Expensive Victory"
-    if mood_load < 35 and output_index < 50 and challenge_score is not None and challenge_score >= 75:
-        return "Quiet Hold"
     if mood_load < 65 and output_index >= 55 and challenge_score is not None and challenge_score >= 75:
         return "Clean Alignment"
-    return "Mixed Field"
+    if mood_load >= 65:
+        if dominant_quadrant == "red" and output_index >= 55 and (challenge_score is None or challenge_score >= 70):
+            return "Red Forge"
+        if dominant_quadrant == "red" or avg_energy > 0:
+            return "Red Spillover"
+        return "Blue Drag"
+    if dominant_quadrant == "green":
+        return "Green Reset"
+    if dominant_quadrant == "yellow":
+        return "Yellow Spark"
+    if dominant_quadrant == "blue" or avg_pleasantness < 0:
+        return "Blue Drag"
+    return "Green Reset"
 
 
 def _day_verdict(archetype: str, relations: dict) -> str:
     verdicts = {
-        "Clean Alignment": "Emotion, output, and long-term systems moved together.",
-        "Storm Forge": "High emotional pressure was converted into execution without breaking the long game.",
-        "Expensive Victory": "Output was real, but the day cost more than it looked like from tasks alone.",
+        "Clean Alignment": "Mood, output, and long-term systems moved together.",
+        "Red Forge": "High-energy unpleasantness was converted into execution without breaking the long game.",
+        "Red Spillover": "Activated unpleasantness is pressing into the rest of the system.",
+        "Blue Drag": "Low-energy unpleasantness is weighing on motion and recovery.",
+        "Green Reset": "The system is downshifting into steadier, more regulated territory.",
+        "Yellow Spark": "Pleasant activation is available; useful momentum can be harvested.",
         "Busy Drift": "Quest motion outpaced long-term alignment.",
-        "Quiet Hold": "The day stayed quiet while the long-term system held.",
-        "False Calm": "Low capture paired with weak output and weak discipline; the calm may be under-recorded.",
-        "Emotional Debt": "Emotional load rose while execution and long-term posture weakened.",
-        "Recovery Day": "The system downshifted after pressure while preserving long-term posture.",
+        "Recovery Turn": "The system downshifted after pressure while preserving long-term posture.",
         "No Signal": "Capture emotion, complete quests, or log challenge progress to begin the field report.",
     }
     return verdicts.get(archetype, f"{relations['emotion_quest']}. {relations['quest_challenge']}.")
@@ -757,8 +789,8 @@ def _apply_recovery_archetypes(day_profiles: list[dict]) -> None:
             and challenge_score is not None
             and challenge_score >= 70
         ):
-            current["archetype"] = "Recovery Day"
-            current["verdict"] = _day_verdict("Recovery Day", current["relations"])
+            current["archetype"] = "Recovery Turn"
+            current["verdict"] = _day_verdict("Recovery Turn", current["relations"])
 
 
 def _saga_relationship_trends(day_profiles: list[dict]) -> dict:
@@ -797,12 +829,12 @@ def _saga_relationship_trends(day_profiles: list[dict]) -> dict:
 
     mood_scores: dict[str, list[float]] = defaultdict(list)
     for day in active_days:
-        family = day["saga"]["dominant_family"]
+        quadrant = day["saga"]["dominant_quadrant"]
         challenge_score = day["challenge"]["score"]
-        if not family or challenge_score is None:
+        if not quadrant or challenge_score is None:
             continue
-        mood_scores[family].append(day["quest"]["output_index"] * 0.45 + challenge_score * 0.55)
-    resolved = [(family, mean(scores), len(scores)) for family, scores in mood_scores.items() if len(scores) >= 2]
+        mood_scores[quadrant].append(day["quest"]["output_index"] * 0.45 + challenge_score * 0.55)
+    resolved = [(quadrant, mean(scores), len(scores)) for quadrant, scores in mood_scores.items() if len(scores) >= 2]
     keystone = max(resolved, key=lambda item: item[1], default=None)
     risk = min(resolved, key=lambda item: item[1], default=None)
 
@@ -823,8 +855,8 @@ def _saga_relationship_trends(day_profiles: list[dict]) -> dict:
         "common_archetype": common_archetype,
         "arc": arc,
         "pressure_output": pressure_output,
-        "keystone_mood": keystone[0].title() if keystone else None,
-        "risk_mood": risk[0].title() if risk else None,
+        "keystone_mood": QUADRANT_LABELS.get(keystone[0], keystone[0].title()) if keystone else None,
+        "risk_mood": QUADRANT_LABELS.get(risk[0], risk[0].title()) if risk else None,
         "recovery": recovery,
     }
 
@@ -843,16 +875,15 @@ async def saga_metrics(db: aiosqlite.Connection, days: int = 7) -> dict:
     for key in calendar_days:
         current = date.fromisoformat(key)
         profile = by_profile[key]
-        values = [entry["intensity"] for entry in saga_by_day.get(key, [])]
-        avg = profile["saga"]["avg_intensity"]
-        variance = profile["saga"]["intensity_range"]
+        values = saga_by_day.get(key, [])
+        load = profile["saga"]["mood_load"]
         if not values:
             level = "empty"
-        elif avg <= 3:
+        elif load <= 25:
             level = "low"
-        elif avg <= 6:
+        elif load <= 50:
             level = "mid"
-        elif avg <= 8:
+        elif load <= 70:
             level = "high"
         else:
             level = "peak"
@@ -860,13 +891,13 @@ async def saga_metrics(db: aiosqlite.Connection, days: int = 7) -> dict:
             "date": key,
             "day": current.day,
             "count": len(values),
-            "average": round(avg, 1),
-            "variance": variance,
+            "average": load,
+            "variance": profile["saga"]["volatility"],
             "level": level,
         })
 
     day_averages = [
-        profile["saga"]["avg_intensity"]
+        profile["saga"]["mood_load"]
         for profile in day_profiles
         if profile["saga"]["entry_count"]
     ]
@@ -878,31 +909,31 @@ async def saga_metrics(db: aiosqlite.Connection, days: int = 7) -> dict:
     stability = "Stable" if volatility < 1.5 else "Variable" if volatility < 3 else "Volatile"
 
     quest_counts = [len(quests_by_day.get(day, [])) for day in calendar_days]
-    high_intensity_days = [
+    high_load_days = [
         profile["date"] for profile in day_profiles
-        if profile["saga"]["avg_intensity"] >= 7
+        if profile["saga"]["mood_load"] >= 65
     ]
-    if high_intensity_days:
-        high_avg = mean(len(quests_by_day.get(day, [])) for day in high_intensity_days)
+    if high_load_days:
+        high_avg = mean(len(quests_by_day.get(day, [])) for day in high_load_days)
         all_avg = mean(quest_counts) if quest_counts else 0
         if high_avg > all_avg:
-            correlation = "High intensity days are currently paired with more Questlog completions."
+            correlation = "High-load mood days are currently paired with more Questlog completions."
         elif high_avg < all_avg:
-            correlation = "High intensity days are currently paired with fewer Questlog completions."
+            correlation = "High-load mood days are currently paired with fewer Questlog completions."
         else:
-            correlation = "High intensity days are tracking close to your usual Questlog completion rate."
+            correlation = "High-load mood days are tracking close to your usual Questlog completion rate."
     else:
-        correlation = "Capture a few higher-intensity moments to unlock correlation hints."
+        correlation = "Capture a few high-load moments to unlock correlation hints."
 
     total = sum(family_counts.values())
     distribution = [
         {
-            "family": family,
-            "label": family.title(),
-            "count": family_counts.get(family, 0),
-            "pct": round((family_counts.get(family, 0) / total) * 100) if total else 0,
+            "quadrant": quadrant,
+            "label": QUADRANT_LABELS[quadrant],
+            "count": family_counts.get(quadrant, 0),
+            "pct": round((family_counts.get(quadrant, 0) / total) * 100) if total else 0,
         }
-        for family in EMOTION_FAMILIES
+        for quadrant in QUADRANT_ORDER
     ]
     latest_profiles = list(reversed(day_profiles))
 
@@ -914,7 +945,7 @@ async def saga_metrics(db: aiosqlite.Connection, days: int = 7) -> dict:
         "volatility": volatility,
         "correlation": correlation,
         "total_entries": len(bundle["raw_rows"]),
-        "total_emotion_mentions": total,
+        "total_mood_mentions": total,
         "current": latest_profiles[0] if latest_profiles else None,
         "recent_days": latest_profiles[:7],
         "trends": _saga_relationship_trends(day_profiles),
@@ -926,8 +957,7 @@ async def _collect_window(db: aiosqlite.Connection, days: int) -> dict:
     end = today_local()
     start = end - timedelta(days=days - 1)
     cursor = await db.execute(
-        "SELECT local_date, timestamp, emotion_family, emotion_label, intensity, "
-        "secondary_emotion_family, secondary_emotion_label, dyad_label, dyad_type "
+        "SELECT local_date, timestamp, energy, pleasantness, quadrant, mood_word "
         "FROM saga_entries WHERE local_date >= ? ORDER BY local_date, timestamp",
         (start.isoformat(),),
     )
@@ -937,22 +967,18 @@ async def _collect_window(db: aiosqlite.Connection, days: int) -> dict:
     family_counts: Counter[str] = Counter()
     label_counts: Counter[str] = Counter()
     for row in rows:
-        intensity = max(1, min(10, int(row[4] or 1)))
         record = {
             "date": row[0],
             "timestamp": row[1],
-            "family": row[2],
-            "label": row[3],
-            "intensity": intensity,
-            "secondary_family": row[5],
-            "secondary_label": row[6],
-            "dyad_label": row[7],
-            "dyad_type": row[8],
+            "energy": int(row[2] or 0),
+            "pleasantness": int(row[3] or 0),
+            "quadrant": row[4],
+            "mood_word": row[5],
         }
         saga_by_day[row[0]].append(record)
         raw_rows.append(record)
         for mention in _entry_emotion_mentions(record):
-            family_counts[mention["family"]] += 1
+            family_counts[mention["quadrant"]] += 1
             if mention["label"]:
                 label_counts[mention["label"]] += 1
 
@@ -1254,69 +1280,44 @@ def _dow_profile(day_profiles: list[dict]) -> list[dict]:
     return out
 
 
-def _block_emotion_matrix(rows: list[dict]) -> dict:
+def _block_mood_matrix(rows: list[dict]) -> dict:
     blocks = ["Morning", "Afternoon", "Evening", "Night"]
-    matrix: dict[str, dict[str, int]] = {b: {f: 0 for f in EMOTION_FAMILIES} for b in blocks}
+    matrix: dict[str, dict[str, int]] = {b: {q: 0 for q in QUADRANT_ORDER} for b in blocks}
     for row in rows:
         block = block_for_timestamp(row["timestamp"])
         for mention in _entry_emotion_mentions(row):
-            family = mention["family"]
-            if family in matrix[block]:
-                matrix[block][family] += 1
+            quadrant = mention["quadrant"]
+            if quadrant in matrix[block]:
+                matrix[block][quadrant] += 1
     return {
         "blocks": blocks,
-        "families": list(EMOTION_FAMILIES.keys()),
+        "quadrants": list(QUADRANT_ORDER),
         "matrix": matrix,
-        "accents": {f: EMOTION_ACCENTS[f] for f in EMOTION_FAMILIES},
+        "accents": {q: QUADRANT_COLORS[q] for q in QUADRANT_ORDER},
     }
 
 
-def _top_dyads(rows: list[dict], n: int = 5) -> list[dict]:
-    counter: Counter[tuple[str, str]] = Counter()
-    for row in rows:
-        label = row.get("dyad_label")
-        dtype = row.get("dyad_type")
-        if not dtype:
-            continue
-        counter[(label or "opposite", dtype)] += 1
-    out = []
-    for (label, dtype), count in counter.most_common(n):
-        accent = DYAD_ACCENTS.get(label) if label and label != "opposite" else DYAD_ACCENTS["opposite"]
-        out.append({
-            "label": (label or "opposite").title(),
-            "type": dtype,
-            "count": count,
-            "accent": accent or "#CF9D7B",
-        })
-    return out
-
-
-def _wheel_cells(rows: list[dict]) -> list[dict]:
-    """24 cells: 8 families × 3 tiers (low/mid/high). count + opacity."""
+def _mood_meter_cells(rows: list[dict]) -> list[dict]:
+    """100 mood-meter cells with visit counts and opacity."""
     cells: list[dict] = []
-    family_tier_counts: Counter[tuple[str, int]] = Counter()
+    coordinate_counts: Counter[tuple[int, int]] = Counter()
     for row in rows:
-        for mention in _entry_emotion_mentions(row):
-            family = mention["family"]
-            intensity = mention["intensity"]
-            if intensity <= 3:
-                tier = 0
-            elif intensity <= 6:
-                tier = 1
-            else:
-                tier = 2
-            family_tier_counts[(family, tier)] += 1
-    max_count = max(family_tier_counts.values()) if family_tier_counts else 1
-    for family, tier_labels in EMOTION_FAMILIES.items():
-        for tier in range(3):
-            count = family_tier_counts.get((family, tier), 0)
+        coordinate_counts[(int(row["energy"]), int(row["pleasantness"]))] += 1
+    max_count = max(coordinate_counts.values()) if coordinate_counts else 1
+    for energy in MOOD_ROWS:
+        for pleasantness in PLEASANTNESS_COORDS:
+            if energy not in VALID_MOOD_COORDS or pleasantness not in VALID_MOOD_COORDS:
+                continue
+            count = coordinate_counts.get((energy, pleasantness), 0)
             opacity = 0.12 + (count / max_count) * 0.88 if count else 0.08
+            quadrant = quadrant_for(energy, pleasantness)
             cells.append({
-                "family": family,
-                "tier": tier,
-                "label": tier_labels[tier],
+                "energy": energy,
+                "pleasantness": pleasantness,
+                "quadrant": quadrant,
+                "label": MOOD_WORDS.get((energy, pleasantness), "neutral"),
                 "count": count,
-                "accent": EMOTION_ACCENTS[family],
+                "accent": QUADRANT_COLORS[quadrant],
                 "opacity": round(opacity, 2),
             })
     return cells
@@ -1328,8 +1329,7 @@ def _meta_analysis(
     family_counts: Counter[str],
     streaks: dict,
     best_day: dict | None,
-    top_dyads: list[dict],
-    opposite_count: int,
+    top_moods: list[dict],
 ) -> dict:
     window_days = len(day_profiles) or 1
     active_days = sum(1 for p in day_profiles if p["saga"]["entry_count"] > 0)
@@ -1351,11 +1351,12 @@ def _meta_analysis(
             continue
         share = count / family_total
         entropy -= share * math.log2(share)
-    max_entropy = math.log2(len(EMOTION_FAMILIES))
+    max_entropy = math.log2(len(QUADRANT_ORDER))
     diversity_pct = round((entropy / max_entropy) * 100) if family_total and max_entropy else 0
     dominant_family, dominant_count = family_counts.most_common(1)[0] if family_counts else (None, 0)
     dominant_pct = round((dominant_count / family_total) * 100) if family_total else 0
-    overrepresented = dominant_family.title() if dominant_family and dominant_pct >= 40 else None
+    dominant_label = QUADRANT_LABELS.get(dominant_family, dominant_family.title()) if dominant_family else None
+    overrepresented = dominant_label if dominant_family and dominant_pct >= 40 else None
 
     high_pressure_days = [p for p in day_profiles if p["saga"]["mood_load"] >= 65]
     high_pressure_productive = [p for p in high_pressure_days if p["quest"]["output_index"] >= 55]
@@ -1437,34 +1438,34 @@ def _meta_analysis(
             weekday_volatility.append(mean(vols))
 
     steady_blocks = Counter()
-    family_block_counts: Counter[tuple[str, str]] = Counter()
+    quadrant_block_counts: Counter[tuple[str, str]] = Counter()
     for row in raw_rows:
         block = block_for_timestamp(row["timestamp"])
         for mention in _entry_emotion_mentions(row):
-            family = mention["family"]
-            family_block_counts[(block, family)] += 1
-            if family in {"joy", "trust", "anticipation"}:
+            quadrant = mention["quadrant"]
+            quadrant_block_counts[(block, quadrant)] += 1
+            if quadrant in {"yellow", "green"}:
                 steady_blocks[block] += 1
     best_time_block = steady_blocks.most_common(1)[0][0] if steady_blocks else None
-    block_family_concentration = None
-    if family_block_counts:
-        (block, family), count = family_block_counts.most_common(1)[0]
-        block_family_concentration = {
+    block_quadrant_concentration = None
+    if quadrant_block_counts:
+        (block, quadrant), count = quadrant_block_counts.most_common(1)[0]
+        block_quadrant_concentration = {
             "block": block,
-            "family": family.title(),
+            "quadrant": QUADRANT_LABELS.get(quadrant, quadrant.title()),
             "count": count,
         }
 
     archetype_counts = Counter(p["archetype"] for p in day_profiles)
-    risky_names = {"Busy Drift", "Emotional Debt", "False Calm"}
-    positive_names = {"Clean Alignment", "Storm Forge", "Quiet Hold", "Recovery Day"}
+    risky_names = {"Busy Drift", "Red Spillover", "Blue Drag"}
+    positive_names = {"Clean Alignment", "Red Forge", "Green Reset", "Yellow Spark", "Recovery Turn"}
     transitions = Counter()
     for prev, current in zip(day_profiles, day_profiles[1:]):
         if prev["archetype"] != current["archetype"]:
             transitions[f"{prev['archetype']} -> {current['archetype']}"] += 1
 
-    dyad_rows = [row for row in raw_rows if row.get("dyad_type")]
-    dyad_intensities = [row["intensity"] for row in dyad_rows]
+    red_blue_count = sum(1 for row in raw_rows if row.get("quadrant") in {"red", "blue"})
+    pleasant_count = sum(1 for row in raw_rows if row.get("pleasantness", 0) > 0)
 
     return {
         "capture": {
@@ -1484,10 +1485,10 @@ def _meta_analysis(
             "average_volatility": _mean_or_none(volatility_values),
             "volatility_slope": _slope(volatility_values),
             "peak_load_days": len(high_pressure_days),
-            "dominant_family": dominant_family.title() if dominant_family else None,
-            "dominant_family_pct": dominant_pct,
-            "emotional_diversity": diversity_pct,
-            "overrepresented_family": overrepresented,
+            "dominant_quadrant": dominant_label,
+            "dominant_quadrant_pct": dominant_pct,
+            "quadrant_diversity": diversity_pct,
+            "overrepresented_quadrant": overrepresented,
         },
         "output_coupling": {
             "mood_output_correlation": corr,
@@ -1522,7 +1523,7 @@ def _meta_analysis(
             "best_weekday_by_alignment": best_weekday,
             "worst_weekday_by_mood_load": worst_weekday,
             "best_time_block_for_steady_emotions": best_time_block,
-            "block_family_concentration": block_family_concentration,
+            "block_quadrant_concentration": block_quadrant_concentration,
             "weekday_volatility": round(mean(weekday_volatility), 1) if weekday_volatility else None,
         },
         "archetypes": {
@@ -1530,15 +1531,14 @@ def _meta_analysis(
             "dominant_archetype": archetype_counts.most_common(1)[0][0] if archetype_counts else "No Signal",
             "risky_archetype_count": sum(count for name, count in archetype_counts.items() if name in risky_names),
             "positive_archetype_count": sum(count for name, count in archetype_counts.items() if name in positive_names),
-            "pressure_recovery_transitions": transitions.get("Storm Forge -> Recovery Day", 0) + transitions.get("Expensive Victory -> Recovery Day", 0),
+            "pressure_recovery_transitions": transitions.get("Red Forge -> Recovery Turn", 0) + transitions.get("Red Spillover -> Recovery Turn", 0),
             "key_transitions": [{"transition": key, "count": count} for key, count in transitions.most_common(5)],
         },
-        "dyads": {
-            "dyad_count": len(dyad_rows),
-            "opposite_count": opposite_count,
-            "opposite_ratio": round((opposite_count / len(dyad_rows)) * 100) if dyad_rows else 0,
-            "top_dyads": top_dyads,
-            "dyad_intensity_average": round(mean(dyad_intensities), 1) if dyad_intensities else None,
+        "mood_map": {
+            "top_moods": top_moods,
+            "red_blue_count": red_blue_count,
+            "red_blue_ratio": round((red_blue_count / len(raw_rows)) * 100) if raw_rows else 0,
+            "pleasant_ratio": round((pleasant_count / len(raw_rows)) * 100) if raw_rows else 0,
         },
         "summary_flags": [],
     }
@@ -1588,65 +1588,34 @@ def _meta_summary(meta: dict, risk_signals: list[dict], trends: dict) -> dict:
     }
 
 
-def saga_wheel_svg(cells: list[dict]) -> Markup:
-    by_key = {(cell["family"], cell["tier"]): cell for cell in cells}
-    families = list(EMOTION_FAMILIES.keys())
-    center = 130
-    rings = [(20, 55), (55, 90), (90, 124)]
-
-    def point(radius: float, angle_deg: float) -> tuple[float, float]:
-        angle = math.radians(angle_deg - 90)
-        return center + radius * math.cos(angle), center + radius * math.sin(angle)
-
-    def wedge(inner: float, outer: float, start: float, end: float) -> str:
-        x1, y1 = point(outer, start)
-        x2, y2 = point(outer, end)
-        x3, y3 = point(inner, end)
-        x4, y4 = point(inner, start)
-        large = 1 if end - start > 180 else 0
-        return (
-            f"M {x1:.2f} {y1:.2f} "
-            f"A {outer:.2f} {outer:.2f} 0 {large} 1 {x2:.2f} {y2:.2f} "
-            f"L {x3:.2f} {y3:.2f} "
-            f"A {inner:.2f} {inner:.2f} 0 {large} 0 {x4:.2f} {y4:.2f} Z"
-        )
-
+def saga_mood_meter_svg(cells: list[dict]) -> Markup:
+    by_key = {(cell["energy"], cell["pleasantness"]): cell for cell in cells}
+    rows = (5, 4, 3, 2, 1, -1, -2, -3, -4, -5)
+    cols = tuple(PLEASANTNESS_COORDS)
+    size = 22
+    gap = 2
+    width = len(cols) * size + (len(cols) - 1) * gap
+    height = len(rows) * size + (len(rows) - 1) * gap
     parts = [
-        '<svg class="saga-wheel-atlas" viewBox="0 0 260 260" role="img" aria-label="Plutchik emotion atlas">',
-        '<circle cx="130" cy="130" r="126" fill="rgba(245,241,234,0.025)" />',
+        f'<svg class="saga-meter-atlas" viewBox="0 0 {width} {height}" role="img" aria-label="Mood meter visit atlas">',
     ]
-    step = 360 / len(families)
-    for idx, family in enumerate(families):
-        start = idx * step + 1.2
-        end = (idx + 1) * step - 1.2
-        for tier, (inner, outer) in enumerate(rings):
-            cell = by_key.get((family, tier), {})
-            raw_label = str(cell.get("label") or family)
-            label = html.escape(raw_label, quote=True)
-            family_label = html.escape(family.title(), quote=True)
+    for y, energy in enumerate(rows):
+        for x, pleasantness in enumerate(cols):
+            cell = by_key.get((energy, pleasantness), {})
+            label = str(cell.get("label") or "neutral")
             count = int(cell.get("count") or 0)
-            accent = html.escape(str(cell.get("accent") or EMOTION_ACCENTS[family]), quote=True)
+            quadrant = str(cell.get("quadrant") or quadrant_for(energy, pleasantness))
+            accent = html.escape(str(cell.get("accent") or QUADRANT_COLORS[quadrant]), quote=True)
             opacity = float(cell.get("opacity") or 0.08)
-            visits = "visit" if count == 1 else "visits"
-            strength = "none" if count == 0 else f"{round(opacity * 100)}% opacity"
             tooltip = html.escape(
-                f"{raw_label.title()} · {family.title()} · tier {tier + 1} · {count} {visits} · {strength}",
+                f"{label.title()} · E:{energy} P:{pleasantness} · {QUADRANT_LABELS.get(quadrant, quadrant)} · {count} visit{'s' if count != 1 else ''}",
                 quote=True,
             )
             parts.append(
-                f'<g class="saga-wheel-cell" tabindex="0" role="img" '
-                f'aria-label="{tooltip}" data-label="{label}" data-count="{count}">'
-                f'<title>{tooltip}</title>'
-                f'<path d="{wedge(inner, outer, start, end)}" fill="{accent}" '
-                f'fill-opacity="{opacity:.2f}" stroke="rgba(12,21,25,0.72)" stroke-width="1" />'
-                f'</g>'
+                f'<rect class="saga-meter-cell" x="{x * (size + gap)}" y="{y * (size + gap)}" width="{size}" height="{size}" rx="3" '
+                f'fill="{accent}" fill-opacity="{opacity:.2f}" stroke="rgba(12,21,25,0.72)" stroke-width="1">'
+                f'<title>{tooltip}</title></rect>'
             )
-        lx, ly = point(112, start + step / 2)
-        parts.append(
-            f'<text x="{lx:.2f}" y="{ly:.2f}" text-anchor="middle" dominant-baseline="middle">'
-            f'<title>{family_label}</title>{html.escape(family[:3].title())}</text>'
-        )
-    parts.append('<circle cx="130" cy="130" r="19" fill="rgba(12,21,25,0.92)" stroke="rgba(234,206,170,0.2)" />')
     parts.append("</svg>")
     return Markup("".join(parts))
 
@@ -1666,7 +1635,8 @@ async def saga_dashboard(db: aiosqlite.Connection, days: int = 7) -> dict:
     output_series = [p["quest"]["output_index"] if p["quest"]["count"] else None for p in day_profiles]
     challenge_series = [p["challenge"]["score"] for p in day_profiles]
     alignment_series = [p["alignment"]["score"] for p in day_profiles]
-    intensity_series = [p["saga"]["avg_intensity"] if p["saga"]["entry_count"] else None for p in day_profiles]
+    energy_series = [p["saga"]["avg_energy"] if p["saga"]["entry_count"] else None for p in day_profiles]
+    pleasantness_series = [p["saga"]["avg_pleasantness"] if p["saga"]["entry_count"] else None for p in day_profiles]
 
     today_profile = day_profiles[-1] if day_profiles else None
     archetype = today_profile["archetype"] if today_profile else "No Signal"
@@ -1700,11 +1670,16 @@ async def saga_dashboard(db: aiosqlite.Connection, days: int = 7) -> dict:
     if today_profile:
         for entry in bundle["saga_by_day"].get(today_profile["date"], []):
             for mention in _entry_emotion_mentions(entry):
+                distance_pct = int(round(
+                    min(100, (math.sqrt((mention["energy"] ** 2) + (mention["pleasantness"] ** 2)) / math.sqrt(50)) * 100)
+                ))
                 today_emotion_stack.append({
                     "label": mention["label"],
-                    "family": mention["family"],
-                    "intensity": mention["intensity"],
-                    "accent": EMOTION_ACCENTS.get(mention["family"], "#CF9D7B"),
+                    "quadrant": mention["quadrant"],
+                    "energy": mention["energy"],
+                    "pleasantness": mention["pleasantness"],
+                    "distance_pct": distance_pct,
+                    "accent": QUADRANT_COLORS.get(mention["quadrant"], "#CF9D7B"),
                     "time": display_time(entry["timestamp"]),
                     "role": mention["role"],
                 })
@@ -1721,12 +1696,12 @@ async def saga_dashboard(db: aiosqlite.Connection, days: int = 7) -> dict:
 
     today_challenge_buckets = today_profile["challenge"]["bucket_rows"] if today_profile else []
 
-    family_stream = {family: [0] * len(calendar_days) for family in EMOTION_FAMILIES}
+    quadrant_stream = {quadrant: [0] * len(calendar_days) for quadrant in QUADRANT_ORDER}
     for idx, day in enumerate(calendar_days):
         for entry in bundle["saga_by_day"].get(day, []):
             for mention in _entry_emotion_mentions(entry):
-                if mention["family"] in family_stream:
-                    family_stream[mention["family"]][idx] += 1
+                if mention["quadrant"] in quadrant_stream:
+                    quadrant_stream[mention["quadrant"]][idx] += 1
 
     bucket_series: dict[str, list[float | None]] = {"anchor": [], "improver": [], "enricher": [], "composite": []}
     for p in day_profiles:
@@ -1738,15 +1713,15 @@ async def saga_dashboard(db: aiosqlite.Connection, days: int = 7) -> dict:
 
     heatmap = []
     for p in day_profiles:
-        avg = p["saga"]["avg_intensity"]
+        avg = p["saga"]["mood_load"]
         count = p["saga"]["entry_count"]
         if not count:
             level = "empty"
-        elif avg <= 3:
+        elif avg <= 25:
             level = "low"
-        elif avg <= 6:
+        elif avg <= 50:
             level = "mid"
-        elif avg <= 8:
+        elif avg <= 70:
             level = "high"
         else:
             level = "peak"
@@ -1801,13 +1776,13 @@ async def saga_dashboard(db: aiosqlite.Connection, days: int = 7) -> dict:
     distribution_total = sum(family_counts.values())
     distribution = [
         {
-            "family": family,
-            "label": family.title(),
-            "count": family_counts.get(family, 0),
-            "pct": round((family_counts.get(family, 0) / distribution_total) * 100) if distribution_total else 0,
-            "accent": EMOTION_ACCENTS[family],
+            "quadrant": quadrant,
+            "label": QUADRANT_LABELS[quadrant],
+            "count": family_counts.get(quadrant, 0),
+            "pct": round((family_counts.get(quadrant, 0) / distribution_total) * 100) if distribution_total else 0,
+            "accent": QUADRANT_COLORS[quadrant],
         }
-        for family in EMOTION_FAMILIES
+        for quadrant in QUADRANT_ORDER
     ]
 
     top_labels = [
@@ -1815,19 +1790,20 @@ async def saga_dashboard(db: aiosqlite.Connection, days: int = 7) -> dict:
         for lbl, count in label_counts.most_common(5)
     ]
 
-    opposite_count = sum(1 for r in raw_rows if r.get("dyad_type") == "opposite")
     risk_signals = _risk_signals(day_profiles)
     scatter = _scatter_points(day_profiles, today_iso)
-    top_dyads = _top_dyads(raw_rows, 5)
-    wheel = _wheel_cells(raw_rows)
+    top_moods = [
+        {"label": lbl, "count": count}
+        for lbl, count in label_counts.most_common(5)
+    ]
+    mood_grid = _mood_meter_cells(raw_rows)
     meta_analysis = _meta_analysis(
         day_profiles,
         raw_rows,
         family_counts,
         streaks,
         best_day,
-        top_dyads,
-        opposite_count,
+        top_moods,
     )
     meta_summary = _meta_summary(meta_analysis, risk_signals, trends)
 
@@ -1858,13 +1834,14 @@ async def saga_dashboard(db: aiosqlite.Connection, days: int = 7) -> dict:
             "output_index": output_series,
             "challenge_score": challenge_series,
             "alignment": alignment_series,
-            "avg_intensity": intensity_series,
+            "avg_energy": energy_series,
+            "avg_pleasantness": pleasantness_series,
         },
-        "family_stream": {
+        "quadrant_stream": {
             "dates": calendar_days,
             "series": [
-                {"family": family, "label": family.title(), "accent": EMOTION_ACCENTS[family], "data": values}
-                for family, values in family_stream.items()
+                {"quadrant": quadrant, "label": QUADRANT_LABELS[quadrant], "accent": QUADRANT_COLORS[quadrant], "data": values}
+                for quadrant, values in quadrant_stream.items()
             ],
         },
         "heatmap": heatmap,
@@ -1883,45 +1860,13 @@ async def saga_dashboard(db: aiosqlite.Connection, days: int = 7) -> dict:
         "common_archetype": trends.get("common_archetype"),
         "pressure_output": trends.get("pressure_output"),
         "dow_profile": _dow_profile(day_profiles),
-        "block_emotion": _block_emotion_matrix(raw_rows),
-        "top_dyads": top_dyads,
-        "opposite_count": opposite_count,
+        "block_mood": _block_mood_matrix(raw_rows),
+        "top_moods": top_moods,
         "distribution": distribution,
         "top_labels": top_labels,
-        "wheel": wheel,
+        "mood_grid": mood_grid,
         "total_entries": len(raw_rows),
-        "total_emotion_mentions": distribution_total,
+        "total_mood_mentions": distribution_total,
         "meta_analysis": meta_analysis,
         "meta_summary": meta_summary,
     }
-
-
-def emotion_catalog() -> list[dict]:
-    return [
-        {
-            "family": family,
-            "label": family.title(),
-            "words": words,
-            "accent": EMOTION_ACCENTS[family],
-            "mix": MIXED_EMOTIONS.get(family),
-        }
-        for family, words in EMOTION_FAMILIES.items()
-    ]
-
-
-def dyad_catalog() -> dict:
-    dyads = {}
-    for pair, data in DYAD_PAIRS.items():
-        key = "|".join(sorted(pair))
-        dyads[key] = {
-            "label": data["label"],
-            "type": data["type"],
-            "accent": DYAD_ACCENTS[data["label"]],
-        }
-    for pair in OPPOSITE_PAIRS:
-        dyads["|".join(sorted(pair))] = {
-            "label": None,
-            "type": "opposite",
-            "accent": DYAD_ACCENTS["opposite"],
-        }
-    return dyads

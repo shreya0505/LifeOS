@@ -8,21 +8,13 @@
             @click="open = !open">
       <span class="saga-entry-row__time">{{ entry.timestamp[11:16] }}</span>
       <span class="saga-entry-row__content">
-        <span class="saga-entry-row__label">
-          {{ entry.emotion_label }}{% if entry.secondary_emotion_label %} + {{ entry.secondary_emotion_label }}{% endif %}
-        </span>
+        <span class="saga-entry-row__label">{{ entry.mood_word }}</span>
         {% if entry.note %}
         <span class="saga-entry-row__note">{{ entry.note_html | safe }}</span>
         {% endif %}
       </span>
       <span class="saga-entry-row__meta">
-        {% if entry.dyad_type == "opposite" %}
-        opposites / {{ entry.intensity }}
-        {% elif entry.dyad_label %}
-        {{ entry.dyad_label }} / {{ entry.intensity }}
-        {% else %}
-        {{ entry.emotion_family }} / {{ entry.intensity }}
-        {% endif %}
+        {{ entry.quadrant }} · E:{{ entry.energy }} P:{{ entry.pleasantness }}
       </span>
       <span class="saga-entry-row__chevron" aria-hidden="true"></span>
     </button>
@@ -34,22 +26,16 @@
           hx-target="#saga-recent"
           hx-swap="innerHTML">
       <label>
-        <span>Family</span>
-        <select name="emotion_family">
-          {% for group in emotion_catalog %}
-          <option value="{{ group.family }}"{% if group.family == entry.emotion_family %} selected{% endif %}>{{ group.label }}</option>
-          {% endfor %}
-        </select>
+        <span>Energy</span>
+        <input name="energy" type="number" min="-5" max="5" value="{{ entry.energy }}">
+      </label>
+      <label>
+        <span>Pleasantness</span>
+        <input name="pleasantness" type="number" min="-5" max="5" value="{{ entry.pleasantness }}">
       </label>
       <label>
         <span>Word</span>
-        <input name="emotion_label" value="{{ entry.emotion_label }}" maxlength="32">
-      </label>
-      <input type="hidden" name="secondary_emotion_family" value="{{ entry.secondary_emotion_family or '' }}">
-      <input type="hidden" name="secondary_emotion_label" value="{{ entry.secondary_emotion_label or '' }}">
-      <label>
-        <span>Intensity</span>
-        <input name="intensity" type="number" min="1" max="10" value="{{ entry.intensity }}">
+        <input name="mood_word" value="{{ entry.mood_word }}" maxlength="40">
       </label>
       <label class="saga-entry-edit__note">
         <span>Note</span>

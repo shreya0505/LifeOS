@@ -1,4 +1,4 @@
-"""Tests for Saga emotion logging and projections."""
+"""Tests for Saga mood logging and projections."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import pytest
 
 from core.config import USER_TZ
 from core.saga import saga_metrics
+from core.storage.saga_backend import mood_catalog
 from core.sync.config import SyncConfig
 from core.sync.schema import sync_table_names
 from core.sync.service import SyncService
@@ -38,6 +39,29 @@ def _sync_config(device: str) -> SyncConfig:
     )
 
 
+async def _insert_saga(db, entry_id: str, day: str, energy: int = 3, pleasantness: int = -2, word: str = "frustrated", hour: int = 9):
+    quadrant = "yellow" if energy > 0 and pleasantness > 0 else "red" if energy > 0 else "green" if pleasantness > 0 else "blue"
+    await db.execute(
+        "INSERT INTO saga_entries "
+        "(id, timestamp, local_date, energy, pleasantness, quadrant, mood_word) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (entry_id, f"{day}T{hour:02d}:00:00+05:30", day, energy, pleasantness, quadrant, word),
+    )
+
+
+def test_saga_mood_catalog_has_100_nonzero_quadrant_cells():
+    catalog = mood_catalog()
+    assert len(catalog) == 100
+    assert all(cell["energy"] != 0 and cell["pleasantness"] != 0 for cell in catalog)
+    by_coords = {(cell["energy"], cell["pleasantness"]): cell for cell in catalog}
+    assert by_coords[(5, -5)]["quadrant"] == "red"
+    assert by_coords[(5, -5)]["word"] == "enraged"
+    assert by_coords[(5, 5)]["quadrant"] == "yellow"
+    assert by_coords[(5, 5)]["word"] == "ecstatic"
+    assert by_coords[(-5, 5)]["quadrant"] == "green"
+    assert by_coords[(-5, -5)]["quadrant"] == "blue"
+
+
 @pytest.mark.asyncio
 async def test_saga_migration_adds_synced_table(db):
     columns = [r[1] for r in await (await db.execute("PRAGMA table_info(saga_entries)")).fetchall()]
@@ -45,14 +69,11 @@ async def test_saga_migration_adds_synced_table(db):
         "id",
         "timestamp",
         "local_date",
-        "emotion_family",
-        "emotion_label",
-        "intensity",
+        "energy",
+        "pleasantness",
+        "quadrant",
+        "mood_word",
         "note",
-        "secondary_emotion_family",
-        "secondary_emotion_label",
-        "dyad_label",
-        "dyad_type",
         "updated_at",
         "deleted_at",
         "sync_revision",
@@ -64,8 +85,8 @@ async def test_saga_migration_adds_synced_table(db):
 
     await db.execute(
         "INSERT INTO saga_entries "
-        "(id, timestamp, local_date, emotion_family, emotion_label, intensity) "
-        "VALUES ('s1', '2026-04-25T09:00:00+05:30', '2026-04-25', 'joy', 'joy', 5)"
+        "(id, timestamp, local_date, energy, pleasantness, quadrant, mood_word) "
+        "VALUES ('s1', '2026-04-25T09:00:00+05:30', '2026-04-25', 4, -3, 'red', 'anxious')"
     )
     await db.commit()
     row = await (await db.execute(
@@ -86,8 +107,8 @@ async def test_saga_entries_sync(sync_db):
 
     await db1.execute(
         "INSERT INTO saga_entries "
-        "(id, timestamp, local_date, emotion_family, emotion_label, intensity, note) "
-        "VALUES ('s1', '2026-04-25T09:00:00+05:30', '2026-04-25', 'joy', 'serenity', 3, 'clear')"
+        "(id, timestamp, local_date, energy, pleasantness, quadrant, mood_word, note) "
+        "VALUES ('s1', '2026-04-25T09:00:00+05:30', '2026-04-25', -2, 4, 'green', 'balanced', 'clear')"
     )
     await db1.commit()
 
@@ -95,35 +116,41 @@ async def test_saga_entries_sync(sync_db):
     assert (await svc2.pull()).status == "ok"
 
     row = await (await db2.execute(
-        "SELECT emotion_label, intensity, note FROM saga_entries WHERE id = 's1'"
+        "SELECT energy, pleasantness, quadrant, mood_word, note FROM saga_entries WHERE id = 's1'"
     )).fetchone()
-    assert row == ("serenity", 3, "clear")
+    assert row == (-2, 4, "green", "balanced", "clear")
 
 
 @pytest.mark.asyncio
 async def test_saga_crud_routes(client, db):
     r = await client.get("/saga")
     assert r.status_code == 200
-    assert "What is the tone right now?" in r.text
+    assert "What is the weather inside?" in r.text
 
     r = await client.post("/saga/entries", data={
-        "emotion_family": "anger",
-        "emotion_label": "annoyance",
-        "intensity": "4",
+        "energy": "3",
+        "pleasantness": "-2",
+        "mood_word": "frustrated",
         "note": "too much noise",
     })
     assert r.status_code == 200
-    assert "annoyance" in r.text
+    assert "frustrated" in r.text
+    assert "red" in r.text
 
-    entry_id = (await (await db.execute("SELECT id FROM saga_entries")).fetchone())[0]
+    row = await (await db.execute("SELECT id, quadrant FROM saga_entries")).fetchone()
+    entry_id = row[0]
+    assert row[1] == "red"
+
     r = await client.patch(f"/saga/entries/{entry_id}", data={
-        "emotion_family": "trust",
-        "emotion_label": "acceptance",
-        "intensity": "2",
+        "energy": "-2",
+        "pleasantness": "3",
+        "mood_word": "relieved",
         "note": "settled",
     })
     assert r.status_code == 200
-    assert "acceptance" in r.text
+    assert "relieved" in r.text
+    row = await (await db.execute("SELECT quadrant FROM saga_entries WHERE id = ?", (entry_id,))).fetchone()
+    assert row[0] == "green"
 
     r = await client.delete(f"/saga/entries/{entry_id}")
     assert r.status_code == 200
@@ -132,14 +159,22 @@ async def test_saga_crud_routes(client, db):
 
 
 @pytest.mark.asyncio
+async def test_saga_rejects_zero_coordinate(client, db):
+    r = await client.post("/saga/entries", data={
+        "energy": "0",
+        "pleasantness": "-2",
+        "mood_word": "flat",
+        "note": "",
+    })
+    assert r.status_code == 400
+    assert "Energy must be one of -5..-1 or 1..5." in r.text
+
+
+@pytest.mark.asyncio
 async def test_saga_today_tab_is_input_only_with_rpg_nav_labels(client, db):
     day = datetime.now(USER_TZ).date().isoformat()
-    await db.execute(
-        "INSERT INTO saga_entries "
-        "(id, timestamp, local_date, emotion_family, emotion_label, intensity, note) "
-        "VALUES ('saga-existing', ?, ?, 'joy', 'joy', 5, 'existing note should stay out of input tab')",
-        (f"{day}T09:00:00+05:30", day),
-    )
+    await _insert_saga(db, "saga-existing", day, -2, 3, "relieved")
+    await db.execute("UPDATE saga_entries SET note = 'existing note should stay out of input tab' WHERE id = 'saga-existing'")
     await db.commit()
 
     r = await client.get("/saga")
@@ -158,55 +193,9 @@ async def test_saga_today_tab_is_input_only_with_rpg_nav_labels(client, db):
 
 
 @pytest.mark.asyncio
-async def test_saga_two_emotions_save_primary_dyad(client, db):
-    r = await client.post("/saga/entries", data={
-        "emotion_family": "joy",
-        "emotion_label": "joy",
-        "secondary_emotion_family": "trust",
-        "secondary_emotion_label": "trust",
-        "intensity": "6",
-        "note": "warm and steady",
-    })
-    assert r.status_code == 200
-    assert "love / primary" in r.text
-
-    row = await (await db.execute(
-        "SELECT secondary_emotion_family, secondary_emotion_label, dyad_label, dyad_type "
-        "FROM saga_entries"
-    )).fetchone()
-    assert row == ("trust", "trust", "love", "primary")
-
-
-@pytest.mark.asyncio
-async def test_saga_two_emotions_save_opposite_without_dyad_label(client, db):
-    r = await client.post("/saga/entries", data={
-        "emotion_family": "joy",
-        "emotion_label": "serenity",
-        "secondary_emotion_family": "sadness",
-        "secondary_emotion_label": "pensiveness",
-        "intensity": "4",
-        "note": "both at once",
-    })
-    assert r.status_code == 200
-    assert "Opposites" in r.text
-
-    row = await (await db.execute(
-        "SELECT secondary_emotion_family, secondary_emotion_label, dyad_label, dyad_type "
-        "FROM saga_entries"
-    )).fetchone()
-    assert row == ("sadness", "pensiveness", None, "opposite")
-
-
-@pytest.mark.asyncio
 async def test_saga_timeline_merges_sources(client, db):
     day = datetime.now(USER_TZ).date().isoformat()
-    await db.execute(
-        "INSERT INTO saga_entries "
-        "(id, timestamp, local_date, emotion_family, emotion_label, intensity, "
-        "secondary_emotion_family, secondary_emotion_label, dyad_label, dyad_type) "
-        "VALUES ('s1', ?, ?, 'joy', 'joy', 5, 'trust', 'trust', 'love', 'primary')",
-        (f"{day}T09:00:00+05:30", day),
-    )
+    await _insert_saga(db, "s1", day, 4, 3, "joyful")
     await db.execute(
         "INSERT INTO quests (id, title, status, frog, created_at, completed_at, workspace_id) "
         "VALUES ('q1', 'Ship the draft', 'done', 0, ?, ?, 'work')",
@@ -231,7 +220,7 @@ async def test_saga_timeline_merges_sources(client, db):
 
     r = await client.get("/saga/timeline")
     assert r.status_code == 200
-    assert "joy" in r.text
+    assert "joyful" in r.text
     assert "Ship the draft" in r.text
     assert "Walk" in r.text
     assert "saga-day-section--entries" in r.text
@@ -239,18 +228,15 @@ async def test_saga_timeline_merges_sources(client, db):
     assert "saga-day-section--challenges" in r.text
     assert "saga-day-data-row--questlog" in r.text
     assert "saga-day-data-row--hard90" in r.text
-    assert "--day-mood-accent: #F6D365" in r.text
+    assert "--day-mood-accent: #F4C430" in r.text
     assert "1 entry" in r.text
-    assert "latest joy 5/10" in r.text
+    assert "latest joyful E:4 P:3" in r.text
     assert "1 quest" in r.text
     assert "1 trial" in r.text
-    assert "--mood-accent: #F6D365" in r.text
-    assert "--dyad-accent: #FF7BA7" in r.text
-    assert "saga-mood-pill--emotion" in r.text
-    assert "saga-mood-pill--dyad" in r.text
-    assert "saga-mood-pill--intensity" in r.text
-    assert "love" in r.text
-    assert r.text.index("joy") < r.text.index("Ship the draft") < r.text.index("Walk")
+    assert "--quadrant-accent: #F4C430" in r.text
+    assert "saga-mood-pill--quadrant" in r.text
+    assert "saga-mood-pill--coords" in r.text
+    assert r.text.index("joyful") < r.text.index("Ship the draft") < r.text.index("Walk")
 
 
 def test_saga_timeline_extends_with_page_not_nested_scroll():
@@ -264,23 +250,19 @@ def test_saga_timeline_extends_with_page_not_nested_scroll():
 @pytest.mark.asyncio
 async def test_saga_metrics_render(client, db):
     day = datetime.now(USER_TZ).date().isoformat()
-    for idx, intensity in enumerate((3, 8, 9), start=1):
-        await db.execute(
-            "INSERT INTO saga_entries "
-            "(id, timestamp, local_date, emotion_family, emotion_label, intensity) "
-            "VALUES (?, ?, ?, 'fear', 'fear', ?)",
-            (f"s{idx}", f"{day}T0{idx}:00:00+05:30", day, intensity),
-        )
+    for idx, coords in enumerate(((3, -2, "frustrated"), (4, -4, "terrified"), (5, -5, "enraged")), start=1):
+        await _insert_saga(db, f"s{idx}", day, coords[0], coords[1], coords[2], hour=idx)
     await db.commit()
 
     r = await client.get("/saga/metrics")
     assert r.status_code == 200
     assert "The Field Report" in r.text
-    assert "Emotional Debt" in r.text
-    assert "Load consumed execution" in r.text
+    assert "Red Spillover" in r.text
+    assert "Mood load consumed execution" in r.text
     assert "Mood × Output co-movement" in r.text
+    assert "Energy × Pleasantness drift" in r.text
     assert "Challenge posture" in r.text
-    assert "Emotion Atlas" in r.text
+    assert "Mood Atlas" in r.text
 
 
 @pytest.mark.asyncio
@@ -289,19 +271,8 @@ async def test_saga_metrics_derives_relational_day_archetype(db):
     today = day.isoformat()
     yesterday = (day - timedelta(days=1)).isoformat()
 
-    await db.execute(
-        "INSERT INTO saga_entries "
-        "(id, timestamp, local_date, emotion_family, emotion_label, intensity, "
-        "secondary_emotion_family, secondary_emotion_label, dyad_label, dyad_type) "
-        "VALUES ('storm-1', ?, ?, 'joy', 'joy', 8, 'trust', 'trust', 'love', 'primary')",
-        (f"{today}T09:00:00+05:30", today),
-    )
-    await db.execute(
-        "INSERT INTO saga_entries "
-        "(id, timestamp, local_date, emotion_family, emotion_label, intensity) "
-        "VALUES ('storm-2', ?, ?, 'joy', 'ecstasy', 9)",
-        (f"{today}T18:00:00+05:30", today),
-    )
+    await _insert_saga(db, "storm-1", today, 5, -5, "enraged", hour=9)
+    await _insert_saga(db, "storm-2", today, 4, -4, "terrified", hour=18)
     await db.execute(
         "INSERT INTO quests (id, title, status, frog, priority, created_at, completed_at, workspace_id) "
         "VALUES ('q-prev', 'Yesterday baseline', 'done', 0, 4, ?, ?, 'work')",
@@ -339,7 +310,7 @@ async def test_saga_metrics_derives_relational_day_archetype(db):
     await db.execute(
         "INSERT INTO challenge_entries "
         "(id, task_id, challenge_id, log_date, state, created_at) "
-        "VALUES ('rel-entry-2', 'rel-improver', 'rel-ch', ?, 'COMPLETED_UNSATISFACTORY', ?)",
+        "VALUES ('rel-entry-2', 'rel-improver', 'rel-ch', ?, 'COMPLETED_SATISFACTORY', ?)",
         (today, f"{today}T20:05:00+05:30"),
     )
     await db.commit()
@@ -347,9 +318,9 @@ async def test_saga_metrics_derives_relational_day_archetype(db):
     metrics = await saga_metrics(db)
     current = metrics["current"]
 
-    assert current["archetype"] == "Storm Forge"
-    assert current["relations"]["emotion_quest"] == "Output held under pressure"
-    assert current["relations"]["emotion_challenge"] == "Discipline held under pressure"
+    assert current["archetype"] == "Red Forge"
+    assert current["relations"]["emotion_quest"] == "Output held under mood load"
+    assert current["relations"]["emotion_challenge"] == "Discipline held under load"
     assert current["relations"]["quest_challenge"] == "Aligned progress"
     assert current["saga"]["mood_load"] >= 65
     assert current["quest"]["output_index"] >= 55

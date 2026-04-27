@@ -100,12 +100,28 @@
     });
   }
 
+  function initAffect(root, data) {
+    render(root, "#chart-affect", {
+      ...baseChart("line", 300),
+      series: [
+        { name: "Energy", data: data.timeseries.avg_energy },
+        { name: "Pleasantness", data: data.timeseries.avg_pleasantness },
+      ],
+      colors: ["#F4C430", "#5BB97C"],
+      labels: data.timeseries.labels,
+      yaxis: { min: -5, max: 5, tickAmount: 10 },
+      annotations: {
+        yaxis: [{ y: 0, borderColor: "rgba(245,241,234,0.24)" }],
+      },
+    });
+  }
+
   function initStream(root, data) {
     render(root, "#chart-stream", {
       ...baseChart("area", 320),
       chart: { ...baseChart("area", 320).chart, stacked: true },
-      series: data.family_stream.series.map(item => ({ name: item.label, data: item.data })),
-      colors: data.family_stream.series.map(item => item.accent),
+      series: data.quadrant_stream.series.map(item => ({ name: item.label, data: item.data })),
+      colors: data.quadrant_stream.series.map(item => item.accent),
       labels: data.timeseries.labels,
       yaxis: { min: 0, labels: { formatter: v => Math.round(v) } },
       fill: { opacity: 0.54 },
@@ -226,10 +242,10 @@
   }
 
   function initBlock(root, data) {
-    const block = data.block_emotion;
+    const block = data.block_mood;
     const series = block.blocks.map(name => ({
       name,
-      data: block.families.map(family => ({ x: family.title ? family.title() : family[0].toUpperCase() + family.slice(1), y: block.matrix[name][family] || 0 })),
+      data: block.quadrants.map(quadrant => ({ x: quadrant[0].toUpperCase() + quadrant.slice(1), y: block.matrix[name][quadrant] || 0 })),
     }));
     render(root, "#chart-block", {
       ...baseChart("heatmap", 320),
@@ -256,6 +272,7 @@
       if (!data) return;
       initKpis(root, data);
       initComove(root, data);
+      initAffect(root, data);
       initStream(root, data);
       initHeatmap(root, data);
       initBuckets(root, data);

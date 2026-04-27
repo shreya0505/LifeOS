@@ -10,65 +10,78 @@
 
   <section class="saga-panel" x-show="tab === 'today'">
     <div class="saga-today"
-         x-data='sagaCapture({{ emotion_catalog | tojson }}, {{ dyad_catalog | tojson }})'
+         x-data='sagaMoodCapture({{ mood_catalog | tojson }})'
          x-init="init()">
       <div class="saga-today__prompt">
         <p class="saga-kicker">{{ today_label }}</p>
-        <h1 class="saga-prompt">What is the tone right now?</h1>
-        <p class="saga-today__sub">Choose a word, set the pressure, leave a line if it helps.</p>
+        <h1 class="saga-prompt">What are you feeling right now?</h1>
+        <p class="saga-today__sub">Find the point where energy and pleasantness meet. The word can be approximate; the coordinates carry the signal.</p>
       </div>
 
       <form class="saga-capture"
             hx-post="/saga/entries"
             hx-swap="none"
             @htmx:after-request="if ($event.detail.successful) finishCapture()">
-        <input type="hidden" name="emotion_family" :value="primaryEmotion().family">
-        <input type="hidden" name="emotion_label" :value="primaryEmotion().label">
-        <input type="hidden" name="secondary_emotion_family" :value="secondaryEmotion() ? secondaryEmotion().family : ''">
-        <input type="hidden" name="secondary_emotion_label" :value="secondaryEmotion() ? secondaryEmotion().label : ''">
-        <input type="hidden" name="intensity" x-model="intensity">
+        <input type="hidden" name="energy" :value="selected ? selected.energy : ''">
+        <input type="hidden" name="pleasantness" :value="selected ? selected.pleasantness : ''">
+        <input type="hidden" name="mood_word" :value="selected ? selected.word : ''">
 
-        <div class="saga-wheel" aria-label="Emotion selector">
-          {% for group in emotion_catalog %}
-          <section class="saga-wheel__lane"
-                   :class="{ 'is-selected': familySelected('{{ group.family }}') }"
-                   style="--lane-index: {{ loop.index0 }}; --emotion-accent: {{ group.accent }}">
-            <button class="saga-wheel__family" type="button"
-                    @click="toggleEmotion('{{ group.family }}', '{{ group.words[1] }}', 5)">
-              <span class="saga-wheel__pip"></span>
-              <span>{{ group.label }}</span>
-            </button>
-            <div class="saga-wheel__words">
-              {% for word in group.words %}
-              <button class="saga-word" type="button"
-                      :class="{ 'is-selected': isSelected('{{ group.family }}', '{{ word }}') }"
-                      style="--emotion-tier: {{ loop.index }}"
-                      @click="toggleEmotion('{{ group.family }}', '{{ word }}', {{ 2 if loop.index0 == 0 else 5 if loop.index0 == 1 else 8 }})">
-                {{ word }}
-              </button>
-              {% endfor %}
-            </div>
-          </section>
-          {% endfor %}
-        </div>
-
-        <div class="saga-dyad-strip"
-             x-show="selected.length === 2"
-             x-cloak
-             :class="'saga-dyad-strip--' + dyadConclusion().type"
-             :style="'--dyad-accent: ' + dyadConclusion().accent">
-          <span x-text="dyadConclusion().typeLabel"></span>
-          <strong x-text="dyadConclusion().label"></strong>
-          <em x-text="selectionLabel()"></em>
-        </div>
-
-        <div class="saga-intensity">
+        <div class="saga-mood-preview"
+             :class="{ 'is-empty': !previewCell() }"
+             :style="'--quadrant-accent: ' + (previewCell() ? previewCell().accent : '#CF9D7B')">
           <div>
-            <span class="saga-field-label">Intensity</span>
-            <strong x-text="intensity + '/10'"></strong>
-            <small x-text="intensityTier()"></small>
+            <span x-text="previewCell() ? quadrantLabel(previewCell().quadrant) : 'Mood meter'"></span>
+            <strong x-text="previewCell() ? previewCell().word : 'Name it'"></strong>
           </div>
-          <input type="range" min="1" max="10" step="1" x-model="intensity" aria-label="Intensity">
+          <p x-text="previewCell() ? coordsLabel(previewCell()) : 'Energy runs top to bottom. Pleasantness runs left to right.'"></p>
+        </div>
+
+        <div class="saga-mood-pad"
+             aria-label="Yale mood meter"
+             :style="'--energy-position: ' + axisEnergy() + '%; --pleasantness-position: ' + axisPleasantness() + '%; --quadrant-accent: ' + (previewCell() ? previewCell().accent : '#CF9D7B')">
+          <div class="saga-mood-axis saga-mood-axis--energy" aria-hidden="true">
+            <span></span>
+          </div>
+          <div class="saga-mood-axis saga-mood-axis--pleasantness" aria-hidden="true">
+            <span></span>
+          </div>
+          <canvas id="saga-mood-fx" class="saga-mood-fx" aria-hidden="true"></canvas>
+          <div class="saga-mood-grid" role="grid" aria-label="Energy by pleasantness mood grid">
+            {% for cell in mood_catalog %}
+            <button class="saga-mood-cell saga-mood-cell--{{ cell.quadrant }}{% if cell.energy > 0 %} saga-mood-cell--high{% else %} saga-mood-cell--low{% endif %}{% if cell.pleasantness < 0 %} saga-mood-cell--unpleasant{% else %} saga-mood-cell--pleasant{% endif %}"
+                    type="button"
+                    role="gridcell"
+                    data-energy="{{ cell.energy }}"
+                    data-pleasantness="{{ cell.pleasantness }}"
+                    data-word="{{ cell.word }}"
+                    data-quadrant="{{ cell.quadrant }}"
+                    data-accent="{{ cell.accent }}"
+                    :class="{
+                      'is-hovered': hovered && hovered.energy === {{ cell.energy }} && hovered.pleasantness === {{ cell.pleasantness }},
+                      'is-selected': selected && selected.energy === {{ cell.energy }} && selected.pleasantness === {{ cell.pleasantness }},
+                      'is-dimmed': selected && !(selected.energy === {{ cell.energy }} && selected.pleasantness === {{ cell.pleasantness }})
+                    }"
+                    :aria-pressed="(selected ? (selected.energy === {{ cell.energy }} && selected.pleasantness === {{ cell.pleasantness }}) : false).toString()"
+                    aria-label="{{ cell.word }}. Energy {{ cell.energy }}, pleasantness {{ cell.pleasantness }}."
+                    style="--quadrant-accent: {{ cell.accent }}; --cell-fill: {{ (10 + cell.axis_intensity * 62) | round }}%; --cell-fade: {{ (3 + cell.axis_intensity * 26) | round }}%; --cell-text: {{ (30 + cell.axis_intensity * 42) | round }}%;"
+                    @mouseenter="hoverCell({{ cell.energy }}, {{ cell.pleasantness }})"
+                    @mouseleave="clearHover()"
+                    @focus="hoverCell({{ cell.energy }}, {{ cell.pleasantness }})"
+                    @keydown="moveFocus($event, {{ loop.index0 }})"
+                    @click="toggleCell({{ cell.energy }}, {{ cell.pleasantness }})">
+              <span>{{ cell.word }}</span>
+            </button>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="saga-mood-summary"
+             x-show="selected"
+             x-cloak
+             :style="'--quadrant-accent: ' + (selected ? selected.accent : '#CF9D7B')">
+          <span class="saga-quadrant-badge" x-text="selected ? quadrantLabel(selected.quadrant) : ''"></span>
+          <strong x-text="selected ? selected.word : ''"></strong>
+          <em x-text="selected ? coordsLabel(selected) : ''"></em>
         </div>
 
         <label class="saga-note">
@@ -104,125 +117,6 @@
   </section>
 </div>
 
-<script>
-  function sagaCapture(catalog, dyads) {
-    return {
-      catalog,
-      dyads,
-      selected: [{ family: 'joy', label: 'joy', intensity: 5 }],
-      intensity: 5,
-      note: '',
-      confirmation: '',
-      draftPaused: false,
-      init() {
-        const saved = localStorage.getItem('saga.draft.v1');
-        if (saved) {
-          try {
-            const draft = JSON.parse(saved);
-            if (Array.isArray(draft.selected) && draft.selected.length) {
-              this.selected = draft.selected.slice(0, 2);
-            } else if (draft.family && draft.label) {
-              this.selected = [{ family: draft.family, label: draft.label, intensity: draft.intensity || 5 }];
-            }
-            this.intensity = draft.intensity || this.intensity;
-            this.note = draft.note || '';
-          } catch (_) {}
-        }
-        this.$watch('selected', () => this.saveDraft());
-        this.$watch('intensity', () => this.saveDraft());
-        this.$watch('note', () => this.saveDraft());
-      },
-      saveDraft() {
-        if (this.draftPaused) return;
-        localStorage.setItem('saga.draft.v1', JSON.stringify({
-          selected: this.selected,
-          intensity: this.intensity,
-          note: this.note
-        }));
-      },
-      primaryEmotion() {
-        return this.selected[0] || { family: '', label: '', intensity: 5 };
-      },
-      secondaryEmotion() {
-        return this.selected[1] || null;
-      },
-      canSubmit() {
-        const primary = this.primaryEmotion();
-        return Boolean(primary.family && primary.label);
-      },
-      pairKey() {
-        if (this.selected.length < 2) return '';
-        return [this.selected[0].family, this.selected[1].family].sort().join('|');
-      },
-      dyadConclusion() {
-        const found = this.dyads[this.pairKey()];
-        if (!found) {
-          return { label: 'No named dyad', type: 'none', typeLabel: 'Combination', accent: '#EACEAA' };
-        }
-        if (found.type === 'opposite') {
-          return { label: 'Opposites, not a dyad', type: 'opposite', typeLabel: 'Opposite', accent: found.accent };
-        }
-        return {
-          label: found.label,
-          type: found.type,
-          typeLabel: found.type + ' dyad',
-          accent: found.accent
-        };
-      },
-      selectionLabel() {
-        return this.selected.map(item => `${this.familyLabel(item.family)} / ${item.label}`).join(' + ');
-      },
-      familySelected(family) {
-        return this.selected.some(item => item.family === family);
-      },
-      isSelected(family, label) {
-        return this.selected.some(item => item.family === family && item.label === label);
-      },
-      familyLabel(family) {
-        const found = this.catalog.find(group => group.family === family);
-        return found ? found.label : family;
-      },
-      toggleEmotion(family, label, intensity) {
-        const existing = this.selected.findIndex(item => item.family === family && item.label === label);
-        if (existing >= 0) {
-          this.selected.splice(existing, 1);
-          this.intensity = this.selected.length ? Math.max(...this.selected.map(item => item.intensity || 5)) : 5;
-          return;
-        }
-        const sameFamily = this.selected.findIndex(item => item.family === family);
-        if (sameFamily >= 0) {
-          this.selected.splice(sameFamily, 1, { family, label, intensity });
-          this.intensity = Math.max(...this.selected.map(item => item.intensity || 5));
-          return;
-        }
-        const next = { family, label, intensity };
-        if (this.selected.length < 2) {
-          this.selected.push(next);
-        } else {
-          this.selected.splice(1, 1, next);
-        }
-        this.intensity = Math.max(...this.selected.map(item => item.intensity || 5));
-      },
-      intensityTier() {
-        if (this.intensity <= 3) return 'low tier';
-        if (this.intensity <= 7) return 'core tier';
-        return 'high tier';
-      },
-      finishCapture() {
-        this.draftPaused = true;
-        this.selected = [];
-        this.intensity = 5;
-        this.note = '';
-        this.confirmation = 'Entry saved.';
-        localStorage.removeItem('saga.draft.v1');
-        this.$nextTick(() => {
-          localStorage.removeItem('saga.draft.v1');
-          this.draftPaused = false;
-          if (this.$refs.noteInput) this.$refs.noteInput.focus();
-        });
-        setTimeout(() => this.confirmation = '', 1800);
-      }
-    }
-  }
-</script>
+<script src="/static/anime.min.js"></script>
+<script src="/static/saga_mood.js"></script>
 {% endblock %}
