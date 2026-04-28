@@ -64,6 +64,37 @@ async def _insert_challenge(db, entry_id: str, day: str, bucket: str = "anchor",
     )
 
 
+async def _insert_pomo(db, session_id: str, day: str, quest_id: str = "q-focus", pomos: int = 3, interruptions: int = 0):
+    await db.execute(
+        "INSERT INTO pomo_sessions "
+        "(id, quest_id, quest_title, started_at, ended_at, actual_pomos, status, streak_peak, total_interruptions, workspace_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, 'completed', ?, ?, 'work')",
+        (
+            session_id,
+            quest_id,
+            "Focused work",
+            f"{day}T09:00:00+05:30",
+            f"{day}T11:00:00+05:30",
+            pomos,
+            pomos,
+            interruptions,
+        ),
+    )
+    for lap in range(pomos):
+        await db.execute(
+            "INSERT INTO pomo_segments "
+            "(session_id, type, lap, cycle, completed, interruptions, started_at, ended_at, workspace_id) "
+            "VALUES (?, 'work', ?, 1, 1, ?, ?, ?, 'work')",
+            (
+                session_id,
+                lap,
+                interruptions if lap == 0 else 0,
+                f"{day}T{9 + lap:02d}:00:00+05:30",
+                f"{day}T{9 + lap:02d}:25:00+05:30",
+            ),
+        )
+
+
 @pytest.mark.asyncio
 async def test_saga_dashboard_shape_and_mood_meter_metrics(db):
     dashboard = await saga_dashboard(db, 7)
@@ -78,6 +109,8 @@ async def test_saga_dashboard_shape_and_mood_meter_metrics(db):
         "heatmap",
         "challenge_bucket_series",
         "risk_signals",
+        "narrative",
+        "grimoire",
         "scatter",
         "archetype_distribution",
         "streaks",
@@ -92,6 +125,31 @@ async def test_saga_dashboard_shape_and_mood_meter_metrics(db):
     assert [item["quadrant"] for item in dashboard["quadrant_stream"]["series"]] == ["yellow", "red", "green", "blue"]
     assert set(dashboard["meta_analysis"].keys()) >= {"emotion_load", "recovery", "mood_map"}
     assert all(len(kpi["spark"]) == 7 for kpi in dashboard["headline"]["kpis"].values())
+    assert dashboard["narrative"]["grain"] == "week"
+    assert "state_sentence" in dashboard["narrative"]
+    assert isinstance(dashboard["narrative"]["signals"], list)
+    assert set(dashboard["grimoire"].keys()) >= {
+        "verdict",
+        "pillars",
+        "recommendations",
+        "tendencies",
+        "charts",
+        "missing_data",
+    }
+    assert [pillar["key"] for pillar in dashboard["grimoire"]["pillars"]] == [
+        "daily_execution",
+        "long_game",
+        "evolution",
+        "emotional_climate",
+    ]
+    assert set(dashboard["grimoire"]["charts"].keys()) >= {
+        "systems_matrix",
+        "execution_long_game",
+        "mood_split",
+        "focus_quality",
+        "experiment_runway",
+        "bucket_risk",
+    }
 
 
 @pytest.mark.asyncio
@@ -108,11 +166,20 @@ async def test_saga_metrics_route_window_fallback_and_modes(client):
     assert "<!DOCTYPE html>" in full.text
     assert "The Field Report" in full.text
     assert "Mood Atlas" in full.text
+    assert "How am I doing this week" in full.text
+    assert "What should I improve?" in full.text
+    assert "What are my trends or tendencies?" in full.text
+    assert "chart-systems-matrix" in full.text
 
     fragment = await client.get("/saga/metrics?window=7", headers={"HX-Request": "true"})
     assert fragment.status_code == 200
     assert "<!DOCTYPE html>" not in fragment.text
-    assert 'class="saga-dashboard"' in fragment.text
+    assert 'class="saga-dashboard saga-dashboard--grimoire"' in fragment.text
+
+    grain = await client.get("/saga/metrics?grain=quarter", headers={"HX-Request": "true"})
+    assert grain.status_code == 200
+    assert "How am I doing this quarter" in grain.text
+    assert 'id="saga-payload-90"' in grain.text
 
 
 @pytest.mark.asyncio
@@ -123,6 +190,58 @@ async def test_saga_dashboard_empty_db_is_complete(db):
     assert dashboard["total_entries"] == 0
     assert dashboard["meta_analysis"]["capture"]["coverage_pct"] == 0
     assert dashboard["meta_summary"]["confidence"] == "low"
+    assert any(item["kind"] == "saga" for item in dashboard["grimoire"]["missing_data"])
+    assert dashboard["grimoire"]["verdict"]["label"] == "Data Thin"
+
+
+@pytest.mark.asyncio
+async def test_grimoire_detects_long_game_neglect_when_output_is_high(db):
+    await _challenge_setup(db)
+    today = _day()
+    await _insert_saga(db, "steady-yellow", today, 4, 4, "joyful")
+    for idx in range(4):
+        await _insert_quest(db, f"high-output-{idx}", today, frog=1 if idx == 0 else 0, priority=0)
+    await _insert_pomo(db, "focus-neglect", today, quest_id="high-output-0", pomos=4)
+    await _insert_challenge(db, "miss-anchor", today, "anchor", "NOT_DONE")
+    await _insert_challenge(db, "miss-improver", today, "improver", "PARTIAL")
+    await db.commit()
+
+    dashboard = await saga_dashboard(db, 7)
+
+    assert dashboard["grimoire"]["verdict"]["label"] in {"Long Game Neglect", "Productive Drift"}
+    long_game = next(p for p in dashboard["grimoire"]["pillars"] if p["key"] == "long_game")
+    daily = next(p for p in dashboard["grimoire"]["pillars"] if p["key"] == "daily_execution")
+    assert daily["score"] > long_game["score"]
+    assert any("Anchor" in rec["title"] for rec in dashboard["grimoire"]["recommendations"])
+
+
+@pytest.mark.asyncio
+async def test_grimoire_counts_failed_experiment_participation(db):
+    today = _day()
+    await db.execute(
+        "INSERT INTO challenges (id, era_name, start_date, midweek_adjective) "
+        "VALUES ('exp-ch', 'Experiment Era', ?, 'Bright')",
+        (today,),
+    )
+    await db.execute(
+        "INSERT INTO challenge_experiments "
+        "(id, challenge_id, action, motivation, timeframe, status, started_at, ends_at, verdict, created_at) "
+        "VALUES ('exp-failed', 'exp-ch', 'Test a no-phone morning', 'check energy', 'day', 'judged', ?, ?, 'failed_premise', ?)",
+        (today, today, f"{today}T07:00:00+05:30"),
+    )
+    await db.execute(
+        "INSERT INTO challenge_experiment_entries "
+        "(id, experiment_id, challenge_id, log_date, state, notes, created_at) "
+        "VALUES ('exp-failed-entry', 'exp-failed', 'exp-ch', ?, 'PARTIAL', 'Premise was wrong but useful.', ?)",
+        (today, f"{today}T20:00:00+05:30"),
+    )
+    await db.commit()
+
+    dashboard = await saga_dashboard(db, 7)
+    evolution = next(p for p in dashboard["grimoire"]["pillars"] if p["key"] == "evolution")
+
+    assert evolution["score"] > 0
+    assert "1 trial" in evolution["headline"]
 
 
 @pytest.mark.asyncio

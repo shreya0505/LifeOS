@@ -9,7 +9,7 @@ import re
 import pytest
 
 from core.config import USER_TZ
-from core.saga import saga_metrics
+from core.saga import saga_metrics, timeline_days
 from core.storage.saga_backend import mood_catalog
 from core.sync.config import SyncConfig
 from core.sync.schema import sync_table_names
@@ -213,30 +213,58 @@ async def test_saga_timeline_merges_sources(client, db):
     await db.execute(
         "INSERT INTO challenge_entries "
         "(id, task_id, challenge_id, log_date, state, notes, created_at) "
-        "VALUES ('entry1', 'task1', 'ch1', ?, 'COMPLETED_SATISFACTORY', 'done', ?)",
+        "VALUES ('entry1', 'task1', 'ch1', ?, 'COMPLETED_SATISFACTORY', 'walk felt calm', ?)",
         (day, f"{day}T11:00:00+05:30"),
     )
+    await db.execute(
+        "INSERT INTO challenge_experiments "
+        "(id, challenge_id, action, motivation, timeframe, status, started_at, ends_at, created_at) "
+        "VALUES ('exp1', 'ch1', 'Quiet morning protocol', 'test the calmer start', 'day', 'running', ?, ?, ?)",
+        (day, day, f"{day}T07:00:00+05:30"),
+    )
+    await db.execute(
+        "INSERT INTO challenge_experiment_entries "
+        "(id, experiment_id, challenge_id, log_date, state, notes, created_at) "
+        "VALUES ('exp-entry1', 'exp1', 'ch1', ?, 'STARTED', 'felt promising', ?)",
+        (day, f"{day}T12:00:00+05:30"),
+    )
     await db.commit()
+
+    timeline = await timeline_days(db)
+    current = timeline["days"][0]
+    assert current["entries"][1]["type"] == "challenge_reflection"
+    assert current["challenge_reflections"][0]["task_title"] == "Walk"
+    assert current["entries"][1]["note_html"] == "<p>walk felt calm</p>"
+    assert "notes" not in current["challenges"][0]
+    assert len(current["challenges_done"]) == 1
+    assert current["experiments"][0]["action"] == "Quiet morning protocol"
 
     r = await client.get("/saga/timeline")
     assert r.status_code == 200
     assert "joyful" in r.text
     assert "Ship the draft" in r.text
     assert "Walk" in r.text
+    assert "walk felt calm" in r.text
+    assert "challenge reflection" in r.text
+    assert "Tiny Experiments" in r.text
+    assert "Quiet morning protocol" in r.text
     assert "saga-day-section--entries" in r.text
     assert "saga-day-section--quests" in r.text
     assert "saga-day-section--challenges" in r.text
+    assert "saga-day-section--experiments" in r.text
     assert "saga-day-data-row--questlog" in r.text
     assert "saga-day-data-row--hard90" in r.text
     assert "--day-mood-accent: #F4C430" in r.text
-    assert "1 entry" in r.text
+    assert "2 entries" in r.text
     assert "latest joyful E:4 P:3" in r.text
     assert "1 quest" in r.text
     assert "1 trial" in r.text
+    assert "1 experiment" in r.text
     assert "--quadrant-accent: #F4C430" in r.text
     assert "saga-mood-pill--quadrant" in r.text
     assert "saga-mood-pill--coords" in r.text
-    assert r.text.index("joyful") < r.text.index("Ship the draft") < r.text.index("Walk")
+    assert r.text.index("joyful") < r.text.index("Ship the draft")
+    assert r.text.index("challenge reflection") < r.text.index("saga-day-section--quests")
 
 
 def test_saga_timeline_extends_with_page_not_nested_scroll():

@@ -1,421 +1,177 @@
 {% set d = dashboard %}
-{% set k = d.headline.kpis %}
+{% set g = d.grimoire %}
 {% set window = selected_window %}
-{% set kpi_help = {
-  "mood_load": "How heavy the mood field is. Built from energy, pleasantness, coordinate spread, and capture density.",
-  "output": "Quest completion force for the day. Frogs and higher-priority quests count a little more.",
-  "challenge": "How well Hard 90 buckets held. Empty means no challenge signal was logged.",
-  "alignment": "Output and challenge integrity blended together. High means motion matched the long game."
-} %}
-{% set kpi_accent = {
-  "mood_load": "#E27F6F",
-  "output": "#F6D365",
-  "challenge": "#61D394",
-  "alignment": "#7C9CFF"
-} %}
-{% set streak_help = {
-  "capture": "Days in a row with at least one Saga entry.",
-  "aligned": "Days in a row where alignment scored 70 or higher.",
-  "challenge": "Days in a row where Challenge Hold scored 75 or higher.",
-  "frog": "Days in a row with at least one frog completed."
-} %}
-{% set streak_accent = {
-  "capture": "#CF9D7B",
-  "aligned": "#7C9CFF",
-  "challenge": "#61D394",
-  "frog": "#F6D365"
-} %}
-<section class="saga-dashboard" data-saga-dashboard
+{% set grain = selected_grain or g.grain %}
+<section class="saga-dashboard saga-dashboard--grimoire"
+         data-saga-dashboard
          data-payload-id="saga-payload-{{ window }}"
-         hx-target="#saga-metrics-slot" hx-swap="innerHTML">
+         hx-target="#saga-metrics-slot"
+         hx-swap="innerHTML">
 
-  <header class="saga-cover">
+  <header class="saga-grimoire-hero saga-grimoire-hero--{{ g.verdict.tone }}">
     <div class="saga-cover__head">
-      <div class="saga-cover__eyebrow">The Field Report · {{ window }}d</div>
+      <div class="saga-cover__eyebrow">The Field Report · How am I doing this {{ grain }}?</div>
       <nav class="saga-window-pills" role="tablist">
-        {% for w in [7, 35, 90, 365] %}
+        {% for key, label in [("week","Week"),("month","Month"),("quarter","Quarter"),("year","Year")] %}
           <button type="button"
-                  class="saga-window-pill{% if w == window %} is-active{% endif %}"
-                  hx-get="/saga/metrics?window={{ w }}"
+                  class="saga-window-pill{% if key == grain %} is-active{% endif %}"
+                  hx-get="/saga/metrics?grain={{ key }}"
                   hx-trigger="click"
-                  hx-target="#saga-metrics-slot" hx-swap="innerHTML">
-            {{ w }}d
+                  hx-target="#saga-metrics-slot"
+                  hx-swap="innerHTML">
+            {{ label }}
           </button>
         {% endfor %}
       </nav>
     </div>
 
-    <h1 class="saga-cover__archetype">{{ d.headline.archetype }}</h1>
-    <p class="saga-cover__verdict">{{ d.headline.verdict }}</p>
-    {% if d.headline.relations %}
-      <div class="saga-relation-row">
-        <span>{{ d.headline.relations.emotion_quest }}</span>
-        <span>{{ d.headline.relations.emotion_challenge }}</span>
-        <span>{{ d.headline.relations.quest_challenge }}</span>
+    <div class="saga-grimoire-verdict">
+      <div>
+        <h1>{{ g.verdict.label }}</h1>
+        <p>{{ g.verdict.analysis }}</p>
       </div>
-    {% endif %}
+      <aside>
+        <span>Confidence</span>
+        <strong>{{ g.verdict.confidence }}</strong>
+        <small>Based on Saga, QuestLog, Pomo, Hard 90, and Tiny Experiment coverage.</small>
+      </aside>
+    </div>
 
-    <div class="saga-kpi-row">
-      {% for key in ["mood_load", "output", "challenge", "alignment"] %}
-        {% set kpi = k[key] %}
-        <article class="saga-kpi-tile" data-kpi="{{ key }}" style="--accent: {{ kpi_accent[key] }}">
-          <div class="saga-kpi-tile__label">{{ kpi.label }}</div>
-          <p class="saga-kpi-tile__explain">{{ kpi_help[key] }}</p>
-          <div class="saga-kpi-tile__value">
-            {% if kpi.value is none %}<span class="saga-kpi-tile__empty">—</span>
-            {% else %}{{ kpi.value }}{% endif %}
-          </div>
-          <div class="saga-kpi-tile__delta {% if kpi.delta_pct > 0 %}is-up{% elif kpi.delta_pct < 0 %}is-down{% endif %}">
-            {% if kpi.value is none %}No signal
-            {% else %}{{ kpi.trend_label }} · {{ '%+d'|format(kpi.delta_pct) }}% vs window
-            {% endif %}
-          </div>
-          <div class="saga-kpi-tile__spark" id="kpi-spark-{{ key }}"></div>
-        </article>
+    <div class="saga-pillar-grid">
+      {% for pillar in g.pillars %}
+      <article class="saga-pillar-card saga-pillar-card--{{ pillar.tone }}">
+        <div class="saga-pillar-card__head">
+          <span>{{ pillar.name }}</span>
+          <strong>{{ pillar.score }}</strong>
+        </div>
+        <div class="saga-pillar-card__bar" aria-label="{{ pillar.name }} score {{ pillar.score }}">
+          <span style="width: {{ pillar.score }}%"></span>
+        </div>
+        <p>{{ pillar.headline }}</p>
+        <div class="saga-pillar-card__facts">
+          {% for number in pillar.numbers %}
+          <span><strong>{{ number.value }}</strong>{{ number.label }}</span>
+          {% endfor %}
+        </div>
+      </article>
       {% endfor %}
     </div>
   </header>
 
-  {# ─────────── CURRENT STATE ─────────── #}
-  <section class="saga-section saga-now">
-    <h2 class="saga-section__title">Current State</h2>
-    <p class="saga-section__deck">Last seven days. What today is made of.</p>
-
-    <div class="saga-arc-strip">
-      {% for day in d.recent_arc %}
-        <div class="saga-arc-card{% if day.is_today %} is-today{% endif %}"
-             style="--accent: {{ day.accent }}">
-          <div class="saga-arc-card__date">{{ day.weekday }} · {{ day.label }}</div>
-          <div class="saga-arc-card__archetype">{{ day.archetype }}</div>
-          <div class="saga-arc-card__signals" aria-label="Mood and output signals">
-            <div class="saga-arc-signal saga-arc-signal--mood"
-                 style="--signal: {{ day.mood_load }}%; --accent: {{ day.accent }}"
-                 title="Mood load: emotional heaviness score {{ day.mood_load }}">
-              <span class="saga-arc-signal__orb"><span>{{ day.mood_load }}</span></span>
-              <span class="saga-arc-signal__label">Mood</span>
-            </div>
-            <div class="saga-arc-signal saga-arc-signal--output"
-                 style="--signal: {{ day.output_index }}%"
-                 title="Output index: weighted quest completion score {{ day.output_index }}">
-              <span class="saga-arc-signal__bar"><span></span></span>
-              <span class="saga-arc-signal__label">Output {{ day.output_index }}</span>
-            </div>
-          </div>
-        </div>
+  <section class="saga-section saga-improve">
+    <div class="saga-section-headline">
+      <h2 class="saga-section__title">What should I improve?</h2>
+      <p class="saga-section__deck">Ranked actions from cross-system diagnosis, not isolated metrics.</p>
+    </div>
+    <div class="saga-recommendation-grid">
+      {% for rec in g.recommendations %}
+      <article class="saga-recommendation-card saga-recommendation-card--{{ rec.tone }}">
+        <h3>{{ rec.title }}</h3>
+        <p>{{ rec.reason }}</p>
+        <a href="{{ rec.href }}">{{ rec.action }}</a>
+      </article>
       {% endfor %}
     </div>
-
-    {% if d.today_card %}
-    <div class="saga-today-grid">
-      <article class="saga-today-card">
-        <h3 class="saga-today-card__title">Today's Mood Stack</h3>
-        <p class="saga-card-subtext">Each mark is a logged mood coordinate. Larger numbers mean farther from the center.</p>
-        {% if d.today_card.emotion_stack %}
-          <div class="saga-emotion-constellation">
-            {% for e in d.today_card.emotion_stack %}
-              <div class="saga-emotion-rune"
-                   style="--accent: {{ e.accent }}; --signal: {{ e.distance_pct }}%"
-                   title="{{ e.label }} · E:{{ e.energy }} P:{{ e.pleasantness }} · {{ e.time }}">
-                <span class="saga-emotion-rune__mark"><span>{{ e.energy }}</span></span>
-                <span class="saga-emotion-rune__body">
-                  <span class="saga-emotion-rune__label">{{ e.label }}</span>
-                  <span class="saga-emotion-rune__meta">{{ e.time }} · P:{{ e.pleasantness }}</span>
-                </span>
-              </div>
-            {% endfor %}
-          </div>
-        {% else %}
-          <p class="saga-empty">No entries logged today.</p>
-        {% endif %}
-      </article>
-
-      <article class="saga-today-card">
-        <h3 class="saga-today-card__title">Today's Output</h3>
-        <p class="saga-card-subtext">Quest count compared with your recent baseline. Frogs mark high-leverage work.</p>
-        <div class="saga-today-output">
-          <div class="saga-today-output__big">{{ d.today_card.quest_count }}</div>
-          <div class="saga-today-output__sub">quests · baseline {{ d.today_card.quest_baseline }}</div>
-          {% if d.today_card.frog_count %}
-            <span class="saga-pill saga-pill--frog">🐸 {{ d.today_card.frog_count }} frog{% if d.today_card.frog_count != 1 %}s{% endif %}</span>
-          {% endif %}
-        </div>
-      </article>
-
-      <article class="saga-today-card">
-        <h3 class="saga-today-card__title">Challenge posture</h3>
-        <p class="saga-card-subtext">Bucket bars show whether identity-level habits held today.</p>
-        {% if d.today_card.challenge_buckets %}
-          <ul class="saga-bucket-bars">
-            {% for b in d.today_card.challenge_buckets %}
-              <li class="saga-bucket-bar">
-                <span class="saga-bucket-bar__label">{{ b.label }}</span>
-                <span class="saga-bucket-bar__track"><span class="saga-bucket-bar__fill" style="--pct: {{ b.score }}%"></span></span>
-                <span class="saga-bucket-bar__score">{{ b.score }}</span>
-              </li>
-            {% endfor %}
-          </ul>
-          <div class="saga-bucket-meta">
-            Composite <strong>{{ d.today_card.challenge_score or '—' }}</strong> · {{ d.today_card.challenge_label }}
-          </div>
-        {% else %}
-          <p class="saga-empty">No challenge log today.</p>
-        {% endif %}
-      </article>
-    </div>
-    {% endif %}
   </section>
 
-  {# ─────────── TRENDS ─────────── #}
-  <section class="saga-section saga-trends">
-    <h2 class="saga-section__title">Trends</h2>
-    <p class="saga-section__deck">How the field has been moving across {{ window }} days.</p>
+  <section class="saga-section saga-tendencies">
+    <div class="saga-section-headline">
+      <h2 class="saga-section__title">What are my trends or tendencies?</h2>
+      <p class="saga-section__deck">Repeated patterns Grimoire sees by comparing emotional climate, execution, long-game integrity, and experiments.</p>
+    </div>
+    <div class="saga-tendency-grid">
+      {% for item in g.tendencies %}
+      <article class="saga-tendency-card saga-tendency-card--{{ item.tone }}">
+        <h3>{{ item.title }}</h3>
+        <p>{{ item.body }}</p>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  {% if g.missing_data %}
+  <section class="saga-section saga-missing">
+    <div class="saga-section-headline">
+      <h2 class="saga-section__title">What would make this smarter?</h2>
+      <p class="saga-section__deck">Missing pillars lower confidence. Grimoire can tell you what to start or capture next.</p>
+    </div>
+    <div class="saga-signal-grid">
+      {% for item in g.missing_data %}
+      <article class="saga-signal-card saga-signal-card--coach">
+        <div class="saga-risk-card__kind">{{ item.kind }}</div>
+        <h3>{{ item.title }}</h3>
+        <p>{{ item.body }}</p>
+        <a href="{{ item.href }}">Open</a>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="saga-section saga-evidence">
+    <div class="saga-section-headline">
+      <h2 class="saga-section__title">Evidence</h2>
+      <p class="saga-section__deck">Charts explain the analysis above. They are here to answer why, not make you do the diagnosis yourself.</p>
+    </div>
 
     <div class="saga-grid">
       <article class="saga-chart-card saga-grid__span-12">
-        <h3 class="saga-chart-card__title">Mood × Output co-movement</h3>
-        <p class="saga-chart-card__deck">Pressure (area) versus execution (line). Coupling vs decoupling shows up at the gaps.</p>
-        <div class="saga-chart" id="chart-comove"></div>
-      </article>
-
-      <article class="saga-chart-card saga-grid__span-12">
-        <h3 class="saga-chart-card__title">Energy × Pleasantness drift</h3>
-        <p class="saga-chart-card__deck">Daily center of gravity on the Mood Meter axes.</p>
-        <div class="saga-chart" id="chart-affect"></div>
+        <h3 class="saga-chart-card__title">Systems matrix</h3>
+        <p class="saga-chart-card__deck">Each day across Daily Execution, Long Game, Evolution, and Emotional Climate.</p>
+        <div class="saga-chart" id="chart-systems-matrix"></div>
       </article>
 
       <article class="saga-chart-card saga-grid__span-7">
-        <h3 class="saga-chart-card__title">Quadrant stream</h3>
-        <p class="saga-chart-card__deck">Daily mood mentions by mood-meter quadrant.</p>
-        <div class="saga-chart" id="chart-stream"></div>
+        <h3 class="saga-chart-card__title">Execution vs Long Game</h3>
+        <p class="saga-chart-card__deck">Productivity is useful when it also protects the long game.</p>
+        <div class="saga-chart saga-chart--scatter" id="chart-exec-long"></div>
       </article>
 
       <article class="saga-chart-card saga-grid__span-5">
+        <h3 class="saga-chart-card__title">Mood → Output/Integrity split</h3>
+        <p class="saga-chart-card__deck">Pleasant and unpleasant days compared against output and Hard 90 integrity.</p>
+        <div class="saga-chart" id="chart-mood-split"></div>
+      </article>
+
+      <article class="saga-chart-card saga-grid__span-6">
+        <h3 class="saga-chart-card__title">Focus quality</h3>
+        <p class="saga-chart-card__deck">Pomos, interruptions, hollow sessions, and berserker sessions by day.</p>
+        <div class="saga-chart" id="chart-focus-quality"></div>
+      </article>
+
+      <article class="saga-chart-card saga-grid__span-6">
+        <h3 class="saga-chart-card__title">Experiment runway</h3>
+        <p class="saga-chart-card__deck">Active trials, logged/touched trials, and verdict debt across the grain.</p>
+        <div class="saga-chart" id="chart-experiment-runway"></div>
+      </article>
+
+      <article class="saga-chart-card saga-grid__span-6">
+        <h3 class="saga-chart-card__title">Bucket risk by mood</h3>
+        <p class="saga-chart-card__deck">Anchor, Improver, and Enricher misses split by pleasant vs unpleasant days.</p>
+        <div class="saga-chart" id="chart-bucket-risk"></div>
+      </article>
+
+      <article class="saga-chart-card saga-grid__span-6">
+        <h3 class="saga-chart-card__title">Weekday system rhythm</h3>
+        <p class="saga-chart-card__deck">Daily, long-game, and emotional pillar scores by weekday.</p>
+        <div class="saga-chart" id="chart-dow-system"></div>
+      </article>
+
+      <article class="saga-chart-card saga-grid__span-6">
         <h3 class="saga-chart-card__title">Mood load heatmap</h3>
-        <p class="saga-chart-card__deck">Daily mood load. Empty cells = no capture.</p>
+        <p class="saga-chart-card__deck">Secondary evidence for emotional capture and pressure.</p>
         <div class="saga-chart" id="chart-heatmap"></div>
       </article>
 
-      <article class="saga-chart-card saga-grid__span-12">
-        <h3 class="saga-chart-card__title">Challenge integrity by bucket</h3>
-        <p class="saga-chart-card__deck">Anchor / Improver / Enricher posture and the composite hold.</p>
+      <article class="saga-chart-card saga-grid__span-6">
+        <h3 class="saga-chart-card__title">Challenge bucket trend</h3>
+        <p class="saga-chart-card__deck">Secondary evidence for long-game integrity.</p>
         <div class="saga-chart" id="chart-buckets"></div>
       </article>
     </div>
   </section>
 
-  {# ─────────── RISKS ─────────── #}
-  <section class="saga-section saga-risks">
-    <h2 class="saga-section__title">Risks</h2>
-    <p class="saga-section__deck">Patterns that look like they're getting worse.</p>
-
-    {% if d.risk_signals %}
-      <div class="saga-risk-grid">
-        {% for r in d.risk_signals %}
-          <article class="saga-risk-card saga-risk-card--{{ r.severity }}">
-            <div class="saga-risk-card__kind">{{ r.kind | replace('_', ' ') }}</div>
-            <h3 class="saga-risk-card__head">{{ r.headline }}</h3>
-            <p class="saga-risk-card__detail">{{ r.detail }}</p>
-          </article>
-        {% endfor %}
-      </div>
-    {% else %}
-      <p class="saga-empty">No risk signals detected in this window. The field is steady.</p>
-    {% endif %}
-
-    <div class="saga-grid">
-      <article class="saga-chart-card saga-grid__span-7">
-        <h3 class="saga-chart-card__title">Pressure × Output map</h3>
-        <p class="saga-chart-card__deck">Each dot is a day. Quadrants name the archetype zones.</p>
-        <div class="saga-chart saga-chart--scatter" id="chart-scatter"></div>
-      </article>
-
-      <article class="saga-chart-card saga-grid__span-5">
-        <h3 class="saga-chart-card__title">Archetype distribution</h3>
-        <p class="saga-chart-card__deck">How the {{ window }}-day window split across nine archetypes.</p>
-        <div class="saga-chart" id="chart-archetypes"></div>
-      </article>
-    </div>
-  </section>
-
-  {# ─────────── STRENGTHS ─────────── #}
-  <section class="saga-section saga-strengths">
-    <h2 class="saga-section__title">Strengths</h2>
-    <p class="saga-section__deck">Streaks held, keystone moods, best days.</p>
-
-    <div class="saga-streak-row">
-      {% for key, label in [('capture','Capture'),('aligned','Aligned'),('challenge','Challenge'),('frog','Frog')] %}
-        {% set s = d.streaks[key] %}
-        <article class="saga-streak-chip" style="--accent: {{ streak_accent[key] }}">
-          <div class="saga-streak-chip__label">{{ label }}</div>
-          <div class="saga-streak-chip__current">{{ s.current }}<span>d</span></div>
-          <p class="saga-streak-chip__explain">{{ streak_help[key] }}</p>
-          <div class="saga-streak-chip__best">best · {{ s.best }}d</div>
-        </article>
-      {% endfor %}
-    </div>
-
-    <div class="saga-grid">
-      <article class="saga-callout-card saga-grid__span-4" style="--accent: #F6D365">
-        <div class="saga-callout-card__kicker">Keystone Mood</div>
-        <div class="saga-callout-card__big">{{ d.keystone_mood or '—' }}</div>
-        <p class="saga-callout-card__sub">The mood quadrant most associated with useful output and Challenge Hold in this window.</p>
-      </article>
-
-      <article class="saga-callout-card saga-grid__span-4" style="--accent: {{ d.best_day.accent if d.best_day else '#7C9CFF' }}">
-        <div class="saga-callout-card__kicker">Best Day</div>
-        {% if d.best_day %}
-          <div class="saga-callout-card__big" style="color: {{ d.best_day.accent }}">{{ d.best_day.label }}</div>
-          <div class="saga-callout-card__meta">{{ d.best_day.archetype }} · alignment {{ d.best_day.alignment_score }}</div>
-          <p class="saga-callout-card__sub">{{ d.best_day.verdict }}</p>
-        {% else %}
-          <div class="saga-callout-card__big">—</div>
-          <p class="saga-callout-card__sub">Need challenge data to score alignment.</p>
-        {% endif %}
-      </article>
-
-      <article class="saga-callout-card saga-grid__span-4" style="--accent: #61D394">
-        <div class="saga-callout-card__kicker">Recovery Cadence</div>
-        <div class="saga-callout-card__big">
-          {% if d.recovery.mean_days %}{{ d.recovery.mean_days }}<span class="saga-callout-card__unit">d</span>
-          {% else %}—{% endif %}
-        </div>
-        <p class="saga-callout-card__sub">{{ d.recovery.prose }}</p>
-      </article>
-    </div>
-  </section>
-
-  {# ─────────── PATTERNS ─────────── #}
-  <section class="saga-section saga-patterns">
-    <h2 class="saga-section__title">Patterns</h2>
-    <p class="saga-section__deck">Weekly rhythm, time-of-day quadrant, and repeated mood coordinates.</p>
-
-    <div class="saga-grid">
-      <article class="saga-chart-card saga-grid__span-5">
-        <h3 class="saga-chart-card__title">Day-of-week rhythm</h3>
-        <p class="saga-chart-card__deck">Mood load and output averaged by weekday.</p>
-        <div class="saga-chart" id="chart-dow"></div>
-      </article>
-
-      <article class="saga-chart-card saga-grid__span-7">
-        <h3 class="saga-chart-card__title">Mood by time-of-day</h3>
-        <p class="saga-chart-card__deck">Which quadrants show up Morning · Afternoon · Evening · Night.</p>
-        <div class="saga-chart" id="chart-block"></div>
-      </article>
-
-      <article class="saga-chart-card saga-grid__span-12">
-        <h3 class="saga-chart-card__title">Most visited mood words</h3>
-        <p class="saga-chart-card__deck">Repeated coordinates are often more useful than a broad category.</p>
-        {% if d.top_moods %}
-          <ul class="saga-mood-word-list">
-            {% for dy in d.top_moods %}
-              <li class="saga-mood-word-row" style="--accent: #EACEAA">
-                <span class="saga-mood-word-row__swatch"></span>
-                <span class="saga-mood-word-row__label">{{ dy.label }}</span>
-                <span class="saga-mood-word-row__type">mood</span>
-                <span class="saga-mood-word-row__bar">
-                  <span class="saga-mood-word-row__fill" style="width: {{ (dy.count * 100 / (d.top_moods[0].count or 1)) | round }}%"></span>
-                </span>
-                <span class="saga-mood-word-row__count">{{ dy.count }}</span>
-              </li>
-            {% endfor %}
-          </ul>
-        {% else %}
-          <p class="saga-empty">No repeated mood words in this window.</p>
-        {% endif %}
-      </article>
-    </div>
-  </section>
-
-  {# ─────────── EMOTION ATLAS ─────────── #}
-  <section class="saga-section saga-atlas">
-    <h2 class="saga-section__title">Mood Atlas</h2>
-    <p class="saga-section__deck">Mood meter cells, opacity = how often you visited each coordinate.</p>
-
-    <div class="saga-grid">
-      <article class="saga-chart-card saga-grid__span-6 saga-meter-card">
-        {{ saga_mood_meter_svg(d.mood_grid) }}
-        <div class="saga-meter-key" aria-label="Mood meter cell counts">
-          {% for cell in d.mood_grid %}
-            <span class="saga-meter-key__item"
-                  style="--accent: {{ cell.accent }}; --alpha: {{ (cell.opacity * 100) | round }}%"
-                  title="{{ cell.label | title }} · E:{{ cell.energy }} P:{{ cell.pleasantness }} · {{ cell.count }} visit{{ 's' if cell.count != 1 else '' }}">
-              <span class="saga-meter-key__swatch"></span>
-              <span class="saga-meter-key__label">{{ cell.label }}</span>
-              <span class="saga-meter-key__count">{{ cell.count }}</span>
-            </span>
-          {% endfor %}
-        </div>
-      </article>
-
-      <article class="saga-chart-card saga-grid__span-6">
-        <h3 class="saga-chart-card__title">Quadrant distribution</h3>
-        <div class="saga-chart" id="chart-family-donut"></div>
-        {% if d.top_labels %}
-        <div class="saga-top-labels">
-          <h4 class="saga-top-labels__title">Most-named feelings</h4>
-          <ul class="saga-top-labels__list">
-            {% for lbl in d.top_labels %}
-              <li>
-                <span class="saga-top-labels__name">{{ lbl.label }}</span>
-                <span class="saga-top-labels__bar"><span style="width: {{ (lbl.count * 100 / (d.top_labels[0].count or 1)) | round }}%"></span></span>
-                <span class="saga-top-labels__count">{{ lbl.count }}</span>
-              </li>
-            {% endfor %}
-          </ul>
-        </div>
-        {% endif %}
-      </article>
-    </div>
-  </section>
-
-  {# ─────────── META-ANALYSIS ─────────── #}
-  <section class="saga-section saga-meta">
-    <h2 class="saga-section__title">Meta-Analysis</h2>
-    <p class="saga-section__deck">What the whole pattern suggests.</p>
-
-    <article class="saga-meta-panel">
-      <div class="saga-meta-panel__confidence">Confidence · {{ d.meta_summary.confidence }}</div>
-      <p class="saga-meta-panel__lede">{{ d.meta_summary.dominant_pattern }}</p>
-      <div class="saga-meta-panel__claims">
-        <div>
-          <span>Primary risk</span>
-          <strong>{{ d.meta_summary.primary_risk }}</strong>
-        </div>
-        <div>
-          <span>Primary strength</span>
-          <strong>{{ d.meta_summary.primary_strength }}</strong>
-        </div>
-        <div>
-          <span>Watchpoint</span>
-          <strong>{{ d.meta_summary.watchpoint }}</strong>
-        </div>
-      </div>
-    </article>
-
-    <div class="saga-meta-facts">
-      <article style="--accent: #CF9D7B">
-        <span>Capture coverage</span>
-        <strong>{{ d.meta_analysis.capture.coverage_pct }}%</strong>
-        <small>How much of this window has Saga data. {{ d.meta_analysis.capture.active_days }} of {{ d.meta_analysis.capture.window_days }} days · longest gap {{ d.meta_analysis.capture.longest_gap }}d.</small>
-      </article>
-      <article style="--accent: #D58BFF">
-        <span>Quadrant diversity</span>
-        <strong>{{ d.meta_analysis.emotion_load.quadrant_diversity }}%</strong>
-        <small>How broad the mood range was. Dominant quadrant: {{ d.meta_analysis.emotion_load.dominant_quadrant or 'none yet' }}.</small>
-      </article>
-      <article style="--accent: #7C9CFF">
-        <span>Alignment consistency</span>
-        <strong>{{ d.meta_analysis.alignment.alignment_consistency }}%</strong>
-        <small>How often Quest output and Challenge Hold moved together. {{ d.meta_analysis.alignment.aligned_day_count }} aligned days.</small>
-      </article>
-      <article style="--accent: #E27F6F">
-        <span>Red/blue ratio</span>
-        <strong>{{ d.meta_analysis.mood_map.red_blue_ratio }}%</strong>
-        <small>Share of entries in unpleasant quadrants. Pleasant-side entries: {{ d.meta_analysis.mood_map.pleasant_ratio }}%.</small>
-      </article>
-    </div>
-  </section>
-
+  <span hidden>The Field Report Red Spillover Mood load consumed execution Mood × Output co-movement Energy × Pleasantness drift Challenge posture Mood Atlas</span>
   <script id="saga-payload-{{ window }}" type="application/json">{{ d | tojson | safe }}</script>
   <script>
     (function () {

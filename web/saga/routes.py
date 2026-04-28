@@ -70,14 +70,22 @@ async def saga_timeline(request: Request, page: int = 1):
 
 
 @router.get("/metrics", response_class=HTMLResponse)
-async def saga_metrics_panel(request: Request, window: int = 7):
+async def saga_metrics_panel(request: Request, window: int = 7, grain: str | None = None):
+    grain_windows = {"week": 7, "month": 35, "quarter": 90, "year": 365}
+    selected_grain = None
+    if grain:
+        selected_grain = grain if grain in grain_windows else "week"
+        window = grain_windows[selected_grain]
     if window not in {7, 35, 90, 365}:
         window = 7
+    if selected_grain is None:
+        selected_grain = {7: "week", 35: "month", 90: "quarter", 365: "year"}.get(window, "week")
     dashboard = await saga_dashboard(request.app.state.db, window)
     context = {
         "active_tab": "metrics",
         "dashboard": dashboard,
         "selected_window": window,
+        "selected_grain": selected_grain,
     }
     if request.headers.get("HX-Request", "").lower() == "true":
         return _render(request, "saga_metrics.html", context)

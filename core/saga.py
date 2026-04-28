@@ -13,7 +13,15 @@ from statistics import mean
 import aiosqlite
 from markupsafe import Markup
 
-from core.challenge.config import STATE_LABELS, STATE_RANK, STATE_SHORT, STATES, TRACKED_BUCKETS
+from core.challenge import metrics_engine
+from core.challenge.config import (
+    EXPERIMENT_TIMEFRAME_DAYS,
+    STATE_LABELS,
+    STATE_RANK,
+    STATE_SHORT,
+    STATES,
+    TRACKED_BUCKETS,
+)
 from core.config import USER_TZ
 from core.storage.saga_backend import (
     MOOD_WORDS,
@@ -249,8 +257,12 @@ def _empty_timeline_day(local_date: str) -> dict:
         "weekday": day.strftime("%A"),
         "granularity": "day",
         "entries": [],
+        "challenge_reflections": [],
         "quests": [],
         "challenges": [],
+        "challenges_signal": [],
+        "challenges_done": [],
+        "experiments": [],
     }
 
 
@@ -338,16 +350,197 @@ def _challenge_day_summary(challenges: list[dict]) -> dict | None:
     }
 
 
+def _experiment_timeframe_days(timeframe: str | None) -> int:
+    return EXPERIMENT_TIMEFRAME_DAYS.get(timeframe or "", 1)
+
+
+def _experiment_days_remaining(exp: dict, local_date: str) -> int | None:
+    if not exp.get("ends_at"):
+        return None
+    try:
+        return (date.fromisoformat(exp["ends_at"]) - date.fromisoformat(local_date)).days + 1
+    except ValueError:
+        return None
+
+
+def _experiment_needs_verdict_on(exp: dict, local_date: str) -> bool:
+    if exp.get("status") != "running" or not exp.get("ends_at"):
+        return False
+    try:
+        return date.fromisoformat(local_date) > date.fromisoformat(exp["ends_at"])
+    except ValueError:
+        return False
+
+
+def _experiment_signal(entries: list[dict]) -> dict:
+    if not entries:
+        return {"arrow": "→", "tone": "neutral", "label": "No entries"}
+    ranks = [STATE_RANK.get(entry.get("state") or "", 0) for entry in entries]
+    avg = mean(ranks) if ranks else 0
+    if avg >= 4:
+        return {"arrow": "↑", "tone": "up", "label": "Signal rising"}
+    if avg >= 2.8:
+        return {"arrow": "→", "tone": "neutral", "label": "Signal mixed"}
+    return {"arrow": "↓", "tone": "down", "label": "Signal weak"}
+
+
+async def _timeline_experiments_by_day(
+    db: aiosqlite.Connection,
+    start: date,
+    end: date,
+) -> dict[str, list[dict]]:
+    cursor = await db.execute(
+        "SELECT e.id, e.challenge_id, e.action, e.motivation, e.timeframe, e.status, "
+        "e.started_at, e.ends_at, e.verdict, e.observation_notes, e.conclusion_notes, "
+        "e.created_at, c.era_name "
+        "FROM challenge_experiments e "
+        "LEFT JOIN challenges c ON c.id = e.challenge_id "
+        "WHERE COALESCE(e.started_at, e.created_at) <= ? "
+        "   OR e.id IN (SELECT experiment_id FROM challenge_experiment_entries WHERE log_date >= ?)",
+        (end.isoformat(), start.isoformat()),
+    )
+    experiments = {}
+    for row in await cursor.fetchall():
+        experiments[row[0]] = {
+            "id": row[0],
+            "challenge_id": row[1],
+            "action": row[2],
+            "motivation": row[3],
+            "timeframe": row[4],
+            "status": row[5],
+            "started_at": row[6],
+            "ends_at": row[7],
+            "verdict": row[8],
+            "observation_notes": row[9],
+            "conclusion_notes": row[10],
+            "created_at": row[11],
+            "era_name": row[12],
+        }
+
+    if not experiments:
+        return {}
+
+    entry_cursor = await db.execute(
+        "SELECT id, experiment_id, challenge_id, log_date, state, notes, created_at "
+        "FROM challenge_experiment_entries "
+        "WHERE experiment_id IN ({}) "
+        "ORDER BY log_date, created_at".format(",".join("?" for _ in experiments)),
+        tuple(experiments.keys()),
+    )
+    entries_by_experiment: dict[str, list[dict]] = defaultdict(list)
+    entries_by_day: dict[tuple[str, str], dict] = {}
+    for row in await entry_cursor.fetchall():
+        entry = {
+            "id": row[0],
+            "experiment_id": row[1],
+            "challenge_id": row[2],
+            "log_date": row[3],
+            "state": row[4],
+            "state_short": _challenge_state_short(row[4]),
+            "state_tone": _challenge_state_tone(row[4]),
+            "notes": row[5],
+            "created_at": row[6],
+            "time": display_time(row[6]),
+        }
+        entries_by_experiment[row[1]].append(entry)
+        entries_by_day[(row[1], row[3])] = entry
+
+    out: dict[str, list[dict]] = defaultdict(list)
+    today = today_local()
+    for exp_id, exp in experiments.items():
+        exp_entries = entries_by_experiment.get(exp_id, [])
+        breakdown = {state: 0 for state in STATES}
+        for entry in exp_entries:
+            if entry.get("state") in breakdown:
+                breakdown[entry["state"]] += 1
+        signal = _experiment_signal(exp_entries)
+        relevant_days: set[str] = set()
+        if exp.get("started_at"):
+            relevant_days.add(exp["started_at"])
+        if exp.get("ends_at"):
+            relevant_days.add(exp["ends_at"])
+        for entry in exp_entries:
+            relevant_days.add(entry["log_date"])
+
+        if exp.get("started_at"):
+            try:
+                active_start = max(date.fromisoformat(exp["started_at"]), start)
+                active_end = min(date.fromisoformat(exp.get("ends_at") or end.isoformat()), end)
+                if active_end >= active_start:
+                    for offset in range((active_end - active_start).days + 1):
+                        relevant_days.add((active_start + timedelta(days=offset)).isoformat())
+            except ValueError:
+                pass
+
+        if _experiment_needs_verdict_on(exp, today.isoformat()):
+            relevant_days.add(today.isoformat())
+
+        recent_entries = exp_entries[-3:]
+        for local_date in sorted(day for day in relevant_days if start.isoformat() <= day <= end.isoformat()):
+            current_entry = entries_by_day.get((exp_id, local_date))
+            days_remaining = _experiment_days_remaining(exp, local_date)
+            needs_verdict = _experiment_needs_verdict_on(exp, local_date)
+            events = []
+            if exp.get("started_at") == local_date:
+                events.append("started")
+            if exp.get("ends_at") == local_date:
+                events.append("ends")
+            out[local_date].append({
+                "id": exp_id,
+                "action": exp["action"],
+                "motivation": exp["motivation"],
+                "status": exp["status"],
+                "era": exp.get("era_name"),
+                "started_at": exp.get("started_at"),
+                "ends_at": exp.get("ends_at"),
+                "duration_days": _experiment_timeframe_days(exp.get("timeframe")),
+                "days_remaining": days_remaining,
+                "needs_verdict": needs_verdict,
+                "time_signal": "verdict due" if needs_verdict else (
+                    f"{days_remaining}d left" if days_remaining is not None and days_remaining >= 0 else "trial window"
+                ),
+                "signal_arrow": signal["arrow"],
+                "signal_tone": signal["tone"],
+                "signal_label": signal["label"],
+                "signal_breakdown": breakdown,
+                "entry": current_entry,
+                "recent_entries": recent_entries,
+                "suggested_verdict": metrics_engine.suggest_verdict(exp_entries, _experiment_timeframe_days(exp.get("timeframe"))) if needs_verdict else None,
+                "events": events,
+            })
+    for rows in out.values():
+        rows.sort(key=lambda item: (0 if item.get("needs_verdict") else 1, item.get("ends_at") or "", item.get("action") or ""))
+    return out
+
+
+def _experiment_day_summary(experiments: list[dict]) -> dict | None:
+    if not experiments:
+        return None
+    active = sum(1 for exp in experiments if exp.get("status") == "running" and not exp.get("needs_verdict"))
+    verdict_due = sum(1 for exp in experiments if exp.get("needs_verdict"))
+    touched = sum(1 for exp in experiments if exp.get("entry"))
+    return {
+        "count": len(experiments),
+        "active": active,
+        "verdict_due": verdict_due,
+        "touched": touched,
+        "status": f"{active} active · {verdict_due} verdict due" if verdict_due else f"{active} active",
+    }
+
+
 def _timeline_day_title_meta(day: dict) -> dict:
     entries = day["entries"]
     quests = day["quests"]
     challenges = day["challenges"]
-    latest = entries[-1] if entries else None
+    saga_entries = [entry for entry in entries if entry.get("type") != "challenge_reflection"]
+    latest = saga_entries[-1] if saga_entries else None
     bits = [
         _count_label(len(entries), "entry", "entries"),
         _count_label(len(quests), "quest"),
         _count_label(len(challenges), "trial"),
     ]
+    if day.get("experiments"):
+        bits.append(_count_label(len(day["experiments"]), "experiment"))
     if latest:
         bits.insert(1, f"latest {latest['mood_word']} E:{latest['energy']} P:{latest['pleasantness']}")
     return {
@@ -378,6 +571,8 @@ async def timeline_days(db: aiosqlite.Connection, page: int = 1, per_page: int =
         strength = min(100, int(round((distance / math.sqrt(50)) * 100)))
         day["entries"].append({
             "id": row[0],
+            "type": "saga",
+            "sort_at": row[1],
             "time": display_time(row[1]),
             "note_html": render_markdown_note(row[7]),
             "energy": energy,
@@ -424,6 +619,21 @@ async def timeline_days(db: aiosqlite.Connection, page: int = 1, per_page: int =
         timestamp = row[1] or _date_fallback_timestamp(row[2], time(20, 0))
         state_key = row[3]
         day = days.setdefault(row[2], _empty_timeline_day(row[2]))
+        note = (row[4] or "").strip()
+        if note:
+            reflection = {
+                "id": f"challenge-reflection-{row[0]}",
+                "type": "challenge_reflection",
+                "sort_at": timestamp,
+                "time": display_time(timestamp),
+                "task_title": row[5],
+                "bucket": row[6],
+                "state_short": _challenge_state_short(state_key),
+                "state_tone": _challenge_state_tone(state_key),
+                "note_html": render_markdown_note(note),
+            }
+            day["challenge_reflections"].append(reflection)
+            day["entries"].append(reflection)
         day["challenges"].append({
             "id": row[0],
             "time": display_time(timestamp),
@@ -434,15 +644,29 @@ async def timeline_days(db: aiosqlite.Connection, page: int = 1, per_page: int =
             "state_tone": _challenge_state_tone(state_key),
             "bucket": row[6],
             "era": row[7],
-            "notes": row[4],
         })
+
+    experiments_by_day = await _timeline_experiments_by_day(db, start, today)
+    for local_date, experiments in experiments_by_day.items():
+        day = days.setdefault(local_date, _empty_timeline_day(local_date))
+        day["experiments"] = experiments
 
     ordered = []
     for local_date in sorted(days.keys(), reverse=True):
         day = days[local_date]
+        day["entries"].sort(key=lambda item: item.get("sort_at") or "")
+        day["challenges_signal"] = [
+            item for item in day["challenges"]
+            if item.get("state_key") != "COMPLETED_SATISFACTORY"
+        ]
+        day["challenges_done"] = [
+            item for item in day["challenges"]
+            if item.get("state_key") == "COMPLETED_SATISFACTORY"
+        ]
         day["granularity"] = _timeline_granularity(local_date, today)
         day["quest_summary"] = _quest_day_summary(day["quests"])
         day["challenge_summary"] = _challenge_day_summary(day["challenges"])
+        day["experiment_summary"] = _experiment_day_summary(day.get("experiments", []))
         day.update(_timeline_day_title_meta(day))
         ordered.append(day)
 
@@ -502,6 +726,7 @@ def _challenge_integrity(challenges: list[dict]) -> dict:
             "held": 0,
             "weak": 0,
             "bucket_rows": [],
+            "raw_rows": [],
         }
 
     scores = [((STATE_RANK.get(item["state"], 1) - 1) / 4) * 100 for item in rows]
@@ -527,6 +752,7 @@ def _challenge_integrity(challenges: list[dict]) -> dict:
         "held": held,
         "weak": weak,
         "bucket_rows": bucket_rows,
+        "raw_rows": rows,
     }
 
 
@@ -658,6 +884,7 @@ def _saga_day_profile(
             "label": output_label,
             "frog_count": sum(1 for quest in quests if quest.get("frog")),
         },
+        "quest_items": quests,
         "challenge": challenge,
         "alignment": {
             "score": alignment_score,
@@ -1001,6 +1228,51 @@ async def _collect_window(db: aiosqlite.Connection, days: int) -> dict:
             "workspace": row[6],
         })
 
+    pomo_cursor = await db.execute(
+        "SELECT s.id, s.quest_id, s.quest_title, s.started_at, s.ended_at, "
+        "s.actual_pomos, s.status, s.streak_peak, s.total_interruptions, "
+        "sg.type, sg.completed, sg.interruptions, sg.started_at, sg.ended_at, "
+        "sg.early_completion, sg.forge_type "
+        "FROM pomo_sessions s "
+        "LEFT JOIN pomo_segments sg ON sg.session_id = s.id "
+        "WHERE COALESCE(s.started_at, sg.started_at) >= ? "
+        "ORDER BY COALESCE(s.started_at, sg.started_at)",
+        (start.isoformat(),),
+    )
+    pomo_by_day: dict[str, dict] = defaultdict(lambda: {
+        "actual_pomos": 0,
+        "work_segments": 0,
+        "completed_work_segments": 0,
+        "interruptions": 0,
+        "hollow": 0,
+        "berserker": 0,
+        "focus_sessions": set(),
+        "quest_titles": set(),
+    })
+    session_seen: set[str] = set()
+    for row in await pomo_cursor.fetchall():
+        local_date = to_local_date(row[12] or row[3])
+        if local_date < start.isoformat() or local_date > end.isoformat():
+            continue
+        day = pomo_by_day[local_date]
+        session_id = row[0]
+        if session_id not in session_seen:
+            session_seen.add(session_id)
+            day["actual_pomos"] += int(row[5] or 0)
+            if row[2]:
+                day["quest_titles"].add(row[2])
+            if (row[5] or 0) > 0:
+                day["focus_sessions"].add(session_id)
+        if row[9] == "work":
+            day["work_segments"] += 1
+            if row[10]:
+                day["completed_work_segments"] += 1
+            day["interruptions"] += int(row[11] or 0)
+            if row[15] == "hollow":
+                day["hollow"] += 1
+            elif row[15] == "berserker":
+                day["berserker"] += 1
+
     challenge_cursor = await db.execute(
         "SELECT e.id, e.log_date, e.state, t.bucket, t.name, c.era_name "
         "FROM challenge_entries e "
@@ -1021,7 +1293,96 @@ async def _collect_window(db: aiosqlite.Connection, days: int) -> dict:
             "era": row[5],
         })
 
+    exp_cursor = await db.execute(
+        "SELECT e.id, e.action, e.status, e.started_at, e.ends_at, e.verdict, "
+        "e.created_at, ee.log_date, ee.state, ee.notes "
+        "FROM challenge_experiments e "
+        "LEFT JOIN challenge_experiment_entries ee ON ee.experiment_id = e.id "
+        "WHERE COALESCE(e.started_at, e.created_at) <= ? "
+        "   OR ee.log_date >= ? "
+        "ORDER BY COALESCE(e.started_at, e.created_at), ee.log_date",
+        (end.isoformat(), start.isoformat()),
+    )
+    experiments_by_id: dict[str, dict] = {}
+    experiments_by_day: dict[str, dict] = defaultdict(lambda: {
+        "active": 0,
+        "started": 0,
+        "touched": 0,
+        "verdict_due": 0,
+        "judged": 0,
+        "abandoned": 0,
+        "logged": 0,
+    })
+    for row in await exp_cursor.fetchall():
+        exp = experiments_by_id.setdefault(row[0], {
+            "id": row[0],
+            "action": row[1],
+            "status": row[2],
+            "started_at": row[3],
+            "ends_at": row[4],
+            "verdict": row[5],
+            "created_at": row[6],
+            "entries": [],
+        })
+        if row[7]:
+            exp["entries"].append({
+                "log_date": row[7],
+                "state": row[8],
+                "notes": row[9],
+            })
+
+    for exp in experiments_by_id.values():
+        if exp.get("started_at") and start.isoformat() <= exp["started_at"] <= end.isoformat():
+            experiments_by_day[exp["started_at"]]["started"] += 1
+        if exp.get("status") == "judged" and exp.get("ends_at") and start.isoformat() <= exp["ends_at"] <= end.isoformat():
+            experiments_by_day[exp["ends_at"]]["judged"] += 1
+        if exp.get("status") == "abandoned" and exp.get("ends_at") and start.isoformat() <= exp["ends_at"] <= end.isoformat():
+            experiments_by_day[exp["ends_at"]]["abandoned"] += 1
+        if exp.get("status") == "running" and exp.get("started_at"):
+            try:
+                active_start = max(date.fromisoformat(exp["started_at"]), start)
+                active_end = min(date.fromisoformat(exp.get("ends_at") or end.isoformat()), end)
+                if active_end >= active_start:
+                    for offset in range((active_end - active_start).days + 1):
+                        local_date = (active_start + timedelta(days=offset)).isoformat()
+                        experiments_by_day[local_date]["active"] += 1
+                if exp.get("ends_at") and date.fromisoformat(exp["ends_at"]) < end:
+                    experiments_by_day[end.isoformat()]["verdict_due"] += 1
+            except ValueError:
+                pass
+        for entry in exp["entries"]:
+            local_date = entry["log_date"]
+            if start.isoformat() <= local_date <= end.isoformat():
+                experiments_by_day[local_date]["touched"] += 1
+                experiments_by_day[local_date]["logged"] += 1
+
     calendar_days = [(start + timedelta(days=offset)).isoformat() for offset in range(days)]
+    for day in calendar_days:
+        if day in pomo_by_day:
+            pomo_by_day[day]["focus_days"] = 1 if pomo_by_day[day]["actual_pomos"] or pomo_by_day[day]["completed_work_segments"] else 0
+            pomo_by_day[day]["quest_titles"] = sorted(pomo_by_day[day]["quest_titles"])[:3]
+            pomo_by_day[day]["focus_sessions"] = len(pomo_by_day[day]["focus_sessions"])
+        else:
+            pomo_by_day[day] = {
+                "actual_pomos": 0,
+                "work_segments": 0,
+                "completed_work_segments": 0,
+                "interruptions": 0,
+                "hollow": 0,
+                "berserker": 0,
+                "focus_sessions": 0,
+                "focus_days": 0,
+                "quest_titles": [],
+            }
+        experiments_by_day[day] = dict(experiments_by_day.get(day, {
+            "active": 0,
+            "started": 0,
+            "touched": 0,
+            "verdict_due": 0,
+            "judged": 0,
+            "abandoned": 0,
+            "logged": 0,
+        }))
     quest_counts = [len(quests_by_day.get(day, [])) for day in calendar_days]
     quest_baseline = mean(quest_counts[:-1]) if len(quest_counts) > 1 else 0
     day_profiles = [
@@ -1041,7 +1402,10 @@ async def _collect_window(db: aiosqlite.Connection, days: int) -> dict:
         "calendar_days": calendar_days,
         "saga_by_day": saga_by_day,
         "quests_by_day": quests_by_day,
+        "pomo_by_day": pomo_by_day,
         "challenges_by_day": challenges_by_day,
+        "experiments_by_day": experiments_by_day,
+        "experiments": list(experiments_by_id.values()),
         "raw_rows": raw_rows,
         "day_profiles": day_profiles,
         "family_counts": family_counts,
@@ -1237,6 +1601,613 @@ def _risk_signals(day_profiles: list[dict]) -> list[dict]:
             "detail": f"Longest stretch without a Saga entry: {longest_gap} days.",
         })
     return signals[:4]
+
+
+async def _experiment_verdict_due_count(db: aiosqlite.Connection, as_of: str) -> int:
+    cursor = await db.execute(
+        "SELECT COUNT(*) FROM challenge_experiments "
+        "WHERE status = 'running' AND ends_at IS NOT NULL AND date(ends_at) < date(?)",
+        (as_of,),
+    )
+    row = await cursor.fetchone()
+    return int(row[0] if row else 0)
+
+
+def _dashboard_narrative(
+    days: int,
+    today_profile: dict | None,
+    kpis: dict,
+    trends: dict,
+    meta_analysis: dict,
+    risk_signals: list[dict],
+    verdict_due_count: int,
+) -> dict:
+    grain = {7: "week", 35: "month", 90: "quarter", 365: "year"}.get(days, f"{days}d")
+    challenge_value = kpis["challenge"].get("value")
+    challenge_clause = (
+        f"{today_profile['challenge']['label']} challenge band ({challenge_value})"
+        if today_profile and challenge_value is not None
+        else "an unscored challenge band"
+    )
+    dominant = meta_analysis.get("emotion_load", {}).get("dominant_quadrant") or "still forming"
+    output_delta = kpis["output"].get("delta_pct") or 0
+    output_direction = "up" if output_delta > 0 else "down" if output_delta < 0 else "steady"
+    recovery = meta_analysis.get("recovery", {}).get("mean_recovery_distance")
+    recovery_clause = (
+        f"Recovery after high mood-load days averages {recovery} days."
+        if recovery is not None
+        else trends.get("recovery", "Recovery signal is still forming.")
+    )
+    state_sentence = (
+        f"This {grain} you are in {challenge_clause}. "
+        f"Your dominant mood quadrant is {dominant}, and output is {output_direction} "
+        f"{abs(output_delta)}% versus the comparison window."
+    )
+    trend_sentence = f"{trends.get('pressure_output')} {recovery_clause}"
+
+    signals: list[dict] = []
+    keystone = trends.get("keystone_mood")
+    if keystone:
+        signals.append({
+            "kind": "keystone_mood",
+            "tone": "strength",
+            "title": "Protect the keystone mood",
+            "body": f"Your best output blend happens around {keystone}. Protect the blocks where it appears.",
+        })
+    risk = trends.get("risk_mood")
+    if risk:
+        signals.append({
+            "kind": "risk_mood",
+            "tone": "watch",
+            "title": "Watch the risk mood",
+            "body": f"{risk} is least associated with useful output in this window. Lighten the load when it dominates.",
+        })
+    if recovery is not None:
+        tone = "watch" if meta_analysis.get("recovery", {}).get("recovery_slowing") else "steady"
+        signals.append({
+            "kind": "recovery",
+            "tone": tone,
+            "title": "Recovery cadence",
+            "body": recovery_clause,
+        })
+    if today_profile and today_profile["quest"].get("frog_count") == 0:
+        signals.append({
+            "kind": "frog_streak",
+            "tone": "watch",
+            "title": "Frog streak needs attention",
+            "body": "No frog is logged today. Put one high-leverage quest back on the board.",
+        })
+    if verdict_due_count:
+        signals.append({
+            "kind": "verdict_due",
+            "tone": "watch",
+            "title": "Experiment verdict due",
+            "body": f"{verdict_due_count} Tiny Experiment{'s' if verdict_due_count != 1 else ''} need a verdict.",
+            "href": "/challenge/experiments",
+        })
+    for signal in risk_signals:
+        signals.append({
+            "kind": signal.get("kind", "risk"),
+            "tone": signal.get("severity", "watch"),
+            "title": signal.get("headline", "Signal"),
+            "body": signal.get("detail", ""),
+        })
+
+    return {
+        "grain": grain,
+        "state_sentence": state_sentence,
+        "trend_sentence": trend_sentence,
+        "signals": signals[:5],
+    }
+
+
+def _pillar(
+    key: str,
+    name: str,
+    score: float | None,
+    confidence: str,
+    headline: str,
+    numbers: list[dict],
+    tone: str | None = None,
+) -> dict:
+    resolved = int(round(_clamp(score or 0)))
+    return {
+        "key": key,
+        "name": name,
+        "score": resolved,
+        "confidence": confidence,
+        "headline": headline,
+        "numbers": numbers,
+        "tone": tone or ("strong" if resolved >= 72 else "watch" if resolved >= 45 else "risk"),
+    }
+
+
+def _confidence(active: int, total: int) -> str:
+    if total <= 0:
+        return "low"
+    coverage = active / total
+    if coverage >= 0.7:
+        return "high"
+    if coverage >= 0.35:
+        return "medium"
+    return "low"
+
+
+def build_pillars(
+    day_profiles: list[dict],
+    pomo_by_day: dict[str, dict],
+    experiments: list[dict],
+    experiments_by_day: dict[str, dict],
+    meta_analysis: dict,
+) -> tuple[list[dict], list[dict], dict]:
+    days = len(day_profiles) or 1
+    quest_days = sum(1 for day in day_profiles if day["quest"]["count"])
+    focus_days = sum(1 for day in pomo_by_day.values() if day.get("focus_days"))
+    challenge_days = sum(1 for day in day_profiles if day["challenge"]["count"])
+    saga_days = sum(1 for day in day_profiles if day["saga"]["entry_count"])
+    experiment_days = sum(
+        1 for day in experiments_by_day.values()
+        if day.get("active") or day.get("started") or day.get("touched") or day.get("judged")
+    )
+
+    output_values = [day["quest"]["output_index"] for day in day_profiles if day["quest"]["count"]]
+    output_mean = _mean_or_none(output_values) or 0
+    total_frogs = sum(day["quest"]["frog_count"] for day in day_profiles)
+    priority_weights = []
+    for day in day_profiles:
+        for quest in day.get("quest_items", []):
+            priority_weights.append(max(0, 5 - int(quest.get("priority", 4))))
+    pomo_total = sum(day.get("actual_pomos", 0) for day in pomo_by_day.values())
+    interruptions = sum(day.get("interruptions", 0) for day in pomo_by_day.values())
+    completed_segments = sum(day.get("completed_work_segments", 0) for day in pomo_by_day.values())
+    pomo_score = _clamp((pomo_total / max(days * 2, 1)) * 100 - (interruptions / max(completed_segments, 1)) * 12)
+    frog_score = min(100, total_frogs * 18)
+    daily_score = _clamp((output_mean * 0.55) + (pomo_score * 0.30) + (frog_score * 0.15))
+    daily_confidence = _confidence(max(quest_days, focus_days), days)
+
+    challenge_values = [day["challenge"]["score"] for day in day_profiles if day["challenge"]["score"] is not None]
+    challenge_mean = _mean_or_none(challenge_values) or 0
+    priority_misses = 0
+    bucket_misses: Counter[str] = Counter()
+    for day in day_profiles:
+        for row in day["challenge"].get("raw_rows", []):
+            if row.get("bucket") in {"anchor", "improver"} and row.get("state") != "COMPLETED_SATISFACTORY":
+                priority_misses += 1
+                bucket_misses[row.get("bucket") or "unknown"] += 1
+    long_score = _clamp(challenge_mean - priority_misses * 4)
+    long_confidence = _confidence(challenge_days, days)
+
+    exp_total = len(experiments)
+    exp_started = sum(1 for exp in experiments if exp.get("started_at"))
+    exp_logged = sum(len(exp.get("entries") or []) for exp in experiments)
+    exp_judged = sum(1 for exp in experiments if exp.get("status") == "judged")
+    exp_abandoned = sum(1 for exp in experiments if exp.get("status") == "abandoned")
+    exp_due = sum(day.get("verdict_due", 0) for day in experiments_by_day.values())
+    participation = min(100, exp_started * 18 + exp_logged * 8 + exp_judged * 12 + exp_abandoned * 5)
+    evolution_score = _clamp(participation - exp_due * 10)
+    evolution_confidence = "high" if exp_total and experiment_days >= max(1, days // 3) else "medium" if exp_total else "low"
+
+    pleasant_ratio = meta_analysis.get("mood_map", {}).get("pleasant_ratio") or 0
+    red_blue_ratio = meta_analysis.get("mood_map", {}).get("red_blue_ratio") or 0
+    mean_mood_load = meta_analysis.get("emotion_load", {}).get("mean_mood_load") or 0
+    emotional_score = _clamp((pleasant_ratio * 0.62) + ((100 - red_blue_ratio) * 0.18) + ((100 - mean_mood_load) * 0.20))
+    emotional_confidence = _confidence(saga_days, days)
+
+    pillars = [
+        _pillar(
+            "daily_execution",
+            "Daily Execution",
+            daily_score,
+            daily_confidence,
+            f"Quest output averaged {round(output_mean)} with {pomo_total} focused pomo{'s' if pomo_total != 1 else ''}.",
+            [
+                {"label": "Output", "value": round(output_mean)},
+                {"label": "Frogs", "value": total_frogs},
+                {"label": "Pomos", "value": pomo_total},
+                {"label": "Interruptions", "value": interruptions},
+            ],
+        ),
+        _pillar(
+            "long_game",
+            "Long Game Integrity",
+            long_score,
+            long_confidence,
+            f"Hard 90 averaged {round(challenge_mean)} with {priority_misses} Anchor/Improver miss{'es' if priority_misses != 1 else ''}.",
+            [
+                {"label": "Challenge", "value": round(challenge_mean)},
+                {"label": "Priority misses", "value": priority_misses},
+                {"label": "Anchor misses", "value": bucket_misses.get("anchor", 0)},
+                {"label": "Improver misses", "value": bucket_misses.get("improver", 0)},
+            ],
+        ),
+        _pillar(
+            "evolution",
+            "Evolution / Curiosity",
+            evolution_score,
+            evolution_confidence,
+            f"{exp_started} trial{'s' if exp_started != 1 else ''} started, {exp_logged} experiment log{'s' if exp_logged != 1 else ''}, {exp_due} verdict due.",
+            [
+                {"label": "Trials", "value": exp_total},
+                {"label": "Started", "value": exp_started},
+                {"label": "Logs", "value": exp_logged},
+                {"label": "Verdicts due", "value": exp_due},
+            ],
+        ),
+        _pillar(
+            "emotional_climate",
+            "Emotional Climate",
+            emotional_score,
+            emotional_confidence,
+            f"{pleasant_ratio}% pleasant-side entries; {red_blue_ratio}% red/blue pressure.",
+            [
+                {"label": "Pleasant", "value": f"{pleasant_ratio}%"},
+                {"label": "Red/Blue", "value": f"{red_blue_ratio}%"},
+                {"label": "Mood load", "value": mean_mood_load or "—"},
+                {"label": "Capture days", "value": saga_days},
+            ],
+        ),
+    ]
+
+    missing_data = []
+    if saga_days == 0:
+        missing_data.append({"kind": "saga", "title": "Capture emotional signal", "body": "No Saga entries in this grain, so mood-linked analysis is low confidence.", "href": "/saga"})
+    if challenge_days == 0:
+        missing_data.append({"kind": "hard90", "title": "Start or log a long-game challenge", "body": "Hard 90 is the long-game anchor for Grimoire.", "href": "/challenge"})
+    if exp_total == 0:
+        missing_data.append({"kind": "experiments", "title": "Start a small trial", "body": "Tiny Experiments show whether you are actively evolving.", "href": "/challenge/experiments"})
+    if focus_days == 0:
+        missing_data.append({"kind": "pomo", "title": "Use focus sessions for focus-quality analysis", "body": "Quest completion says what moved; Pomo says how focused the work was.", "href": "/"})
+
+    context = {
+        "quest_days": quest_days,
+        "focus_days": focus_days,
+        "challenge_days": challenge_days,
+        "saga_days": saga_days,
+        "experiment_days": experiment_days,
+        "pomo_total": pomo_total,
+        "interruptions": interruptions,
+        "completed_segments": completed_segments,
+        "priority_misses": priority_misses,
+        "bucket_misses": dict(bucket_misses),
+        "exp_total": exp_total,
+        "exp_started": exp_started,
+        "exp_logged": exp_logged,
+        "exp_due": exp_due,
+        "pleasant_ratio": pleasant_ratio,
+        "red_blue_ratio": red_blue_ratio,
+        "mean_mood_load": mean_mood_load,
+    }
+    return pillars, missing_data, context
+
+
+def build_system_verdict(pillars: list[dict], missing_data: list[dict], grain: str) -> dict:
+    by_key = {pillar["key"]: pillar for pillar in pillars}
+    daily = by_key["daily_execution"]["score"]
+    long_game = by_key["long_game"]["score"]
+    evolution = by_key["evolution"]["score"]
+    emotional = by_key["emotional_climate"]["score"]
+    confidence = "low" if len(missing_data) >= 2 or by_key["emotional_climate"]["confidence"] == "low" else (
+        "medium" if any(pillar["confidence"] == "low" for pillar in pillars) else "high"
+    )
+
+    if confidence == "low" and len(missing_data) >= 2:
+        label, tone = "Data Thin", "muted"
+        analysis = f"This {grain} does not have enough cross-system signal to make a strong diagnosis. Start by filling the missing pillars so Grimoire can separate mood, execution, and long-game drift."
+    elif daily < 35 and long_game < 45 and emotional < 45:
+        label, tone = "System Down", "risk"
+        analysis = f"This {grain}, daily execution, long-game integrity, and emotional climate are all under strain. Treat the next step as stabilization, not optimization."
+    elif daily >= 58 and long_game < 55:
+        label, tone = "Long Game Neglect", "risk"
+        analysis = f"You are getting things done this {grain}, but the Hard 90 signal says priority identity work is slipping. Productivity is not converting into the long game yet."
+    elif daily >= 58 and (long_game < 65 or emotional < 50):
+        label, tone = "Productive Drift", "watch"
+        analysis = f"Execution is alive this {grain}, but it is carrying pressure or leaving long-term goals exposed. The question is not whether you worked; it is what your work protected."
+    elif emotional < 45 and daily < 55:
+        label, tone = "Emotional Drag", "risk"
+        analysis = f"Unpleasant emotional load is paired with weaker motion this {grain}. Reduce load and make the next task small enough to restart traction."
+    elif evolution < 35 and daily >= 40:
+        label, tone = "Growth Dormant", "watch"
+        analysis = f"The operating system is moving, but the experimentation layer is quiet. Add a small trial so progress includes learning, not only execution."
+    elif daily >= 60 and long_game >= 70 and emotional >= 60:
+        label, tone = "Clean Alignment", "strong"
+        analysis = f"Daily execution, long-game integrity, and emotional climate are moving together this {grain}. Protect the conditions that made this alignment possible."
+    else:
+        label, tone = "Productive Drift", "watch"
+        analysis = f"This {grain} has usable motion, but the systems are uneven. Look at the lowest pillar first; that is where the next improvement has leverage."
+
+    return {
+        "label": label,
+        "tone": tone,
+        "confidence": confidence,
+        "analysis": analysis,
+    }
+
+
+def build_recommendations(
+    pillars: list[dict],
+    missing_data: list[dict],
+    context: dict,
+) -> list[dict]:
+    recs = []
+    for item in missing_data:
+        recs.append({
+            "title": item["title"],
+            "reason": item["body"],
+            "action": "Open",
+            "href": item["href"],
+            "tone": "coach",
+        })
+
+    by_key = {pillar["key"]: pillar for pillar in pillars}
+    if by_key["long_game"]["score"] < 60 and context["priority_misses"]:
+        recs.append({
+            "title": "Protect Anchor and Improver tasks",
+            "reason": f"{context['priority_misses']} priority Hard 90 item{'s' if context['priority_misses'] != 1 else ''} slipped while other systems may still look busy.",
+            "action": "Log or simplify the long-game task",
+            "href": "/challenge",
+            "tone": "risk",
+        })
+    if by_key["daily_execution"]["score"] < 55:
+        recs.append({
+            "title": "Rebuild daily traction",
+            "reason": "Quest/Pomo output is not strong enough to carry the day. One frog plus one focused session is the cleanest reset.",
+            "action": "Pick one frog and run a focus block",
+            "href": "/",
+            "tone": "watch",
+        })
+    if by_key["emotional_climate"]["score"] < 55:
+        recs.append({
+            "title": "Lower unpleasant load before scaling output",
+            "reason": f"{context['red_blue_ratio']}% of captured emotion is red/blue pressure. Treat mood as a system input, not a side note.",
+            "action": "Capture the next mood and choose a lighter load",
+            "href": "/saga",
+            "tone": "watch",
+        })
+    if by_key["evolution"]["score"] < 45:
+        recs.append({
+            "title": "Restart the experimentation layer",
+            "reason": "Growth signal is thin. A tiny trial counts even when the verdict is failure, because the point is learning.",
+            "action": "Start one tiny experiment",
+            "href": "/challenge/experiments",
+            "tone": "coach",
+        })
+    if context["exp_due"]:
+        recs.append({
+            "title": "Close open experiment loops",
+            "reason": f"{context['exp_due']} experiment verdict{'s are' if context['exp_due'] != 1 else ' is'} due. Verdict hygiene turns trial data into learning.",
+            "action": "Record verdicts",
+            "href": "/challenge/experiments",
+            "tone": "watch",
+        })
+
+    seen = set()
+    unique = []
+    for rec in recs:
+        if rec["title"] in seen:
+            continue
+        seen.add(rec["title"])
+        unique.append(rec)
+    return unique[:5]
+
+
+def build_tendencies(
+    day_profiles: list[dict],
+    pomo_by_day: dict[str, dict],
+    experiments_by_day: dict[str, dict],
+) -> list[dict]:
+    tendencies = []
+    unpleasant_days = [day for day in day_profiles if day["saga"]["entry_count"] and day["saga"]["avg_pleasantness"] < 0]
+    productive_unpleasant = [day for day in unpleasant_days if day["quest"]["output_index"] >= 55]
+    long_slip_unpleasant = [day for day in productive_unpleasant if (day["challenge"]["score"] is not None and day["challenge"]["score"] < 70)]
+    if productive_unpleasant:
+        tendencies.append({
+            "title": "You can still produce under unpleasant mood",
+            "body": f"{len(productive_unpleasant)} unpleasant day{'s' if len(productive_unpleasant) != 1 else ''} still produced output; {len(long_slip_unpleasant)} also showed long-game slippage.",
+            "tone": "watch" if long_slip_unpleasant else "strength",
+        })
+
+    pleasant_low = [
+        day for day in day_profiles
+        if day["saga"]["entry_count"] and day["saga"]["avg_pleasantness"] > 0 and day["saga"]["avg_energy"] < 0
+    ]
+    preserved = [day for day in pleasant_low if day["challenge"]["score"] is not None and day["challenge"]["score"] >= 70]
+    if pleasant_low:
+        tendencies.append({
+            "title": "Pleasant low-energy days may protect the long game",
+            "body": f"{len(preserved)} of {len(pleasant_low)} low-energy pleasant days kept Hard 90 at 70+.",
+            "tone": "strength" if len(preserved) >= max(1, len(pleasant_low) // 2) else "watch",
+        })
+
+    verdict_due_days = sum(1 for day in experiments_by_day.values() if day.get("verdict_due"))
+    touched_days = sum(1 for day in experiments_by_day.values() if day.get("touched"))
+    if touched_days or verdict_due_days:
+        tendencies.append({
+            "title": "Experiment loops need closure",
+            "body": f"Experiments were touched on {touched_days} day{'s' if touched_days != 1 else ''}; verdicts were due on {verdict_due_days} day{'s' if verdict_due_days != 1 else ''}.",
+            "tone": "watch" if verdict_due_days else "strength",
+        })
+
+    weekday_counts: dict[str, list[dict]] = defaultdict(list)
+    for day in day_profiles:
+        weekday_counts[day["weekday"]].append(day)
+    if weekday_counts:
+        worst = max(
+            weekday_counts.items(),
+            key=lambda item: mean([d["saga"]["mood_load"] for d in item[1]]) if item[1] else 0,
+        )
+        output = mean([d["quest"]["output_index"] for d in worst[1]]) if worst[1] else 0
+        tendencies.append({
+            "title": f"{worst[0]} carries the highest mood load",
+            "body": f"Average output on that weekday is {round(output)}. Use it as a planning constraint.",
+            "tone": "info",
+        })
+
+    focus_days = [day for day in pomo_by_day.values() if day.get("actual_pomos")]
+    if focus_days:
+        avg_interruptions = round(sum(day.get("interruptions", 0) for day in focus_days) / max(sum(day.get("completed_work_segments", 0) for day in focus_days), 1), 1)
+        tendencies.append({
+            "title": "Focus quality is now measurable",
+            "body": f"Across focused days, interruptions average {avg_interruptions} per completed work segment.",
+            "tone": "info",
+        })
+
+    if not tendencies:
+        tendencies.append({
+            "title": "Tendencies are still forming",
+            "body": "Capture across Saga, QuestLog, Hard 90, Pomo, and Tiny Experiments to reveal repeated patterns.",
+            "tone": "muted",
+        })
+    return tendencies[:5]
+
+
+def build_grimoire_charts(
+    day_profiles: list[dict],
+    pomo_by_day: dict[str, dict],
+    experiments_by_day: dict[str, dict],
+) -> dict:
+    labels = [day["label"] for day in day_profiles]
+    dates = [day["date"] for day in day_profiles]
+    daily_scores = []
+    long_scores = []
+    evolution_scores = []
+    emotional_scores = []
+    scatter = []
+    systems_matrix = {key: [] for key in ("Daily", "Long Game", "Evolution", "Emotion")}
+    focus_quality = []
+    experiment_runway = []
+    mood_split = {
+        "pleasant": {"days": 0, "output": [], "challenge": []},
+        "unpleasant": {"days": 0, "output": [], "challenge": []},
+    }
+    bucket_risk = {bucket: {"pleasant": 0, "unpleasant": 0} for bucket in ("anchor", "improver", "enricher")}
+
+    for day in day_profiles:
+        pomo = pomo_by_day.get(day["date"], {})
+        exp = experiments_by_day.get(day["date"], {})
+        daily = _clamp(day["quest"]["output_index"] * 0.72 + min(100, (pomo.get("actual_pomos", 0) or 0) * 18) * 0.28)
+        long = day["challenge"]["score"] if day["challenge"]["score"] is not None else 0
+        evolution = _clamp((exp.get("active", 0) * 20) + (exp.get("touched", 0) * 28) + (exp.get("started", 0) * 20) - (exp.get("verdict_due", 0) * 14))
+        emotion = _clamp(((day["saga"]["avg_pleasantness"] + 5) / 10) * 70 + (100 - day["saga"]["mood_load"]) * 0.30) if day["saga"]["entry_count"] else 0
+        daily_scores.append(round(daily))
+        long_scores.append(round(long))
+        evolution_scores.append(round(evolution))
+        emotional_scores.append(round(emotion))
+        systems_matrix["Daily"].append(round(daily))
+        systems_matrix["Long Game"].append(round(long))
+        systems_matrix["Evolution"].append(round(evolution))
+        systems_matrix["Emotion"].append(round(emotion))
+        if day["quest"]["count"] or day["challenge"]["count"] or day["saga"]["entry_count"]:
+            scatter.append({
+                "label": day["label"],
+                "date": day["date"],
+                "x": round(daily),
+                "y": round(long),
+                "pleasantness": day["saga"]["avg_pleasantness"],
+                "experiment": bool(exp.get("active") or exp.get("touched")),
+                "mood_load": day["saga"]["mood_load"],
+            })
+        focus_quality.append({
+            "label": day["label"],
+            "pomos": pomo.get("actual_pomos", 0),
+            "interruptions": pomo.get("interruptions", 0),
+            "hollow": pomo.get("hollow", 0),
+            "berserker": pomo.get("berserker", 0),
+        })
+        experiment_runway.append({
+            "label": day["label"],
+            "active": exp.get("active", 0),
+            "touched": exp.get("touched", 0),
+            "verdict_due": exp.get("verdict_due", 0),
+        })
+        split_key = "pleasant" if day["saga"]["avg_pleasantness"] >= 0 else "unpleasant"
+        if day["saga"]["entry_count"]:
+            mood_split[split_key]["days"] += 1
+            mood_split[split_key]["output"].append(day["quest"]["output_index"])
+            if day["challenge"]["score"] is not None:
+                mood_split[split_key]["challenge"].append(day["challenge"]["score"])
+            for row in day["challenge"].get("raw_rows", []):
+                if row.get("state") != "COMPLETED_SATISFACTORY":
+                    bucket_risk.setdefault(row.get("bucket") or "unknown", {"pleasant": 0, "unpleasant": 0})
+                    bucket_risk[row.get("bucket") or "unknown"][split_key] += 1
+
+    mood_split_rows = []
+    for key, values in mood_split.items():
+        mood_split_rows.append({
+            "mood": key.title(),
+            "days": values["days"],
+            "output": _mean_or_none(values["output"]) or 0,
+            "challenge": _mean_or_none(values["challenge"]) or 0,
+        })
+
+    return {
+        "labels": labels,
+        "dates": dates,
+        "pillar_series": {
+            "daily": daily_scores,
+            "long_game": long_scores,
+            "evolution": evolution_scores,
+            "emotion": emotional_scores,
+        },
+        "systems_matrix": systems_matrix,
+        "execution_long_game": scatter,
+        "mood_split": mood_split_rows,
+        "focus_quality": focus_quality,
+        "experiment_runway": experiment_runway,
+        "bucket_risk": [
+            {"bucket": bucket.title(), "pleasant": values["pleasant"], "unpleasant": values["unpleasant"]}
+            for bucket, values in bucket_risk.items()
+        ],
+        "dow_system": [
+            {
+                "weekday": weekday,
+                "daily": _mean_or_none([
+                    score for score, day in zip(daily_scores, day_profiles)
+                    if day["weekday"][:3] == weekday
+                ]) or 0,
+                "long_game": _mean_or_none([
+                    score for score, day in zip(long_scores, day_profiles)
+                    if day["weekday"][:3] == weekday
+                ]) or 0,
+                "emotion": _mean_or_none([
+                    score for score, day in zip(emotional_scores, day_profiles)
+                    if day["weekday"][:3] == weekday
+                ]) or 0,
+            }
+            for weekday in ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+        ],
+    }
+
+
+def build_grimoire(
+    days: int,
+    day_profiles: list[dict],
+    pomo_by_day: dict[str, dict],
+    experiments: list[dict],
+    experiments_by_day: dict[str, dict],
+    meta_analysis: dict,
+) -> dict:
+    grain = {7: "week", 35: "month", 90: "quarter", 365: "year"}.get(days, f"{days}d")
+    pillars, missing_data, context = build_pillars(
+        day_profiles,
+        pomo_by_day,
+        experiments,
+        experiments_by_day,
+        meta_analysis,
+    )
+    verdict = build_system_verdict(pillars, missing_data, grain)
+    recommendations = build_recommendations(pillars, missing_data, context)
+    tendencies = build_tendencies(day_profiles, pomo_by_day, experiments_by_day)
+    charts = build_grimoire_charts(day_profiles, pomo_by_day, experiments_by_day)
+    return {
+        "grain": grain,
+        "verdict": verdict,
+        "pillars": pillars,
+        "recommendations": recommendations,
+        "tendencies": tendencies,
+        "charts": charts,
+        "missing_data": missing_data,
+        "context": context,
+    }
 
 
 def _scatter_points(day_profiles: list[dict], today_iso: str) -> list[dict]:
@@ -1806,9 +2777,28 @@ async def saga_dashboard(db: aiosqlite.Connection, days: int = 7) -> dict:
         top_moods,
     )
     meta_summary = _meta_summary(meta_analysis, risk_signals, trends)
+    verdict_due_count = await _experiment_verdict_due_count(db, today_iso)
+    narrative = _dashboard_narrative(
+        days,
+        today_profile,
+        kpis,
+        trends,
+        meta_analysis,
+        risk_signals,
+        verdict_due_count,
+    )
+    grimoire = build_grimoire(
+        days,
+        day_profiles,
+        bundle["pomo_by_day"],
+        bundle["experiments"],
+        bundle["experiments_by_day"],
+        meta_analysis,
+    )
 
     return {
         "window_days": days,
+        "grain_label": narrative["grain"],
         "today": today_iso,
         "headline": {
             "archetype": archetype,
@@ -1847,6 +2837,9 @@ async def saga_dashboard(db: aiosqlite.Connection, days: int = 7) -> dict:
         "heatmap": heatmap,
         "challenge_bucket_series": bucket_series,
         "risk_signals": risk_signals,
+        "narrative": narrative,
+        "grimoire": grimoire,
+        "experiment_verdict_due_count": verdict_due_count,
         "scatter": scatter,
         "archetype_distribution": archetype_distribution,
         "streaks": streaks,

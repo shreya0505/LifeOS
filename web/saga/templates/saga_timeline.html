@@ -3,11 +3,8 @@
     <div class="saga-timeline">
       {% if timeline.days %}
       {% for day in timeline.days %}
-      <article class="saga-day-card saga-day-card--{{ day.granularity }}" x-data="{ open: {{ 'true' if loop.first else 'false' }} }">
-        <button class="saga-day-card__dot"
-                type="button"
-                :aria-expanded="open.toString()"
-                @click="open = !open">
+      <article class="saga-day-card saga-day-card--{{ day.granularity }}">
+        <div class="saga-day-card__dot">
           <span class="saga-day-card__marker"></span>
           <span class="saga-day-card__date" style="--day-mood-accent: {{ day.latest_mood_accent }}">
             <span class="saga-day-card__title">
@@ -20,41 +17,61 @@
             </span>
             <small>{{ day.weekday }} &middot; {{ day.granularity }}</small>
           </span>
-        </button>
+        </div>
 
-        <div class="saga-day-card__panel" x-show="open" x-collapse>
+        <div class="saga-day-card__panel">
           {% if day.entries %}
           <section class="saga-day-section saga-day-section--entries">
             <h2>Entries</h2>
             <div class="saga-day-notes">
               {% for entry in day.entries %}
-              <div class="saga-day-note saga-day-note--{{ entry.quadrant }}"
-                   style="--quadrant-accent: {{ entry.quadrant_accent }}; --mood-accent: {{ entry.quadrant_accent }}; --mood-strength: {{ entry.mood_strength }}%; --mood-wash: {{ entry.mood_wash_pct }}%; --mood-glow: {{ entry.mood_glow_pct }}%; --mood-chip: {{ entry.mood_chip_pct }}%;">
-                <time>{{ entry.time or "--:--" }}</time>
-                <div class="saga-day-note__body">{{ entry.note_html | safe }}</div>
-                <div class="saga-day-note__mood" aria-label="Entry mood">
-                  <span class="saga-mood-pill saga-mood-pill--emotion">{{ entry.mood_word }}</span>
-                  <span class="saga-mood-pill saga-mood-pill--quadrant">{{ entry.quadrant }}</span>
-                  <span class="saga-mood-pill saga-mood-pill--coords">E:{{ entry.energy }} P:{{ entry.pleasantness }}</span>
+                {% if entry.type == "challenge_reflection" %}
+                <div class="saga-day-note saga-day-note--challenge saga-entry-card--challenge">
+                  <time>{{ entry.time or "--:--" }}</time>
+                  <div class="saga-day-note__body">
+                    <div class="saga-day-note__source">
+                      <span>challenge reflection</span>
+                      <strong>{{ entry.task_title }}</strong>
+                      {% if entry.bucket %}<small>{{ entry.bucket }}</small>{% endif %}
+                    </div>
+                    {{ entry.note_html | safe }}
+                  </div>
+                  <div class="saga-day-note__mood" aria-label="Challenge reflection state">
+                    {% if entry.state_short %}<span class="saga-mood-pill saga-mood-pill--quadrant">{{ entry.state_short }}</span>{% endif %}
+                  </div>
                 </div>
-              </div>
+                {% else %}
+                <div class="saga-day-note saga-day-note--{{ entry.quadrant }}"
+                     style="--quadrant-accent: {{ entry.quadrant_accent }}; --mood-accent: {{ entry.quadrant_accent }}; --mood-strength: {{ entry.mood_strength }}%; --mood-wash: {{ entry.mood_wash_pct }}%; --mood-glow: {{ entry.mood_glow_pct }}%; --mood-chip: {{ entry.mood_chip_pct }}%;">
+                  <time>{{ entry.time or "--:--" }}</time>
+                  <div class="saga-day-note__body">{{ entry.note_html | safe }}</div>
+                  <div class="saga-day-note__mood" aria-label="Entry mood">
+                    <span class="saga-mood-pill saga-mood-pill--emotion">{{ entry.mood_word }}</span>
+                    <span class="saga-mood-pill saga-mood-pill--quadrant">{{ entry.quadrant }}</span>
+                    <span class="saga-mood-pill saga-mood-pill--coords">E:{{ entry.energy }} P:{{ entry.pleasantness }}</span>
+                  </div>
+                </div>
+                {% endif %}
               {% endfor %}
             </div>
           </section>
           {% endif %}
 
           {% if day.quests %}
-          <section class="saga-day-section saga-day-section--quests">
-            <div class="saga-day-section__head">
-              <h2>Quest Data</h2>
+          <section class="saga-day-section saga-day-section--quests" x-data="{ depth: 0 }">
+            <button class="saga-day-section__head saga-day-section__toggle"
+                    type="button"
+                    :aria-expanded="(depth > 0).toString()"
+                    @click="depth = depth === 0 ? 1 : depth === 1 ? 2 : 0">
+              <h2>Quests</h2>
               <div class="saga-day-glance" aria-label="Quest summary">
                 <span class="saga-day-glance__metric">{{ day.quest_summary.status }}</span>
                 {% for item in day.quest_summary.contexts %}
                 <span>{{ item.label }}{% if item.count > 1 %} x{{ item.count }}{% endif %}</span>
                 {% endfor %}
               </div>
-            </div>
-            <div class="saga-day-list">
+            </button>
+            <div class="saga-day-list" x-show="depth > 0" x-collapse>
               {% for quest in day.quests %}
               <article class="saga-day-data-row saga-day-data-row--questlog">
                 <time>{{ quest.time or "--:--" }}</time>
@@ -64,7 +81,7 @@
                   <span>{{ quest.project or quest.workspace }}</span>
                   {% endif %}
                 </div>
-                <div class="saga-day-data-row__status">
+                <div class="saga-day-data-row__status" x-show="depth > 1">
                   <span>{{ quest.status }}</span>
                   {% if quest.labels %}<span>{{ quest.labels }}</span>{% endif %}
                 </div>
@@ -75,19 +92,22 @@
           {% endif %}
 
           {% if day.challenges %}
-          <section class="saga-day-section saga-day-section--challenges">
-            <div class="saga-day-section__head">
-              <h2>Challenge Data</h2>
+          <section class="saga-day-section saga-day-section--challenges" x-data="{ depth: 0, showDone: false }">
+            <button class="saga-day-section__head saga-day-section__toggle"
+                    type="button"
+                    :aria-expanded="(depth > 0).toString()"
+                    @click="depth = depth === 0 ? 1 : depth === 1 ? 2 : 0">
+              <h2>Challenges</h2>
               <div class="saga-day-glance" aria-label="Challenge summary">
                 <span class="saga-day-glance__metric">{{ day.challenge_summary.label }} &middot; {{ day.challenge_summary.score }}</span>
                 {% for state in day.challenge_summary.states %}
                 <span class="saga-day-glance__state saga-day-glance__state--{{ state.tone }}">{{ state.label }} x{{ state.count }}</span>
                 {% endfor %}
               </div>
-            </div>
-            <div class="saga-day-list">
-              {% for item in day.challenges %}
-              <article class="saga-day-data-row saga-day-data-row--hard90 saga-day-data-row--{{ item.state_tone }}"{% if item.notes %} title="{{ item.notes }}"{% endif %}>
+            </button>
+            <div class="saga-day-list" x-show="depth > 0" x-collapse>
+              {% for item in day.challenges_signal %}
+              <article class="saga-day-data-row saga-day-data-row--hard90 saga-day-data-row--{{ item.state_tone }}">
                 <time>{{ item.time or "--:--" }}</time>
                 <div class="saga-day-data-row__main">
                   <strong>{{ item.title }}</strong>
@@ -97,7 +117,72 @@
                 </div>
                 <div class="saga-day-data-row__status">
                   {% if item.state_short %}<span>{{ item.state_short }}</span>{% endif %}
-                  {% if item.notes %}<span>note</span>{% endif %}
+                </div>
+              </article>
+              {% endfor %}
+
+              {% if day.challenges_done %}
+              <button class="saga-done-pill"
+                      type="button"
+                      x-show="depth === 1"
+                      @click.stop="showDone = !showDone">
+                +{{ day.challenges_done|length }} done
+              </button>
+              <div x-show="depth > 1 || showDone" x-collapse>
+                {% for item in day.challenges_done %}
+                <article class="saga-day-data-row saga-day-data-row--hard90 saga-day-data-row--muted saga-day-data-row--{{ item.state_tone }}">
+                  <time>{{ item.time or "--:--" }}</time>
+                  <div class="saga-day-data-row__main">
+                    <strong>{{ item.title }}</strong>
+                    {% if item.bucket or item.era %}
+                    <span>{{ item.bucket }}{% if item.era %} &middot; {{ item.era }}{% endif %}</span>
+                    {% endif %}
+                  </div>
+                  <div class="saga-day-data-row__status">
+                    {% if item.state_short %}<span>{{ item.state_short }}</span>{% endif %}
+                  </div>
+                </article>
+                {% endfor %}
+              </div>
+              {% endif %}
+            </div>
+          </section>
+          {% endif %}
+
+          {% if day.experiments %}
+          <section class="saga-day-section saga-day-section--experiments" x-data="{ depth: 0 }">
+            <button class="saga-day-section__head saga-day-section__toggle"
+                    type="button"
+                    :aria-expanded="(depth > 0).toString()"
+                    @click="depth = depth === 0 ? 1 : depth === 1 ? 2 : 0">
+              <h2>Tiny Experiments</h2>
+              <div class="saga-day-glance" aria-label="Experiment summary">
+                <span class="saga-day-glance__metric">{{ day.experiment_summary.status }}</span>
+                {% if day.experiment_summary.touched %}<span>{{ day.experiment_summary.touched }} touched</span>{% endif %}
+              </div>
+            </button>
+            <div class="saga-day-list" x-show="depth > 0" x-collapse>
+              {% for exp in day.experiments %}
+              <article class="saga-day-data-row saga-day-data-row--experiment saga-day-data-row--{{ exp.signal_tone }}">
+                <time>{{ exp.entry.time if exp.entry else exp.time_signal }}</time>
+                <div class="saga-day-data-row__main">
+                  <strong>{{ exp.action }}</strong>
+                  <span>{{ exp.signal_arrow }} {{ exp.time_signal }}{% if exp.events %} &middot; {{ exp.events|join(', ') }}{% endif %}</span>
+                  <div class="saga-experiment-deep" x-show="depth > 1" x-collapse>
+                    {% if exp.entry and exp.entry.notes %}<p>{{ exp.entry.notes }}</p>{% endif %}
+                    {% if exp.suggested_verdict %}<p>Suggested verdict: {{ exp.suggested_verdict|replace('_', ' ') }}</p>{% endif %}
+                    {% if exp.recent_entries %}
+                    <ul>
+                      {% for recent in exp.recent_entries %}
+                      <li>{{ recent.log_date }} · {{ recent.state_short }}{% if recent.notes %} · {{ recent.notes }}{% endif %}</li>
+                      {% endfor %}
+                    </ul>
+                    {% endif %}
+                  </div>
+                </div>
+                <div class="saga-day-data-row__status">
+                  <span>{{ exp.status }}</span>
+                  {% if exp.needs_verdict %}<span>verdict</span>{% endif %}
                 </div>
               </article>
               {% endfor %}

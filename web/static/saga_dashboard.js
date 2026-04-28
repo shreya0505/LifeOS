@@ -101,17 +101,28 @@
   }
 
   function initAffect(root, data) {
+    const points = (data.timeseries.labels || []).map((label, idx) => ({
+      x: data.timeseries.avg_pleasantness[idx],
+      y: data.timeseries.avg_energy[idx],
+      meta: { label, date: data.timeseries.dates[idx] },
+    })).filter(point => point.x !== null && point.y !== null);
     render(root, "#chart-affect", {
-      ...baseChart("line", 300),
-      series: [
-        { name: "Energy", data: data.timeseries.avg_energy },
-        { name: "Pleasantness", data: data.timeseries.avg_pleasantness },
-      ],
-      colors: ["#F4C430", "#5BB97C"],
-      labels: data.timeseries.labels,
-      yaxis: { min: -5, max: 5, tickAmount: 10 },
+      ...baseChart("scatter", 340),
+      series: [{ name: "Mood center", data: points }],
+      colors: ["#F4C430"],
+      xaxis: { min: -5, max: 5, tickAmount: 10, title: { text: "Pleasantness" } },
+      yaxis: { min: -5, max: 5, tickAmount: 10, title: { text: "Energy" } },
+      markers: { size: 7, strokeWidth: 2 },
       annotations: {
+        xaxis: [{ x: 0, borderColor: "rgba(245,241,234,0.24)" }],
         yaxis: [{ y: 0, borderColor: "rgba(245,241,234,0.24)" }],
+      },
+      tooltip: {
+        theme: "dark",
+        custom: ({ seriesIndex, dataPointIndex, w }) => {
+          const point = w.config.series[seriesIndex].data[dataPointIndex];
+          return `<div class="saga-chart-tip">${point.meta.label}<br>P ${point.x} · E ${point.y}</div>`;
+        },
       },
     });
   }
@@ -219,24 +230,29 @@
   }
 
   function initArchetypes(root, data) {
-    initDonut(
-      root,
-      "#chart-archetypes",
-      data.archetype_distribution.map(item => item.archetype),
-      data.archetype_distribution.map(item => item.count),
-      ["#CF9D7B", "#E27F6F", "#61D394", "#7C9CFF", "#F6D365", "#D58BFF", "#6FB7D8", "#F4A261", "#9DBA5A"]
-    );
+    render(root, "#chart-archetypes", {
+      ...baseChart("bar", 320),
+      series: [{ name: "Days", data: data.archetype_distribution.map(item => item.count) }],
+      colors: ["#CF9D7B"],
+      plotOptions: { bar: { horizontal: true, borderRadius: 3, distributed: true } },
+      xaxis: {
+        categories: data.archetype_distribution.map(item => item.archetype),
+        labels: { formatter: v => Math.round(v) },
+      },
+      yaxis: { labels: { maxWidth: 160 } },
+    });
   }
 
   function initDow(root, data) {
     render(root, "#chart-dow", {
-      ...baseChart("radar", 320),
+      ...baseChart("bar", 320),
       series: [
         { name: "Mood load", data: data.dow_profile.map(item => item.mood_load_avg) },
         { name: "Output", data: data.dow_profile.map(item => item.output_avg) },
       ],
-      labels: data.dow_profile.map(item => item.weekday),
       colors: ["#E27F6F", "#EACEAA"],
+      plotOptions: { bar: { columnWidth: "48%", borderRadius: 3 } },
+      xaxis: { categories: data.dow_profile.map(item => item.weekday) },
       yaxis: { min: 0, max: 100 },
     });
   }
@@ -265,6 +281,141 @@
     );
   }
 
+  function initSystemsMatrix(root, data) {
+    if (!data.grimoire || !data.grimoire.charts) return;
+    const matrix = data.grimoire.charts.systems_matrix || {};
+    const labels = data.grimoire.charts.labels || [];
+    const series = Object.entries(matrix).map(([name, values]) => ({
+      name,
+      data: values.map((value, idx) => ({ x: labels[idx], y: value })),
+    }));
+    render(root, "#chart-systems-matrix", {
+      ...baseChart("heatmap", 340),
+      series,
+      plotOptions: {
+        heatmap: {
+          shadeIntensity: 0.35,
+          colorScale: {
+            ranges: [
+              { from: 0, to: 39, color: "#E27F6F", name: "risk" },
+              { from: 40, to: 69, color: "#F6D365", name: "watch" },
+              { from: 70, to: 100, color: "#61D394", name: "held" },
+            ],
+          },
+        },
+      },
+      dataLabels: { enabled: true, style: { colors: ["#0C1519"] } },
+    });
+  }
+
+  function initExecLong(root, data) {
+    if (!data.grimoire || !data.grimoire.charts) return;
+    const grouped = { "Experiment active": [], "No experiment": [] };
+    (data.grimoire.charts.execution_long_game || []).forEach(point => {
+      const key = point.experiment ? "Experiment active" : "No experiment";
+      grouped[key].push({ x: point.x, y: point.y, meta: point });
+    });
+    render(root, "#chart-exec-long", {
+      ...baseChart("scatter", 340),
+      series: Object.entries(grouped).map(([name, points]) => ({ name, data: points })),
+      colors: ["#7C9CFF", "#CF9D7B"],
+      xaxis: { min: 0, max: 100, title: { text: "Daily execution" } },
+      yaxis: { min: 0, max: 100, title: { text: "Long game integrity" } },
+      annotations: {
+        xaxis: [{ x: 60, borderColor: "rgba(245,241,234,0.2)" }],
+        yaxis: [{ y: 70, borderColor: "rgba(245,241,234,0.2)" }],
+      },
+      tooltip: {
+        theme: "dark",
+        custom: ({ seriesIndex, dataPointIndex, w }) => {
+          const meta = w.config.series[seriesIndex].data[dataPointIndex].meta;
+          return `<div class="saga-chart-tip">${meta.label}<br>Execution ${meta.x} · Long game ${meta.y}<br>Pleasantness ${meta.pleasantness}</div>`;
+        },
+      },
+    });
+  }
+
+  function initMoodSplit(root, data) {
+    if (!data.grimoire || !data.grimoire.charts) return;
+    const rows = data.grimoire.charts.mood_split || [];
+    render(root, "#chart-mood-split", {
+      ...baseChart("bar", 300),
+      series: [
+        { name: "Output", data: rows.map(row => row.output) },
+        { name: "Hard 90", data: rows.map(row => row.challenge) },
+      ],
+      colors: ["#F6D365", "#61D394"],
+      xaxis: { categories: rows.map(row => row.mood) },
+      yaxis: { min: 0, max: 100 },
+      plotOptions: { bar: { columnWidth: "46%", borderRadius: 3 } },
+    });
+  }
+
+  function initFocusQuality(root, data) {
+    if (!data.grimoire || !data.grimoire.charts) return;
+    const rows = data.grimoire.charts.focus_quality || [];
+    render(root, "#chart-focus-quality", {
+      ...baseChart("bar", 320),
+      series: [
+        { name: "Pomos", data: rows.map(row => row.pomos) },
+        { name: "Interruptions", data: rows.map(row => row.interruptions) },
+        { name: "Hollow", data: rows.map(row => row.hollow) },
+        { name: "Berserker", data: rows.map(row => row.berserker) },
+      ],
+      colors: ["#EACEAA", "#E27F6F", "#6FB7D8", "#F6D365"],
+      xaxis: { categories: rows.map(row => row.label) },
+      plotOptions: { bar: { borderRadius: 3 } },
+    });
+  }
+
+  function initExperimentRunway(root, data) {
+    if (!data.grimoire || !data.grimoire.charts) return;
+    const rows = data.grimoire.charts.experiment_runway || [];
+    render(root, "#chart-experiment-runway", {
+      ...baseChart("bar", 320),
+      series: [
+        { name: "Active", data: rows.map(row => row.active) },
+        { name: "Touched", data: rows.map(row => row.touched) },
+        { name: "Verdict due", data: rows.map(row => row.verdict_due) },
+      ],
+      colors: ["#7C9CFF", "#61D394", "#E27F6F"],
+      xaxis: { categories: rows.map(row => row.label) },
+      plotOptions: { bar: { borderRadius: 3 } },
+    });
+  }
+
+  function initBucketRisk(root, data) {
+    if (!data.grimoire || !data.grimoire.charts) return;
+    const rows = data.grimoire.charts.bucket_risk || [];
+    render(root, "#chart-bucket-risk", {
+      ...baseChart("bar", 300),
+      series: [
+        { name: "Pleasant days", data: rows.map(row => row.pleasant) },
+        { name: "Unpleasant days", data: rows.map(row => row.unpleasant) },
+      ],
+      colors: ["#61D394", "#E27F6F"],
+      xaxis: { categories: rows.map(row => row.bucket) },
+      plotOptions: { bar: { columnWidth: "48%", borderRadius: 3 } },
+    });
+  }
+
+  function initDowSystem(root, data) {
+    if (!data.grimoire || !data.grimoire.charts) return;
+    const rows = data.grimoire.charts.dow_system || [];
+    render(root, "#chart-dow-system", {
+      ...baseChart("bar", 320),
+      series: [
+        { name: "Daily", data: rows.map(row => row.daily) },
+        { name: "Long Game", data: rows.map(row => row.long_game) },
+        { name: "Emotion", data: rows.map(row => row.emotion) },
+      ],
+      colors: ["#EACEAA", "#61D394", "#7C9CFF"],
+      xaxis: { categories: rows.map(row => row.weekday) },
+      yaxis: { min: 0, max: 100 },
+      plotOptions: { bar: { borderRadius: 3, columnWidth: "54%" } },
+    });
+  }
+
   function init(explicitWindow) {
     const roots = Array.from(document.querySelectorAll("[data-saga-dashboard]"));
     roots.forEach(root => {
@@ -281,6 +432,13 @@
       initDow(root, data);
       initBlock(root, data);
       initFamilyDonut(root, data);
+      initSystemsMatrix(root, data);
+      initExecLong(root, data);
+      initMoodSplit(root, data);
+      initFocusQuality(root, data);
+      initExperimentRunway(root, data);
+      initBucketRisk(root, data);
+      initDowSystem(root, data);
     });
   }
 
