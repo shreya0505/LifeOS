@@ -1904,7 +1904,7 @@ def build_system_verdict(pillars: list[dict], missing_data: list[dict], grain: s
         analysis = f"Execution is alive this {grain}, but it is carrying pressure or leaving long-term goals exposed. The question is not whether you worked; it is what your work protected."
     elif emotional < 45 and daily < 55:
         label, tone = "Emotional Drag", "risk"
-        analysis = f"Unpleasant emotional load is paired with weaker motion this {grain}. Reduce load and make the next task small enough to restart traction."
+        analysis = f"Unpleasant emotional load is paired with weaker motion this {grain}. Treat the next move as perspective and regulation first: name the pressure, choose a kinder interpretation of the circumstance, then make the task small enough to restart traction."
     elif evolution < 35 and daily >= 40:
         label, tone = "Growth Dormant", "watch"
         analysis = f"The operating system is moving, but the experimentation layer is quiet. Add a small trial so progress includes learning, not only execution."
@@ -1925,19 +1925,10 @@ def build_system_verdict(pillars: list[dict], missing_data: list[dict], grain: s
 
 def build_recommendations(
     pillars: list[dict],
-    missing_data: list[dict],
+    _missing_data: list[dict],
     context: dict,
 ) -> list[dict]:
     recs = []
-    for item in missing_data:
-        recs.append({
-            "title": item["title"],
-            "reason": item["body"],
-            "action": "Open",
-            "href": item["href"],
-            "tone": "coach",
-        })
-
     by_key = {pillar["key"]: pillar for pillar in pillars}
     if by_key["long_game"]["score"] < 60 and context["priority_misses"]:
         recs.append({
@@ -1947,7 +1938,7 @@ def build_recommendations(
             "href": "/challenge",
             "tone": "risk",
         })
-    if by_key["daily_execution"]["score"] < 55:
+    if by_key["daily_execution"]["score"] < 55 and (context["quest_days"] or context["focus_days"]):
         recs.append({
             "title": "Rebuild daily traction",
             "reason": "Quest/Pomo output is not strong enough to carry the day. One frog plus one focused session is the cleanest reset.",
@@ -1955,19 +1946,19 @@ def build_recommendations(
             "href": "/",
             "tone": "watch",
         })
-    if by_key["emotional_climate"]["score"] < 55:
+    if by_key["emotional_climate"]["score"] < 55 and context["saga_days"]:
         recs.append({
-            "title": "Lower unpleasant load before scaling output",
-            "reason": f"{context['red_blue_ratio']}% of captured emotion is red/blue pressure. Treat mood as a system input, not a side note.",
-            "action": "Capture the next mood and choose a lighter load",
+            "title": "Reframe pressure before scaling output",
+            "reason": f"{context['red_blue_ratio']}% of captured emotion is red/blue pressure. Grimoire reads that as difficult circumstances shaping the system, not as a personal failure.",
+            "action": "Capture the next mood and choose a kinder perspective",
             "href": "/saga",
             "tone": "watch",
         })
-    if by_key["evolution"]["score"] < 45:
+    if by_key["evolution"]["score"] < 45 and context["exp_total"]:
         recs.append({
-            "title": "Restart the experimentation layer",
-            "reason": "Growth signal is thin. A tiny trial counts even when the verdict is failure, because the point is learning.",
-            "action": "Start one tiny experiment",
+            "title": "Keep experiments alive through logs",
+            "reason": "Tiny Experiment data exists, but participation is thin. The improvement is logging the trial, not forcing it to succeed.",
+            "action": "Log the current trial",
             "href": "/challenge/experiments",
             "tone": "coach",
         })
@@ -2044,11 +2035,26 @@ def build_tendencies(
 
     focus_days = [day for day in pomo_by_day.values() if day.get("actual_pomos")]
     if focus_days:
-        avg_interruptions = round(sum(day.get("interruptions", 0) for day in focus_days) / max(sum(day.get("completed_work_segments", 0) for day in focus_days), 1), 1)
+        total_interruptions = sum(day.get("interruptions", 0) for day in focus_days)
+        completed_segments = sum(day.get("completed_work_segments", 0) for day in focus_days)
+        hollow_sessions = sum(day.get("hollow", 0) for day in focus_days)
+        avg_interruptions = round(total_interruptions / max(completed_segments, 1), 1)
+        if total_interruptions:
+            title = "Reduce interruption drag"
+            body = f"{total_interruptions} interruption{'s' if total_interruptions != 1 else ''} across {completed_segments} completed focus segment{'s' if completed_segments != 1 else ''}. Protect one cleaner block before adding more work."
+            tone = "watch"
+        elif hollow_sessions:
+            title = "Tighten hollow focus sessions"
+            body = f"{hollow_sessions} hollow focus session{'s' if hollow_sessions != 1 else ''} showed effort without real traction. Start the next block with a smaller, visible finish line."
+            tone = "watch"
+        else:
+            title = "Protect clean focus blocks"
+            body = f"Focused days averaged {avg_interruptions} interruptions per completed work segment. Keep using those blocks for frogs or Anchor tasks."
+            tone = "strength"
         tendencies.append({
-            "title": "Focus quality is now measurable",
-            "body": f"Across focused days, interruptions average {avg_interruptions} per completed work segment.",
-            "tone": "info",
+            "title": title,
+            "body": body,
+            "tone": tone,
         })
 
     if not tendencies:
@@ -2072,6 +2078,7 @@ def build_grimoire_charts(
     evolution_scores = []
     emotional_scores = []
     scatter = []
+    mood_correlation = []
     systems_matrix = {key: [] for key in ("Daily", "Long Game", "Evolution", "Emotion")}
     focus_quality = []
     experiment_runway = []
@@ -2084,26 +2091,38 @@ def build_grimoire_charts(
     for day in day_profiles:
         pomo = pomo_by_day.get(day["date"], {})
         exp = experiments_by_day.get(day["date"], {})
+        has_daily_signal = bool(day["quest"]["count"] or pomo.get("actual_pomos") or pomo.get("completed_work_segments"))
+        has_evolution_signal = bool(exp.get("active") or exp.get("touched") or exp.get("started") or exp.get("verdict_due"))
         daily = _clamp(day["quest"]["output_index"] * 0.72 + min(100, (pomo.get("actual_pomos", 0) or 0) * 18) * 0.28)
-        long = day["challenge"]["score"] if day["challenge"]["score"] is not None else 0
+        long = day["challenge"]["score"] if day["challenge"]["score"] is not None else -1
         evolution = _clamp((exp.get("active", 0) * 20) + (exp.get("touched", 0) * 28) + (exp.get("started", 0) * 20) - (exp.get("verdict_due", 0) * 14))
-        emotion = _clamp(((day["saga"]["avg_pleasantness"] + 5) / 10) * 70 + (100 - day["saga"]["mood_load"]) * 0.30) if day["saga"]["entry_count"] else 0
+        emotion = _clamp(((day["saga"]["avg_pleasantness"] + 5) / 10) * 70 + (100 - day["saga"]["mood_load"]) * 0.30) if day["saga"]["entry_count"] else -1
         daily_scores.append(round(daily))
-        long_scores.append(round(long))
+        long_scores.append(round(long) if long >= 0 else 0)
         evolution_scores.append(round(evolution))
-        emotional_scores.append(round(emotion))
-        systems_matrix["Daily"].append(round(daily))
-        systems_matrix["Long Game"].append(round(long))
-        systems_matrix["Evolution"].append(round(evolution))
-        systems_matrix["Emotion"].append(round(emotion))
-        if day["quest"]["count"] or day["challenge"]["count"] or day["saga"]["entry_count"]:
+        emotional_scores.append(round(emotion) if emotion >= 0 else 0)
+        systems_matrix["Daily"].append(round(daily) if has_daily_signal else -1)
+        systems_matrix["Long Game"].append(round(long) if long >= 0 else -1)
+        systems_matrix["Evolution"].append(round(evolution) if has_evolution_signal else -1)
+        systems_matrix["Emotion"].append(round(emotion) if emotion >= 0 else -1)
+        if has_daily_signal and long >= 0:
             scatter.append({
                 "label": day["label"],
                 "date": day["date"],
                 "x": round(daily),
                 "y": round(long),
                 "pleasantness": day["saga"]["avg_pleasantness"],
+                "mood": "Pleasant mood" if day["saga"]["entry_count"] and day["saga"]["avg_pleasantness"] >= 0 else "Unpleasant mood" if day["saga"]["entry_count"] else "No mood captured",
                 "experiment": bool(exp.get("active") or exp.get("touched")),
+                "mood_load": day["saga"]["mood_load"],
+            })
+        if day["saga"]["entry_count"]:
+            mood_correlation.append({
+                "label": day["label"],
+                "date": day["date"],
+                "pleasantness": day["saga"]["avg_pleasantness"],
+                "output": round(daily) if has_daily_signal else None,
+                "integrity": round(long) if long >= 0 else None,
                 "mood_load": day["saga"]["mood_load"],
             })
         focus_quality.append({
@@ -2150,6 +2169,7 @@ def build_grimoire_charts(
         },
         "systems_matrix": systems_matrix,
         "execution_long_game": scatter,
+        "mood_correlation": mood_correlation,
         "mood_split": mood_split_rows,
         "focus_quality": focus_quality,
         "experiment_runway": experiment_runway,

@@ -603,7 +603,9 @@
 
 .saga-day-note__body {
   font-family: var(--saga-mono);
+  font-size: 0.82rem;
   font-weight: 800;
+  line-height: 1.42;
 }
 
 .saga-note-card__body > :first-child,
@@ -1277,6 +1279,30 @@
   border-left: 2px solid color-mix(in srgb, #D89B6A 58%, transparent);
 }
 
+.saga-entry-card--challenge.saga-entry-card--held {
+  --saga-row-accent: #61D394;
+  --mood-accent: #61D394;
+  border-left-color: color-mix(in srgb, #61D394 68%, transparent);
+}
+
+.saga-entry-card--challenge.saga-entry-card--mixed {
+  --saga-row-accent: #F6D365;
+  --mood-accent: #F6D365;
+  border-left-color: color-mix(in srgb, #F6D365 68%, transparent);
+}
+
+.saga-entry-card--challenge.saga-entry-card--started {
+  --saga-row-accent: #D89B6A;
+  --mood-accent: #D89B6A;
+  border-left-color: color-mix(in srgb, #D89B6A 68%, transparent);
+}
+
+.saga-entry-card--challenge.saga-entry-card--missed {
+  --saga-row-accent: #FF6B5F;
+  --mood-accent: #FF6B5F;
+  border-left-color: color-mix(in srgb, #FF6B5F 72%, transparent);
+}
+
 .saga-day-note__source {
   display: flex;
   flex-wrap: wrap;
@@ -1287,14 +1313,14 @@
 
 .saga-day-note__source span,
 .saga-day-note__source small {
-  color: color-mix(in srgb, #D89B6A 56%, rgba(245, 241, 234, 0.48));
+  color: color-mix(in srgb, var(--mood-accent) 56%, rgba(245, 241, 234, 0.48));
   font-size: 0.56rem;
   font-weight: 900;
   text-transform: uppercase;
 }
 
 .saga-day-note__source strong {
-  color: color-mix(in srgb, #D89B6A 34%, var(--saga-text));
+  color: color-mix(in srgb, var(--mood-accent) 34%, var(--saga-text));
   font-size: 0.72rem;
   font-weight: 900;
 }
@@ -1320,7 +1346,7 @@
 .saga-day-note time {
   color: rgba(245, 241, 234, 0.45);
   font-family: var(--saga-mono);
-  font-size: 0.7rem;
+  font-size: 0.62rem;
   font-weight: 800;
 }
 
@@ -1334,7 +1360,7 @@
 .saga-day-note__mood {
   color: rgba(245, 241, 234, 0.42);
   font-family: var(--saga-mono);
-  font-size: 0.62rem;
+  font-size: 0.56rem;
   font-weight: 800;
   text-transform: uppercase;
 }

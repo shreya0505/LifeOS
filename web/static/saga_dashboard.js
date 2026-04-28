@@ -63,6 +63,35 @@
     };
   }
 
+  function flameHeatmapRanges(max = 100) {
+    const scale = max <= 10
+      ? [
+        { from: 0, to: 0, color: "#364348", name: "no load" },
+        { from: 1, to: 2, color: "#4A1F1C", name: "light" },
+        { from: 3, to: 5, color: "#A83A22", name: "warm" },
+        { from: 6, to: 8, color: "#F97316", name: "hot" },
+        { from: 9, to: 10, color: "#FFE08A", name: "intense" },
+      ]
+      : [
+        { from: 0, to: 0, color: "#364348", name: "no load" },
+        { from: 1, to: 24, color: "#4A1F1C", name: "light" },
+        { from: 25, to: 49, color: "#A83A22", name: "warm" },
+        { from: 50, to: 74, color: "#F97316", name: "hot" },
+        { from: 75, to: 100, color: "#FFE08A", name: "intense" },
+      ];
+    return scale;
+  }
+
+  function systemMatrixRanges() {
+    return [
+      { from: -1, to: -1, color: "#364348", name: "No data" },
+      { from: 0, to: 24, color: "#8A2C25", name: "Strained" },
+      { from: 25, to: 49, color: "#D05A2D", name: "Weak" },
+      { from: 50, to: 74, color: "#F2B84B", name: "Holding" },
+      { from: 75, to: 100, color: "#61D394", name: "Strong" },
+    ];
+  }
+
   function initKpis(root, data) {
     const p = palette();
     Object.entries(data.headline.kpis || {}).forEach(([key, kpi]) => {
@@ -141,13 +170,6 @@
 
   function initHeatmap(root, data) {
     const levels = { empty: 0, low: 2, mid: 5, high: 8, peak: 10 };
-    const colors = {
-      empty: "rgba(245,241,234,0.06)",
-      low: "#6FB7D8",
-      mid: "#CF9D7B",
-      high: "#F4A261",
-      peak: "#FF6B5F",
-    };
     const weeks = [];
     data.heatmap.forEach((day, idx) => {
       const week = Math.floor(idx / 7);
@@ -155,14 +177,18 @@
       weeks[week].data.push({
         x: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][day.weekday],
         y: levels[day.level] || 0,
-        fillColor: colors[day.level] || colors.empty,
         meta: day,
       });
     });
     render(root, "#chart-heatmap", {
       ...baseChart("heatmap", data.window_days >= 365 ? 520 : 300),
       series: weeks,
-      plotOptions: { heatmap: { shadeIntensity: 0, colorScale: { ranges: [] } } },
+      plotOptions: {
+        heatmap: {
+          shadeIntensity: 0,
+          colorScale: { ranges: flameHeatmapRanges(10) },
+        },
+      },
       tooltip: {
         theme: "dark",
         custom: ({ seriesIndex, dataPointIndex, w }) => {
@@ -285,51 +311,62 @@
     if (!data.grimoire || !data.grimoire.charts) return;
     const matrix = data.grimoire.charts.systems_matrix || {};
     const labels = data.grimoire.charts.labels || [];
+    const dates = data.grimoire.charts.dates || [];
     const series = Object.entries(matrix).map(([name, values]) => ({
       name,
-      data: values.map((value, idx) => ({ x: labels[idx], y: value })),
+      data: values.map((value, idx) => ({ x: labels[idx], y: value, meta: { date: dates[idx], system: name } })),
     }));
     render(root, "#chart-systems-matrix", {
       ...baseChart("heatmap", 340),
       series,
       plotOptions: {
         heatmap: {
-          shadeIntensity: 0.35,
-          colorScale: {
-            ranges: [
-              { from: 0, to: 39, color: "#E27F6F", name: "risk" },
-              { from: 40, to: 69, color: "#F6D365", name: "watch" },
-              { from: 70, to: 100, color: "#61D394", name: "held" },
-            ],
-          },
+          shadeIntensity: 0,
+          colorScale: { ranges: systemMatrixRanges() },
         },
       },
-      dataLabels: { enabled: true, style: { colors: ["#0C1519"] } },
+      dataLabels: {
+        enabled: true,
+        formatter: value => value < 0 ? "—" : Math.round(value),
+        style: { colors: ["#0C1519"] },
+      },
+      tooltip: {
+        theme: "dark",
+        custom: ({ seriesIndex, dataPointIndex, w }) => {
+          const point = w.config.series[seriesIndex].data[dataPointIndex];
+          const value = point.y < 0 ? "No data" : `${Math.round(point.y)} / 100`;
+          return `<div class="saga-chart-tip">${point.meta.system} · ${point.meta.date || point.x}<br>${value}</div>`;
+        },
+      },
     });
   }
 
   function initExecLong(root, data) {
     if (!data.grimoire || !data.grimoire.charts) return;
-    const grouped = { "Experiment active": [], "No experiment": [] };
+    const grouped = { "Pleasant mood": [], "Unpleasant mood": [], "No mood captured": [] };
     (data.grimoire.charts.execution_long_game || []).forEach(point => {
-      const key = point.experiment ? "Experiment active" : "No experiment";
+      const key = point.mood || "No mood captured";
       grouped[key].push({ x: point.x, y: point.y, meta: point });
     });
     render(root, "#chart-exec-long", {
       ...baseChart("scatter", 340),
-      series: Object.entries(grouped).map(([name, points]) => ({ name, data: points })),
-      colors: ["#7C9CFF", "#CF9D7B"],
+      series: Object.entries(grouped)
+        .filter(([, points]) => points.length)
+        .map(([name, points]) => ({ name, data: points })),
+      colors: ["#61D394", "#E27F6F", "#8FA1A8"],
       xaxis: { min: 0, max: 100, title: { text: "Daily execution" } },
       yaxis: { min: 0, max: 100, title: { text: "Long game integrity" } },
       annotations: {
-        xaxis: [{ x: 60, borderColor: "rgba(245,241,234,0.2)" }],
-        yaxis: [{ y: 70, borderColor: "rgba(245,241,234,0.2)" }],
+        xaxis: [{ x: 60, borderColor: "rgba(245,241,234,0.24)", label: { text: "execution line", style: { color: "#0C1519", background: "#EACEAA" } } }],
+        yaxis: [{ y: 70, borderColor: "rgba(245,241,234,0.24)", label: { text: "integrity line", style: { color: "#0C1519", background: "#EACEAA" } } }],
       },
+      markers: { size: 7, strokeWidth: 1 },
       tooltip: {
         theme: "dark",
         custom: ({ seriesIndex, dataPointIndex, w }) => {
           const meta = w.config.series[seriesIndex].data[dataPointIndex].meta;
-          return `<div class="saga-chart-tip">${meta.label}<br>Execution ${meta.x} · Long game ${meta.y}<br>Pleasantness ${meta.pleasantness}</div>`;
+          const experiment = meta.experiment ? "<br>Experiment active/touched" : "";
+          return `<div class="saga-chart-tip">${meta.label}<br>Execution ${meta.x} · Long game ${meta.y}<br>Pleasantness ${meta.pleasantness}${experiment}</div>`;
         },
       },
     });
@@ -337,17 +374,34 @@
 
   function initMoodSplit(root, data) {
     if (!data.grimoire || !data.grimoire.charts) return;
-    const rows = data.grimoire.charts.mood_split || [];
+    const rows = data.grimoire.charts.mood_correlation || [];
+    const output = rows
+      .filter(row => row.output !== null && row.output !== undefined)
+      .map(row => ({ x: row.pleasantness, y: row.output, meta: row }));
+    const integrity = rows
+      .filter(row => row.integrity !== null && row.integrity !== undefined)
+      .map(row => ({ x: row.pleasantness, y: row.integrity, meta: row }));
     render(root, "#chart-mood-split", {
-      ...baseChart("bar", 300),
+      ...baseChart("scatter", 300),
       series: [
-        { name: "Output", data: rows.map(row => row.output) },
-        { name: "Hard 90", data: rows.map(row => row.challenge) },
+        { name: "Daily output", data: output },
+        { name: "Hard 90 integrity", data: integrity },
       ],
       colors: ["#F6D365", "#61D394"],
-      xaxis: { categories: rows.map(row => row.mood) },
-      yaxis: { min: 0, max: 100 },
-      plotOptions: { bar: { columnWidth: "46%", borderRadius: 3 } },
+      xaxis: { min: -5, max: 5, tickAmount: 10, title: { text: "Mood pleasantness" } },
+      yaxis: { min: 0, max: 100, title: { text: "Score" } },
+      annotations: {
+        xaxis: [{ x: 0, borderColor: "rgba(245,241,234,0.24)", label: { text: "neutral mood", style: { color: "#0C1519", background: "#EACEAA" } } }],
+      },
+      markers: { size: 7, strokeWidth: 1 },
+      tooltip: {
+        theme: "dark",
+        custom: ({ seriesIndex, dataPointIndex, w }) => {
+          const point = w.config.series[seriesIndex].data[dataPointIndex];
+          const metric = w.config.series[seriesIndex].name;
+          return `<div class="saga-chart-tip">${point.meta.label}<br>${metric}: ${point.y}<br>Pleasantness ${point.x} · mood load ${point.meta.mood_load}</div>`;
+        },
+      },
     });
   }
 
@@ -390,12 +444,23 @@
     render(root, "#chart-bucket-risk", {
       ...baseChart("bar", 300),
       series: [
-        { name: "Pleasant days", data: rows.map(row => row.pleasant) },
-        { name: "Unpleasant days", data: rows.map(row => row.unpleasant) },
+        { name: "Misses on pleasant days", data: rows.map(row => row.pleasant) },
+        { name: "Misses on unpleasant days", data: rows.map(row => row.unpleasant) },
       ],
       colors: ["#61D394", "#E27F6F"],
       xaxis: { categories: rows.map(row => row.bucket) },
+      yaxis: {
+        min: 0,
+        title: { text: "Missed Hard 90 entries" },
+        labels: { formatter: value => Math.round(value) },
+      },
       plotOptions: { bar: { columnWidth: "48%", borderRadius: 3 } },
+      tooltip: {
+        theme: "dark",
+        y: {
+          formatter: value => `${Math.round(value)} missed/partial task ${Math.round(value) === 1 ? "entry" : "entries"}`,
+        },
+      },
     });
   }
 

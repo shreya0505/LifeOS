@@ -64,6 +64,7 @@
       <p class="saga-section__deck">Ranked actions from cross-system diagnosis, not isolated metrics.</p>
     </div>
     <div class="saga-recommendation-grid">
+      {% if g.recommendations %}
       {% for rec in g.recommendations %}
       <article class="saga-recommendation-card saga-recommendation-card--{{ rec.tone }}">
         <h3>{{ rec.title }}</h3>
@@ -71,6 +72,12 @@
         <a href="{{ rec.href }}">{{ rec.action }}</a>
       </article>
       {% endfor %}
+      {% else %}
+      <article class="saga-recommendation-card saga-recommendation-card--coach">
+        <h3>No data-backed improvement yet</h3>
+        <p>Grimoire is not seeing enough observed behavior in this grain to make an improvement call. Use the smarter-data prompts below for capture gaps.</p>
+      </article>
+      {% endif %}
     </div>
   </section>
 
@@ -93,7 +100,7 @@
   <section class="saga-section saga-missing">
     <div class="saga-section-headline">
       <h2 class="saga-section__title">What would make this smarter?</h2>
-      <p class="saga-section__deck">Missing pillars lower confidence. Grimoire can tell you what to start or capture next.</p>
+      <p class="saga-section__deck">These are data gaps, not improvement advice. Fill them when you want Grimoire to read the whole system.</p>
     </div>
     <div class="saga-signal-grid">
       {% for item in g.missing_data %}
@@ -117,19 +124,19 @@
     <div class="saga-grid">
       <article class="saga-chart-card saga-grid__span-12">
         <h3 class="saga-chart-card__title">Systems matrix</h3>
-        <p class="saga-chart-card__deck">Each day across Daily Execution, Long Game, Evolution, and Emotional Climate.</p>
+        <p class="saga-chart-card__deck">Daily is Quest output plus Pomo volume; Long Game is the Hard 90 day score; Evolution counts active/touched/started experiments minus verdict debt; Emotion blends pleasantness with lower mood load. A dash means that system had no signal that day.</p>
         <div class="saga-chart" id="chart-systems-matrix"></div>
       </article>
 
       <article class="saga-chart-card saga-grid__span-7">
         <h3 class="saga-chart-card__title">Execution vs Long Game</h3>
-        <p class="saga-chart-card__deck">Productivity is useful when it also protects the long game.</p>
+        <p class="saga-chart-card__deck">Each dot is one day with both Quest/Pomo and Hard 90 data. Right means more daily execution; higher means stronger long-game integrity. The top-right zone is aligned work; bottom-right is productive drift.</p>
         <div class="saga-chart saga-chart--scatter" id="chart-exec-long"></div>
       </article>
 
       <article class="saga-chart-card saga-grid__span-5">
-        <h3 class="saga-chart-card__title">Mood → Output/Integrity split</h3>
-        <p class="saga-chart-card__deck">Pleasant and unpleasant days compared against output and Hard 90 integrity.</p>
+        <h3 class="saga-chart-card__title">Mood → Output/Integrity correlation</h3>
+        <p class="saga-chart-card__deck">Each point is a captured mood day. X is average Saga pleasantness from -5 to +5; Y is either Daily Output or Hard 90 integrity. This shows whether unpleasant mood coincides with weaker execution, weaker long-game follow-through, or neither.</p>
         <div class="saga-chart" id="chart-mood-split"></div>
       </article>
 
@@ -147,7 +154,7 @@
 
       <article class="saga-chart-card saga-grid__span-6">
         <h3 class="saga-chart-card__title">Bucket risk by mood</h3>
-        <p class="saga-chart-card__deck">Anchor, Improver, and Enricher misses split by pleasant vs unpleasant days.</p>
+        <p class="saga-chart-card__deck">Counts Hard 90 task entries that were not completed, grouped by bucket and by whether that day's Saga mood averaged pleasant or unpleasant. These are misses/partials, not days, so several can appear in one week.</p>
         <div class="saga-chart" id="chart-bucket-risk"></div>
       </article>
 
