@@ -75,7 +75,7 @@
       {% else %}
       <article class="saga-recommendation-card saga-recommendation-card--coach">
         <h3>No data-backed improvement yet</h3>
-        <p>Grimoire is not seeing enough observed behavior in this grain to make an improvement call. Use the smarter-data prompts below for capture gaps.</p>
+        <p>The Field Report is not seeing enough observed behavior in this grain to make an improvement call. Use the smarter-data prompts below for capture gaps.</p>
       </article>
       {% endif %}
     </div>
@@ -84,7 +84,7 @@
   <section class="saga-section saga-tendencies">
     <div class="saga-section-headline">
       <h2 class="saga-section__title">What are my trends or tendencies?</h2>
-      <p class="saga-section__deck">Repeated patterns Grimoire sees by comparing emotional climate, execution, long-game integrity, and experiments.</p>
+      <p class="saga-section__deck">Repeated patterns the Field Report sees by comparing emotional climate, execution, long-game integrity, and experiments.</p>
     </div>
     <div class="saga-tendency-grid">
       {% for item in g.tendencies %}
@@ -100,7 +100,7 @@
   <section class="saga-section saga-missing">
     <div class="saga-section-headline">
       <h2 class="saga-section__title">What would make this smarter?</h2>
-      <p class="saga-section__deck">These are data gaps, not improvement advice. Fill them when you want Grimoire to read the whole system.</p>
+      <p class="saga-section__deck">These are data gaps, not improvement advice. Fill them when you want the Field Report to read the whole system.</p>
     </div>
     <div class="saga-signal-grid">
       {% for item in g.missing_data %}
@@ -123,57 +123,60 @@
 
     <div class="saga-grid">
       <article class="saga-chart-card saga-grid__span-12">
-        <h3 class="saga-chart-card__title">Systems matrix</h3>
-        <p class="saga-chart-card__deck">Daily is Quest output plus Pomo volume; Long Game is the Hard 90 day score; Evolution counts active/touched/started experiments minus verdict debt; Emotion blends pleasantness with lower mood load. A dash means that system had no signal that day.</p>
-        <div class="saga-chart" id="chart-systems-matrix"></div>
+        <h3 class="saga-chart-card__title">Story over time</h3>
+        <p class="saga-chart-card__deck">Shows whether mood, productivity, curiosity, and goal progress are rising, falling, or lagging each other. Gaps mean that system had no signal on that day.</p>
+        <p class="saga-chart-card__guide">How to read: follow each line left to right. Lines rising together suggest alignment; one line rising before another suggests a possible delay; broken lines mean that source was not captured.</p>
+        <div class="saga-chart" id="chart-timeline-heartbeat"></div>
       </article>
 
-      <article class="saga-chart-card saga-grid__span-7">
-        <h3 class="saga-chart-card__title">Execution vs Long Game</h3>
-        <p class="saga-chart-card__deck">Each dot is one day with both Quest/Pomo and Hard 90 data. Right means more daily execution; higher means stronger long-game integrity. The top-right zone is aligned work; bottom-right is productive drift.</p>
-        <div class="saga-chart saga-chart--scatter" id="chart-exec-long"></div>
+      <article class="saga-chart-card saga-grid__span-12">
+        <h3 class="saga-chart-card__title">What actually connects?</h3>
+        <p class="saga-chart-card__deck" data-relationship-copy>Each dot is one day. Use the switches to test whether mood, curiosity, execution, and long-game integrity actually move together.</p>
+        <p class="saga-chart-card__guide">How to read: dots that climb from bottom-left to top-right suggest a positive relationship. A loose cloud means weak connection; lonely dots are outlier days worth inspecting.</p>
+        <div class="saga-chart-switch" role="group" aria-label="Relationship chart">
+          <button class="is-active" type="button" data-relationship="mood_daily">Mood → Daily</button>
+          <button type="button" data-relationship="mood_long">Mood → Long Game</button>
+          <button type="button" data-relationship="curiosity_long">Curiosity → Long Game</button>
+        </div>
+        <div class="saga-chart saga-chart--scatter" id="chart-relationship-truth"></div>
       </article>
 
-      <article class="saga-chart-card saga-grid__span-5">
-        <h3 class="saga-chart-card__title">Mood → Output/Integrity correlation</h3>
-        <p class="saga-chart-card__deck">Each point is a captured mood day. X is average Saga pleasantness from -5 to +5; Y is either Daily Output or Hard 90 integrity. This shows whether unpleasant mood coincides with weaker execution, weaker long-game follow-through, or neither.</p>
-        <div class="saga-chart" id="chart-mood-split"></div>
-      </article>
-
-      <article class="saga-chart-card saga-grid__span-6">
-        <h3 class="saga-chart-card__title">Focus quality</h3>
-        <p class="saga-chart-card__deck">Pomos, interruptions, hollow sessions, and berserker sessions by day.</p>
-        <div class="saga-chart" id="chart-focus-quality"></div>
-      </article>
-
-      <article class="saga-chart-card saga-grid__span-6">
-        <h3 class="saga-chart-card__title">Experiment runway</h3>
-        <p class="saga-chart-card__deck">Active trials, logged/touched trials, and verdict debt across the grain.</p>
-        <div class="saga-chart" id="chart-experiment-runway"></div>
-      </article>
-
-      <article class="saga-chart-card saga-grid__span-6">
-        <h3 class="saga-chart-card__title">Bucket risk by mood</h3>
-        <p class="saga-chart-card__deck">Counts Hard 90 task entries that were not completed, grouped by bucket and by whether that day's Saga mood averaged pleasant or unpleasant. These are misses/partials, not days, so several can appear in one week.</p>
-        <div class="saga-chart" id="chart-bucket-risk"></div>
-      </article>
-
-      <article class="saga-chart-card saga-grid__span-6">
-        <h3 class="saga-chart-card__title">Weekday system rhythm</h3>
-        <p class="saga-chart-card__deck">Daily, long-game, and emotional pillar scores by weekday.</p>
-        <div class="saga-chart" id="chart-dow-system"></div>
-      </article>
-
-      <article class="saga-chart-card saga-grid__span-6">
-        <h3 class="saga-chart-card__title">Mood load heatmap</h3>
-        <p class="saga-chart-card__deck">Secondary evidence for emotional capture and pressure.</p>
-        <div class="saga-chart" id="chart-heatmap"></div>
-      </article>
-
-      <article class="saga-chart-card saga-grid__span-6">
-        <h3 class="saga-chart-card__title">Challenge bucket trend</h3>
-        <p class="saga-chart-card__deck">Secondary evidence for long-game integrity.</p>
-        <div class="saga-chart" id="chart-buckets"></div>
+      <article class="saga-chart-card saga-grid__span-12">
+        <h3 class="saga-chart-card__title">Big picture map</h3>
+        <p class="saga-chart-card__deck">Correlation heatmap across detailed signals. Positive means two metrics rise together; negative means one tends to rise as the other falls; a dash means there were not enough paired days.</p>
+        <div class="saga-chart" id="chart-correlation-map"></div>
+        <div class="saga-correlation-guide" aria-label="How to interpret correlation patterns">
+          <figure class="saga-correlation-example">
+            <div class="saga-correlation-example__plot" aria-hidden="true">
+              <span style="--x: 10%; --y: 76%"></span><span style="--x: 20%; --y: 70%"></span><span style="--x: 31%; --y: 59%"></span><span style="--x: 42%; --y: 50%"></span><span style="--x: 54%; --y: 39%"></span><span style="--x: 66%; --y: 29%"></span><span style="--x: 79%; --y: 18%"></span>
+            </div>
+            <figcaption><strong>Strong positive</strong><span>Bright green off-diagonal cell. As one signal rises, the other usually rises too.</span></figcaption>
+          </figure>
+          <figure class="saga-correlation-example">
+            <div class="saga-correlation-example__plot" aria-hidden="true">
+              <span style="--x: 10%; --y: 74%"></span><span style="--x: 23%; --y: 58%"></span><span style="--x: 29%; --y: 70%"></span><span style="--x: 41%; --y: 48%"></span><span style="--x: 53%; --y: 43%"></span><span style="--x: 61%; --y: 26%"></span><span style="--x: 74%; --y: 30%"></span><span style="--x: 83%; --y: 13%"></span>
+            </div>
+            <figcaption><strong>Moderate positive</strong><span>Both signals lean upward together, but some days break the pattern.</span></figcaption>
+          </figure>
+          <figure class="saga-correlation-example">
+            <div class="saga-correlation-example__plot" aria-hidden="true">
+              <span style="--x: 17%; --y: 39%"></span><span style="--x: 25%; --y: 63%"></span><span style="--x: 34%; --y: 28%"></span><span style="--x: 43%; --y: 54%"></span><span style="--x: 52%; --y: 41%"></span><span style="--x: 60%; --y: 67%"></span><span style="--x: 70%; --y: 33%"></span><span style="--x: 81%; --y: 50%"></span>
+            </div>
+            <figcaption><strong>Weak or none</strong><span>Gray cell. The two signals do not move together reliably in this grain.</span></figcaption>
+          </figure>
+          <figure class="saga-correlation-example">
+            <div class="saga-correlation-example__plot" aria-hidden="true">
+              <span style="--x: 11%; --y: 18%"></span><span style="--x: 20%; --y: 28%"></span><span style="--x: 34%; --y: 35%"></span><span style="--x: 45%; --y: 46%"></span><span style="--x: 57%; --y: 55%"></span><span style="--x: 69%; --y: 66%"></span><span style="--x: 82%; --y: 78%"></span>
+            </div>
+            <figcaption><strong>Strong negative</strong><span>Bright red cell. One signal tends to rise when the other falls.</span></figcaption>
+          </figure>
+          <figure class="saga-correlation-example">
+            <div class="saga-correlation-example__plot" aria-hidden="true">
+              <span style="--x: 10%; --y: 35%"></span><span style="--x: 21%; --y: 59%"></span><span style="--x: 34%; --y: 70%"></span><span style="--x: 47%; --y: 75%"></span><span style="--x: 60%; --y: 64%"></span><span style="--x: 73%; --y: 42%"></span><span style="--x: 86%; --y: 17%"></span>
+            </div>
+            <figcaption><strong>Curved pattern</strong><span>Heatmaps can understate this. Check the scatter chart when a relationship feels non-linear.</span></figcaption>
+          </figure>
+        </div>
       </article>
     </div>
   </section>

@@ -247,6 +247,24 @@ async def test_entry_upsert_updates_existing(db):
 
 
 @pytest.mark.asyncio
+async def test_entry_upsert_allows_notes_before_rating(db):
+    ch_repo = SqliteChallengeRepo(db)
+    t_repo = SqliteChallengeTaskRepo(db)
+    e_repo = SqliteChallengeEntryRepo(db)
+    today = today_local().isoformat()
+    ch = await ch_repo.create("Era X", today, "R")
+    [task] = await t_repo.create_batch(ch["id"], [{"name": "Run", "bucket": "anchor"}])
+
+    partial = await e_repo.upsert(task["id"], ch["id"], today, None, "rough morning")
+    assert partial["state"] is None
+    assert partial["notes"] == "rough morning"
+
+    rated = await e_repo.upsert(task["id"], ch["id"], today, "PARTIAL", "rough morning")
+    assert rated["state"] == "PARTIAL"
+    assert rated["notes"] == "rough morning"
+
+
+@pytest.mark.asyncio
 async def test_entry_get_by_date(db):
     ch_repo = SqliteChallengeRepo(db)
     t_repo = SqliteChallengeTaskRepo(db)
@@ -279,6 +297,30 @@ async def test_entry_get_all_for_task_chronological(db):
 
     all_e = await e_repo.get_all_for_task(task["id"])
     assert [e["log_date"] for e in all_e] == dates
+
+
+@pytest.mark.asyncio
+async def test_today_entry_route_allows_notes_before_rating_and_queues_sync(client, db):
+    await client.post("/challenge/setup", data={"anchor[]": "Morning run"})
+    ch = await SqliteChallengeRepo(db).get_active()
+    [task] = await SqliteChallengeTaskRepo(db).get_by_challenge(ch["id"])
+
+    response = await client.post(
+        f"/challenge/today/entry/{task['id']}",
+        data={"notes": "captured before choosing a verdict"},
+    )
+
+    assert response.status_code == 200
+    row = await (await db.execute(
+        "SELECT state, notes FROM challenge_entries WHERE task_id = ?",
+        (task["id"],),
+    )).fetchone()
+    assert row == (None, "captured before choosing a verdict")
+    assert "0/1 rated" in response.text
+    sync_row = await (await db.execute(
+        "SELECT table_name FROM sync_changes WHERE table_name = 'challenge_entries'"
+    )).fetchone()
+    assert sync_row == ("challenge_entries",)
 
 
 # ── SqliteChallengeEraRepo ───────────────────────────────────────────────────
@@ -336,6 +378,23 @@ async def test_experiment_create_start_entry_and_judge(db):
     assert judged["verdict"] == "success"
     assert judged["observation_notes"] == "worked"
     assert judged["conclusion_notes"] == "keep it"
+
+
+@pytest.mark.asyncio
+async def test_experiment_entry_allows_notes_before_rating(db):
+    ch_repo = SqliteChallengeRepo(db)
+    exp_repo = SqliteChallengeExperimentRepo(db)
+    today = today_local().isoformat()
+    ch = await ch_repo.create("Era X", today, "R")
+    exp = await exp_repo.create(ch["id"], "No-scroll morning", "Focus should rise", "week")
+
+    partial = await exp_repo.upsert_entry(exp["id"], ch["id"], today, None, "felt noisy")
+    assert partial["state"] is None
+    assert partial["notes"] == "felt noisy"
+
+    rated = await exp_repo.upsert_entry(exp["id"], ch["id"], today, "STARTED", "felt noisy")
+    assert rated["state"] == "STARTED"
+    assert rated["notes"] == "felt noisy"
 
 
 @pytest.mark.asyncio

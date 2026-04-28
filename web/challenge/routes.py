@@ -154,8 +154,12 @@ async def _build_today_context(
 
     tracked_task_ids = {t["id"] for t in tasks if t["bucket"] in C.TRACKED_BUCKETS}
     tracked_total = len(tracked_task_ids)
-    tracked_rated = sum(1 for e in target_entries if e["task_id"] in tracked_task_ids)
-    total_rated = len(target_entries)
+    tracked_rated = sum(
+        1
+        for e in target_entries
+        if e["task_id"] in tracked_task_ids and e.get("state") in C.STATES
+    )
+    total_rated = sum(1 for e in target_entries if e.get("state") in C.STATES)
 
     caught_up_sealed = info["caught_up_sealed"]
     can_seal = (
@@ -306,7 +310,7 @@ async def today_page(
 async def update_entry(
     request: Request,
     task_id: str,
-    state: str = Form(...),
+    state: str | None = Form(None),
     notes: str = Form(""),
     challenge_repo=Depends(get_challenge_repo),
     task_repo=Depends(get_challenge_task_repo),
@@ -321,7 +325,7 @@ async def update_entry(
     if task is None or task["challenge_id"] != ch["id"]:
         return HTMLResponse("", status_code=404)
 
-    if state not in C.STATES:
+    if state is not None and state not in C.STATES:
         return HTMLResponse("Invalid state", status_code=400)
 
     info = _target_info(ch)
@@ -332,7 +336,9 @@ async def update_entry(
     # (By construction target_date is the next unsealed day, so this is a safety net.)
     if info["target_day_num"] <= (ch["days_elapsed"] or 0):
         return HTMLResponse("Day already sealed — entries are locked.", status_code=400)
-    await entry_repo.upsert(task_id, ch["id"], target_date, state, notes.strip() or None)
+    note_value = notes.strip() or None
+    if state is not None or note_value is not None:
+        await entry_repo.upsert(task_id, ch["id"], target_date, state, note_value)
 
     # Recompute context, re-render single card + OOB seal button refresh
     ctx = await _build_today_context(ch, task_repo, entry_repo, experiment_repo)
@@ -378,7 +384,11 @@ async def seal_day(
 
     # Verify all tracked tasks rated for target_date
     for t in tasks:
-        if t["bucket"] in C.TRACKED_BUCKETS and t["id"] not in entries_by_task:
+        entry = entries_by_task.get(t["id"])
+        if (
+            t["bucket"] in C.TRACKED_BUCKETS
+            and (entry is None or entry.get("state") not in C.STATES)
+        ):
             ctx = await _build_today_context(ch, task_repo, entry_repo, experiment_repo)
             return _render(request, "challenge_today.html", ctx)
 
@@ -388,7 +398,11 @@ async def seal_day(
     for t in tasks:
         if t["bucket"] not in C.TRACKED_BUCKETS:
             continue
-        all_ent = await entry_repo.get_all_for_task(t["id"])
+        all_ent = [
+            entry
+            for entry in await entry_repo.get_all_for_task(t["id"])
+            if entry.get("state") in C.STATES
+        ]
         h = reset_engine.check_hard(all_ent)
         s = reset_engine.check_soft(all_ent)
         if h:
@@ -553,9 +567,10 @@ async def metrics_page(
 
     tasks = await task_repo.get_by_challenge(ch["id"])
     all_entries = await entry_repo.get_all_for_challenge(ch["id"])
+    rated_entries = [entry for entry in all_entries if entry.get("state") in C.STATES]
 
     entries_by_task: dict[str, list] = {t["id"]: [] for t in tasks}
-    for e in all_entries:
+    for e in rated_entries:
         entries_by_task.setdefault(e["task_id"], []).append(e)
     for tid in entries_by_task:
         entries_by_task[tid].sort(key=lambda e: e["log_date"])
@@ -712,7 +727,8 @@ async def _build_experiments_context(challenge: dict, experiment_repo) -> dict:
         exp["entries"] = exp_entries
         exp["entry_count"] = len(exp_entries)
         exp["notes_count"] = sum(1 for e in exp_entries if e.get("notes"))
-        ranks = [C.STATE_RANK.get(e["state"], 0) for e in exp_entries]
+        rated_exp_entries = [e for e in exp_entries if e.get("state") in C.STATES]
+        ranks = [C.STATE_RANK.get(e["state"], 0) for e in rated_exp_entries]
         exp["avg_rank"] = round(sum(ranks) / len(ranks), 2) if ranks else None
         breakdown = {s: 0 for s in C.STATES}
         for e in exp_entries:
@@ -820,7 +836,7 @@ async def start_experiment(
 async def update_experiment_entry(
     request: Request,
     experiment_id: str,
-    state: str = Form(...),
+    state: str | None = Form(None),
     notes: str = Form(""),
     challenge_repo=Depends(get_challenge_repo),
     task_repo=Depends(get_challenge_task_repo),
@@ -835,7 +851,7 @@ async def update_experiment_entry(
         return HTMLResponse("", status_code=404)
     if exp["status"] != "running":
         return HTMLResponse("Trial is not running", status_code=400)
-    if state not in C.STATES:
+    if state is not None and state not in C.STATES:
         return HTMLResponse("Invalid state", status_code=400)
 
     info = _target_info(ch)
@@ -843,13 +859,15 @@ async def update_experiment_entry(
         return HTMLResponse("Nothing to fill — come back tomorrow.", status_code=400)
     if info["target_day_num"] <= (ch["days_elapsed"] or 0):
         return HTMLResponse("Day already sealed — entries are locked.", status_code=400)
-    await experiment_repo.upsert_entry(
-        experiment_id,
-        exp["challenge_id"],
-        info["target_date"],
-        state,
-        notes.strip() or None,
-    )
+    note_value = notes.strip() or None
+    if state is not None or note_value is not None:
+        await experiment_repo.upsert_entry(
+            experiment_id,
+            exp["challenge_id"],
+            info["target_date"],
+            state,
+            note_value,
+        )
     ctx = await _build_today_context(ch, task_repo, entry_repo, experiment_repo)
     experiment = next((e for e in ctx["experiments"] if e["id"] == experiment_id), None)
     if experiment is None:

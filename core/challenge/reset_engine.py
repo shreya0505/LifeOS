@@ -12,6 +12,7 @@ from .config import (
 
 
 def check_hard(entries: list[dict]) -> bool:
+    entries = [e for e in entries if e.get("state")]
     if len(entries) < RESET_HARD_WINDOW:
         return False
     window = entries[-RESET_HARD_WINDOW:]
@@ -19,6 +20,7 @@ def check_hard(entries: list[dict]) -> bool:
 
 
 def check_soft(entries: list[dict]) -> bool:
+    entries = [e for e in entries if e.get("state")]
     if len(entries) < RESET_SOFT_WINDOW:
         return False
     window = entries[-RESET_SOFT_WINDOW:]
@@ -42,6 +44,7 @@ def evaluate_backfill(
     """Scan all windows. Return (hard, soft, trigger_entry_id) for earliest trigger."""
     if bucket not in TRACKED_BUCKETS:
         return (False, False, None)
+    all_entries = [e for e in all_entries if e.get("state")]
     for i in range(RESET_HARD_WINDOW, len(all_entries) + 1):
         window = all_entries[i - RESET_HARD_WINDOW:i]
         if all(e["state"] in RESET_HARD_STATES for e in window):

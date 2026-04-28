@@ -96,6 +96,38 @@ async def test_overdue_experiment_renders_pending_verdict_ui_and_today_banner(cl
 
 
 @pytest.mark.asyncio
+async def test_experiment_entry_route_allows_notes_before_rating_and_queues_sync(client, db):
+    await client.post("/challenge/setup", data={"anchor[]": "Morning run"})
+    await client.post(
+        "/challenge/experiments",
+        data={
+            "action": "No-scroll morning",
+            "motivation": "Focus should rise",
+            "timeframe": "day",
+        },
+    )
+    page = await client.get("/challenge/experiments")
+    exp_id = re.search(r"/challenge/experiments/([a-f0-9]+)/start", page.text).group(1)
+    await client.post(f"/challenge/experiments/{exp_id}/start")
+
+    response = await client.post(
+        f"/challenge/experiments/{exp_id}/entry",
+        data={"notes": "signal before rating"},
+    )
+
+    assert response.status_code == 200
+    row = await (await db.execute(
+        "SELECT state, notes FROM challenge_experiment_entries WHERE experiment_id = ?",
+        (exp_id,),
+    )).fetchone()
+    assert row == (None, "signal before rating")
+    sync_row = await (await db.execute(
+        "SELECT table_name FROM sync_changes WHERE table_name = 'challenge_experiment_entries'"
+    )).fetchone()
+    assert sync_row == ("challenge_experiment_entries",)
+
+
+@pytest.mark.asyncio
 async def test_abandon_experiment_persists_reason_as_conclusion(client):
     await client.post("/challenge/setup", data={"anchor[]": "Morning run"})
     await client.post(

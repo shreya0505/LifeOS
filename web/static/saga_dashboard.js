@@ -341,6 +341,129 @@
     });
   }
 
+  function initTimelineHeartbeat(root, data) {
+    if (!data.grimoire || !data.grimoire.charts) return;
+    const heartbeat = data.grimoire.charts.timeline_heartbeat || {};
+    render(root, "#chart-timeline-heartbeat", {
+      ...baseChart("line", 360),
+      series: heartbeat.series || [],
+      colors: ["#7C9CFF", "#EACEAA", "#F6D365", "#61D394"],
+      labels: heartbeat.labels || [],
+      yaxis: { min: 0, max: 100, title: { text: "Score" } },
+      stroke: { curve: "smooth", width: 3 },
+      markers: { size: 3, strokeWidth: 0 },
+      tooltip: {
+        theme: "dark",
+        shared: true,
+        intersect: false,
+        y: {
+          formatter: value => value === null || value === undefined ? "No signal" : `${Math.round(value)} / 100`,
+        },
+      },
+    });
+  }
+
+  function relationshipCopy(relationship) {
+    const copy = {
+      mood_daily: "Each dot is one day with Saga mood and Daily Execution data. X is mood pleasantness from -5 to +5; Y is Quest/Pomo execution from 0 to 100.",
+      mood_long: "Each dot is one day with Saga mood and Hard 90 data. X is mood pleasantness from -5 to +5; Y is long-game integrity from 0 to 100.",
+      curiosity_long: "Each dot is one day with Tiny Experiment and Hard 90 data. X is Curiosity/Evolution from 0 to 100; Y is long-game integrity from 0 to 100.",
+    };
+    return copy[relationship.key] || "Each dot is one day. The chart tests whether the selected signals move together.";
+  }
+
+  function drawRelationship(root, relationship) {
+    const points = (relationship.points || []).map(point => ({ x: point.x, y: point.y, meta: point }));
+    render(root, "#chart-relationship-truth", {
+      ...baseChart("scatter", 340),
+      series: [{ name: relationship.label, data: points }],
+      colors: ["#F6D365"],
+      xaxis: {
+        min: relationship.x_min,
+        max: relationship.x_max,
+        title: { text: relationship.x_label },
+      },
+      yaxis: {
+        min: relationship.y_min,
+        max: relationship.y_max,
+        title: { text: relationship.y_label },
+      },
+      annotations: {
+        xaxis: relationship.x_min < 0 ? [{ x: 0, borderColor: "rgba(245,241,234,0.22)" }] : [],
+        yaxis: [{ y: 70, borderColor: "rgba(245,241,234,0.18)" }],
+      },
+      markers: { size: 7, strokeWidth: 1 },
+      tooltip: {
+        theme: "dark",
+        custom: ({ seriesIndex, dataPointIndex, w }) => {
+          const point = w.config.series[seriesIndex].data[dataPointIndex];
+          return `<div class="saga-chart-tip">${point.meta.label}<br>${relationship.x_label}: ${point.x}<br>${relationship.y_label}: ${point.y}</div>`;
+        },
+      },
+    });
+  }
+
+  function initRelationshipTruthDetector(root, data) {
+    if (!data.grimoire || !data.grimoire.charts) return;
+    const relationships = data.grimoire.charts.relationships || [];
+    if (!relationships.length) return;
+    const byKey = Object.fromEntries(relationships.map(item => [item.key, item]));
+    const buttons = Array.from(root.querySelectorAll("[data-relationship]"));
+    const copy = root.querySelector("[data-relationship-copy]");
+    function activate(key) {
+      const relationship = byKey[key] || relationships[0];
+      buttons.forEach(button => button.classList.toggle("is-active", button.dataset.relationship === relationship.key));
+      if (copy) copy.textContent = relationshipCopy(relationship);
+      drawRelationship(root, relationship);
+    }
+    buttons.forEach(button => {
+      button.onclick = () => activate(button.dataset.relationship);
+    });
+    const active = buttons.find(button => button.classList.contains("is-active"));
+    activate(active ? active.dataset.relationship : relationships[0].key);
+  }
+
+  function correlationRanges() {
+    return [
+      { from: -1, to: -0.5, color: "#E27F6F", name: "Negative" },
+      { from: -0.49, to: 0.49, color: "#364348", name: "Weak/none" },
+      { from: 0.5, to: 0.79, color: "#F6D365", name: "Positive" },
+      { from: 0.8, to: 1, color: "#61D394", name: "Strong" },
+    ];
+  }
+
+  function initCorrelationMap(root, data) {
+    if (!data.grimoire || !data.grimoire.charts) return;
+    const matrix = data.grimoire.charts.correlation_matrix || {};
+    const series = (matrix.series || []).map(row => ({
+      name: row.name,
+      data: (row.data || []).map(cell => ({ x: cell.x, y: cell.y, meta: cell })),
+    }));
+    render(root, "#chart-correlation-map", {
+      ...baseChart("heatmap", 340),
+      series,
+      plotOptions: {
+        heatmap: {
+          shadeIntensity: 0,
+          colorScale: { ranges: correlationRanges() },
+        },
+      },
+      dataLabels: {
+        enabled: true,
+        formatter: value => value === null || value === undefined ? "—" : Number(value).toFixed(2),
+        style: { colors: ["#F5F1EA"] },
+      },
+      tooltip: {
+        theme: "dark",
+        custom: ({ seriesIndex, dataPointIndex, w }) => {
+          const cell = w.config.series[seriesIndex].data[dataPointIndex].meta;
+          const value = cell.y === null || cell.y === undefined ? "Insufficient data" : cell.y.toFixed(2);
+          return `<div class="saga-chart-tip">${cell.metric_y} ↔ ${cell.metric_x}<br>${value}<br>${cell.paired_days} paired day${cell.paired_days === 1 ? "" : "s"}</div>`;
+        },
+      },
+    });
+  }
+
   function initExecLong(root, data) {
     if (!data.grimoire || !data.grimoire.charts) return;
     const grouped = { "Pleasant mood": [], "Unpleasant mood": [], "No mood captured": [] };
@@ -487,23 +610,9 @@
       const data = payloadFor(root, explicitWindow);
       if (!data) return;
       initKpis(root, data);
-      initComove(root, data);
-      initAffect(root, data);
-      initStream(root, data);
-      initHeatmap(root, data);
-      initBuckets(root, data);
-      initScatter(root, data);
-      initArchetypes(root, data);
-      initDow(root, data);
-      initBlock(root, data);
-      initFamilyDonut(root, data);
-      initSystemsMatrix(root, data);
-      initExecLong(root, data);
-      initMoodSplit(root, data);
-      initFocusQuality(root, data);
-      initExperimentRunway(root, data);
-      initBucketRisk(root, data);
-      initDowSystem(root, data);
+      initTimelineHeartbeat(root, data);
+      initRelationshipTruthDetector(root, data);
+      initCorrelationMap(root, data);
     });
   }
 

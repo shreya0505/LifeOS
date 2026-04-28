@@ -233,6 +233,9 @@ async def unified_events(db: aiosqlite.Connection, local_date: str | None = None
     )
     for row in await hard90_cursor.fetchall():
         timestamp = row[1] or _date_fallback_timestamp(row[2], time(20, 0))
+        summary = (row[4] or "").strip()
+        if not summary and row[3]:
+            summary = row[3].replace("_", " ").title()
         events.append({
             "id": f"hard90:{row[0]}",
             "source": "hard90",
@@ -241,7 +244,7 @@ async def unified_events(db: aiosqlite.Connection, local_date: str | None = None
             "time": display_time(timestamp),
             "block": block_for_timestamp(timestamp),
             "title": row[5],
-            "summary": row[4] or row[3].replace("_", " ").title(),
+            "summary": summary or "Captured note.",
             "payload": {"state": row[3], "bucket": row[6], "era": row[7], "notes": row[4]},
         })
 
@@ -373,9 +376,10 @@ def _experiment_needs_verdict_on(exp: dict, local_date: str) -> bool:
 
 
 def _experiment_signal(entries: list[dict]) -> dict:
-    if not entries:
+    rated_entries = [entry for entry in entries if entry.get("state") in STATE_RANK]
+    if not rated_entries:
         return {"arrow": "→", "tone": "neutral", "label": "No entries"}
-    ranks = [STATE_RANK.get(entry.get("state") or "", 0) for entry in entries]
+    ranks = [STATE_RANK[entry["state"]] for entry in rated_entries]
     avg = mean(ranks) if ranks else 0
     if avg >= 4:
         return {"arrow": "↑", "tone": "up", "label": "Signal rising"}
@@ -634,17 +638,18 @@ async def timeline_days(db: aiosqlite.Connection, page: int = 1, per_page: int =
             }
             day["challenge_reflections"].append(reflection)
             day["entries"].append(reflection)
-        day["challenges"].append({
-            "id": row[0],
-            "time": display_time(timestamp),
-            "title": row[5],
-            "state_key": state_key,
-            "state": _challenge_state_label(state_key),
-            "state_short": _challenge_state_short(state_key),
-            "state_tone": _challenge_state_tone(state_key),
-            "bucket": row[6],
-            "era": row[7],
-        })
+        if state_key:
+            day["challenges"].append({
+                "id": row[0],
+                "time": display_time(timestamp),
+                "title": row[5],
+                "state_key": state_key,
+                "state": _challenge_state_label(state_key),
+                "state_short": _challenge_state_short(state_key),
+                "state_tone": _challenge_state_tone(state_key),
+                "bucket": row[6],
+                "era": row[7],
+            })
 
     experiments_by_day = await _timeline_experiments_by_day(db, start, today)
     for local_date, experiments in experiments_by_day.items():
@@ -1279,6 +1284,7 @@ async def _collect_window(db: aiosqlite.Connection, days: int) -> dict:
         "JOIN challenge_tasks t ON t.id = e.task_id "
         "JOIN challenges c ON c.id = e.challenge_id "
         "WHERE e.log_date >= ? AND e.log_date <= ? "
+        "AND e.state IS NOT NULL "
         "ORDER BY e.log_date, e.created_at, t.name",
         (start.isoformat(), end.isoformat()),
     )
@@ -1852,7 +1858,7 @@ def build_pillars(
     if saga_days == 0:
         missing_data.append({"kind": "saga", "title": "Capture emotional signal", "body": "No Saga entries in this grain, so mood-linked analysis is low confidence.", "href": "/saga"})
     if challenge_days == 0:
-        missing_data.append({"kind": "hard90", "title": "Start or log a long-game challenge", "body": "Hard 90 is the long-game anchor for Grimoire.", "href": "/challenge"})
+        missing_data.append({"kind": "hard90", "title": "Start or log a long-game challenge", "body": "Hard 90 is the long-game anchor for the Field Report.", "href": "/challenge"})
     if exp_total == 0:
         missing_data.append({"kind": "experiments", "title": "Start a small trial", "body": "Tiny Experiments show whether you are actively evolving.", "href": "/challenge/experiments"})
     if focus_days == 0:
@@ -1892,7 +1898,7 @@ def build_system_verdict(pillars: list[dict], missing_data: list[dict], grain: s
 
     if confidence == "low" and len(missing_data) >= 2:
         label, tone = "Data Thin", "muted"
-        analysis = f"This {grain} does not have enough cross-system signal to make a strong diagnosis. Start by filling the missing pillars so Grimoire can separate mood, execution, and long-game drift."
+        analysis = f"This {grain} does not have enough cross-system signal to make a strong diagnosis. Start by filling the missing pillars so the Field Report can separate mood, execution, and long-game drift."
     elif daily < 35 and long_game < 45 and emotional < 45:
         label, tone = "System Down", "risk"
         analysis = f"This {grain}, daily execution, long-game integrity, and emotional climate are all under strain. Treat the next step as stabilization, not optimization."
@@ -1949,7 +1955,7 @@ def build_recommendations(
     if by_key["emotional_climate"]["score"] < 55 and context["saga_days"]:
         recs.append({
             "title": "Reframe pressure before scaling output",
-            "reason": f"{context['red_blue_ratio']}% of captured emotion is red/blue pressure. Grimoire reads that as difficult circumstances shaping the system, not as a personal failure.",
+            "reason": f"{context['red_blue_ratio']}% of captured emotion is red/blue pressure. The Field Report reads that as difficult circumstances shaping the system, not as a personal failure.",
             "action": "Capture the next mood and choose a kinder perspective",
             "href": "/saga",
             "tone": "watch",
@@ -2066,6 +2072,38 @@ def build_tendencies(
     return tendencies[:5]
 
 
+def _pearson_correlation(left: list[float | int | None], right: list[float | int | None]) -> tuple[float | None, int]:
+    pairs = [
+        (float(a), float(b))
+        for a, b in zip(left, right)
+        if a is not None and b is not None
+    ]
+    if len(pairs) < 3:
+        return None, len(pairs)
+    xs = [pair[0] for pair in pairs]
+    ys = [pair[1] for pair in pairs]
+    x_mean = mean(xs)
+    y_mean = mean(ys)
+    x_delta = [x - x_mean for x in xs]
+    y_delta = [y - y_mean for y in ys]
+    x_var = sum(delta * delta for delta in x_delta)
+    y_var = sum(delta * delta for delta in y_delta)
+    if not x_var or not y_var:
+        return None, len(pairs)
+    corr = sum(x * y for x, y in zip(x_delta, y_delta)) / math.sqrt(x_var * y_var)
+    return round(corr, 2), len(pairs)
+
+
+def _correlation_tone(value: float | None) -> str:
+    if value is None:
+        return "insufficient"
+    if value <= -0.5:
+        return "negative"
+    if value >= 0.5:
+        return "positive"
+    return "weak"
+
+
 def build_grimoire_charts(
     day_profiles: list[dict],
     pomo_by_day: dict[str, dict],
@@ -2079,6 +2117,7 @@ def build_grimoire_charts(
     emotional_scores = []
     scatter = []
     mood_correlation = []
+    metric_rows = []
     systems_matrix = {key: [] for key in ("Daily", "Long Game", "Evolution", "Emotion")}
     focus_quality = []
     experiment_runway = []
@@ -2097,6 +2136,15 @@ def build_grimoire_charts(
         long = day["challenge"]["score"] if day["challenge"]["score"] is not None else -1
         evolution = _clamp((exp.get("active", 0) * 20) + (exp.get("touched", 0) * 28) + (exp.get("started", 0) * 20) - (exp.get("verdict_due", 0) * 14))
         emotion = _clamp(((day["saga"]["avg_pleasantness"] + 5) / 10) * 70 + (100 - day["saga"]["mood_load"]) * 0.30) if day["saga"]["entry_count"] else -1
+        daily_value = round(daily) if has_daily_signal else None
+        long_value = round(long) if long >= 0 else None
+        evolution_value = round(evolution) if has_evolution_signal else None
+        emotion_value = round(emotion) if emotion >= 0 else None
+        priority_misses = sum(
+            1
+            for row in day["challenge"].get("raw_rows", [])
+            if row.get("bucket") in {"anchor", "improver"} and row.get("state") != "COMPLETED_SATISFACTORY"
+        )
         daily_scores.append(round(daily))
         long_scores.append(round(long) if long >= 0 else 0)
         evolution_scores.append(round(evolution))
@@ -2125,6 +2173,22 @@ def build_grimoire_charts(
                 "integrity": round(long) if long >= 0 else None,
                 "mood_load": day["saga"]["mood_load"],
             })
+        metric_rows.append({
+            "label": day["label"],
+            "date": day["date"],
+            "pleasantness": day["saga"]["avg_pleasantness"] if day["saga"]["entry_count"] else None,
+            "mood_load": day["saga"]["mood_load"] if day["saga"]["entry_count"] else None,
+            "quest_output": day["quest"]["output_index"] if day["quest"]["count"] else None,
+            "daily_execution": daily_value,
+            "emotional_climate": emotion_value,
+            "pomos": pomo.get("actual_pomos", 0) if pomo.get("focus_days") else None,
+            "interruptions": pomo.get("interruptions", 0) if pomo.get("focus_days") else None,
+            "long_game": long_value,
+            "priority_misses": priority_misses if day["challenge"]["raw_rows"] else None,
+            "curiosity": evolution_value,
+            "experiment_touches": exp.get("touched", 0) if has_evolution_signal else None,
+            "verdict_debt": exp.get("verdict_due", 0) if has_evolution_signal else None,
+        })
         focus_quality.append({
             "label": day["label"],
             "pomos": pomo.get("actual_pomos", 0),
@@ -2158,9 +2222,107 @@ def build_grimoire_charts(
             "challenge": _mean_or_none(values["challenge"]) or 0,
         })
 
+    metric_defs = [
+        ("pleasantness", "Pleasantness"),
+        ("mood_load", "Mood load"),
+        ("quest_output", "Quest output"),
+        ("daily_execution", "Daily execution"),
+        ("pomos", "Pomos"),
+        ("interruptions", "Interruptions"),
+        ("long_game", "Long game"),
+        ("priority_misses", "Priority misses"),
+        ("curiosity", "Curiosity"),
+        ("experiment_touches", "Experiment touches"),
+        ("verdict_debt", "Verdict debt"),
+    ]
+    metric_values = {
+        key: [row.get(key) for row in metric_rows]
+        for key, _label in metric_defs
+    }
+    correlation_matrix = []
+    for row_key, row_label in metric_defs:
+        row_cells = []
+        for col_key, col_label in metric_defs:
+            coefficient, paired_days = _pearson_correlation(metric_values[row_key], metric_values[col_key])
+            row_cells.append({
+                "x": col_label,
+                "y": coefficient,
+                "metric_x": col_label,
+                "metric_y": row_label,
+                "paired_days": paired_days,
+                "tone": _correlation_tone(coefficient),
+            })
+        correlation_matrix.append({
+            "name": row_label,
+            "data": row_cells,
+        })
+
+    relationships = [
+        {
+            "key": "mood_daily",
+            "label": "Mood → Daily Execution",
+            "x_label": "Mood pleasantness",
+            "y_label": "Daily execution",
+            "x_min": -5,
+            "x_max": 5,
+            "y_min": 0,
+            "y_max": 100,
+            "points": [
+                {"x": row["pleasantness"], "y": row["daily_execution"], "label": row["label"], "date": row["date"]}
+                for row in metric_rows
+                if row["pleasantness"] is not None and row["daily_execution"] is not None
+            ],
+        },
+        {
+            "key": "mood_long",
+            "label": "Mood → Long Game",
+            "x_label": "Mood pleasantness",
+            "y_label": "Long game integrity",
+            "x_min": -5,
+            "x_max": 5,
+            "y_min": 0,
+            "y_max": 100,
+            "points": [
+                {"x": row["pleasantness"], "y": row["long_game"], "label": row["label"], "date": row["date"]}
+                for row in metric_rows
+                if row["pleasantness"] is not None and row["long_game"] is not None
+            ],
+        },
+        {
+            "key": "curiosity_long",
+            "label": "Curiosity → Long Game",
+            "x_label": "Curiosity / evolution",
+            "y_label": "Long game integrity",
+            "x_min": 0,
+            "x_max": 100,
+            "y_min": 0,
+            "y_max": 100,
+            "points": [
+                {"x": row["curiosity"], "y": row["long_game"], "label": row["label"], "date": row["date"]}
+                for row in metric_rows
+                if row["curiosity"] is not None and row["long_game"] is not None
+            ],
+        },
+    ]
+
     return {
         "labels": labels,
         "dates": dates,
+        "timeline_heartbeat": {
+            "labels": labels,
+            "dates": dates,
+            "series": [
+                {"name": "Emotional Climate", "data": [row["emotional_climate"] for row in metric_rows]},
+                {"name": "Daily Execution", "data": [row["daily_execution"] for row in metric_rows]},
+                {"name": "Curiosity", "data": [row["curiosity"] for row in metric_rows]},
+                {"name": "Long Game", "data": [row["long_game"] for row in metric_rows]},
+            ],
+        },
+        "relationships": relationships,
+        "correlation_matrix": {
+            "metrics": [{"key": key, "label": label} for key, label in metric_defs],
+            "series": correlation_matrix,
+        },
         "pillar_series": {
             "daily": daily_scores,
             "long_game": long_scores,

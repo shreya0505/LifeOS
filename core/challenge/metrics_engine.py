@@ -27,6 +27,7 @@ GATE_TIER_VELOCITY = 14
 
 def per_task_health(entries: list[dict]) -> dict:
     """Entries chronological oldest→newest. Returns health breakdown."""
+    entries = [e for e in entries if e.get("state") in STATE_RANK]
     last_hard = entries[-RESET_HARD_WINDOW:] if len(entries) >= 1 else []
     last_soft = entries[-RESET_SOFT_WINDOW:] if len(entries) >= 1 else []
 
@@ -58,7 +59,7 @@ def survival_index(health_by_task: dict[str, dict]) -> float:
 def bucket_posture(entries_by_bucket: dict[str, list[dict]]) -> dict:
     out = {}
     for bucket, entries in entries_by_bucket.items():
-        counts = Counter(e["state"] for e in entries)
+        counts = Counter(e["state"] for e in entries if e.get("state") in STATE_RANK)
         out[bucket] = dict(counts)
     return out
 
@@ -67,7 +68,9 @@ def detect_drift(entries: list[dict]) -> str | None:
     """Last 4 entries. Detect monotonic worsening or all low."""
     if len(entries) < 4:
         return None
-    last4 = entries[-4:]
+    last4 = [e for e in entries if e.get("state") in STATE_RANK][-4:]
+    if len(last4) < 4:
+        return None
     ranks = [STATE_RANK.get(e["state"], 0) for e in last4]
     if all(ranks[i] >= ranks[i + 1] for i in range(3)) and ranks[0] > ranks[-1]:
         chain = " → ".join(STATE_LABELS.get(e["state"], e["state"]) for e in last4)
@@ -99,7 +102,7 @@ def pattern_callouts(entries_by_task: dict[str, list[dict]], task_names: dict[st
 def enricher_engagement(entries: list[dict], days_elapsed: int) -> dict:
     if days_elapsed == 0:
         return {"logged_pct": 0, "skipped_pct": 0, "logged": 0, "total": 0}
-    logged = sum(1 for e in entries if e["state"] != "NOT_DONE")
+    logged = sum(1 for e in entries if e.get("state") in STATE_RANK and e["state"] != "NOT_DONE")
     total = days_elapsed
     logged_pct = int((logged / total) * 100) if total else 0
     return {
@@ -167,7 +170,8 @@ def daily_quality_series(
         if tid not in tracked_task_ids:
             continue
         for e in entries:
-            by_date[_iso(e["log_date"])].append(STATE_RANK.get(e["state"], 0))
+            if e.get("state") in STATE_RANK:
+                by_date[_iso(e["log_date"])].append(STATE_RANK[e["state"]])
     rows = []
     for d in sorted(by_date):
         ranks = by_date[d]
@@ -281,8 +285,9 @@ def keystone_task(
     best = None
     for tid, entries in series_per_task.items():
         pairs = [
-            (STATE_RANK.get(e["state"], 0), day_rank.get(_iso(e["log_date"])))
+            (STATE_RANK[e["state"]], day_rank.get(_iso(e["log_date"])))
             for e in entries
+            if e.get("state") in STATE_RANK
         ]
         pairs = [(a, b) for a, b in pairs if b is not None]
         if len(pairs) < GATE_TASK_SIGNAL:

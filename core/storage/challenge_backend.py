@@ -187,19 +187,21 @@ class SqliteChallengeEntryRepo:
         self._db = db
 
     async def upsert(self, task_id: str, challenge_id: str, log_date: str,
-                     state: str, notes: str | None) -> dict:
+                     state: str | None, notes: str | None) -> dict:
         # Check existing
         cursor = await self._db.execute(
-            "SELECT id FROM challenge_entries WHERE task_id = ? AND log_date = ?",
+            "SELECT id, state FROM challenge_entries WHERE task_id = ? AND log_date = ?",
             (task_id, log_date),
         )
         existing = await cursor.fetchone()
         if existing:
             eid = existing[0]
+            stored_state = existing[1]
+            next_state = state if state is not None else stored_state
             await self._db.execute(
                 "UPDATE challenge_entries SET state = ?, notes = ? "
                 "WHERE task_id = ? AND log_date = ?",
-                (state, notes, task_id, log_date),
+                (next_state, notes, task_id, log_date),
             )
         else:
             eid = _gen_id()
@@ -524,21 +526,23 @@ class SqliteChallengeExperimentRepo:
         experiment_id: str,
         challenge_id: str,
         log_date: str,
-        state: str,
+        state: str | None,
         notes: str | None,
     ) -> dict:
         cursor = await self._db.execute(
-            "SELECT id FROM challenge_experiment_entries "
+            "SELECT id, state FROM challenge_experiment_entries "
             "WHERE experiment_id = ? AND log_date = ?",
             (experiment_id, log_date),
         )
         existing = await cursor.fetchone()
         if existing:
             entry_id = existing[0]
+            stored_state = existing[1]
+            next_state = state if state is not None else stored_state
             await self._db.execute(
                 "UPDATE challenge_experiment_entries SET state = ?, notes = ? "
                 "WHERE experiment_id = ? AND log_date = ?",
-                (state, notes, experiment_id, log_date),
+                (next_state, notes, experiment_id, log_date),
             )
         else:
             entry_id = _gen_id()

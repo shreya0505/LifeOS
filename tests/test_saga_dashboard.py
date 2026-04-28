@@ -143,13 +143,19 @@ async def test_saga_dashboard_shape_and_mood_meter_metrics(db):
         "emotional_climate",
     ]
     assert set(dashboard["grimoire"]["charts"].keys()) >= {
-        "systems_matrix",
-        "execution_long_game",
-        "mood_split",
-        "focus_quality",
-        "experiment_runway",
-        "bucket_risk",
+        "timeline_heartbeat",
+        "relationships",
+        "correlation_matrix",
     }
+    assert [item["key"] for item in dashboard["grimoire"]["charts"]["relationships"]] == [
+        "mood_daily",
+        "mood_long",
+        "curiosity_long",
+    ]
+    correlation = dashboard["grimoire"]["charts"]["correlation_matrix"]
+    assert correlation["series"]
+    first_cell = correlation["series"][0]["data"][0]
+    assert set(first_cell.keys()) >= {"metric_x", "metric_y", "y", "paired_days"}
 
 
 @pytest.mark.asyncio
@@ -169,7 +175,16 @@ async def test_saga_metrics_route_window_fallback_and_modes(client):
     assert "How am I doing this week" in full.text
     assert "What should I improve?" in full.text
     assert "What are my trends or tendencies?" in full.text
-    assert "chart-systems-matrix" in full.text
+    assert "chart-timeline-heartbeat" in full.text
+    assert "chart-relationship-truth" in full.text
+    assert "chart-correlation-map" in full.text
+    assert "How to read:" in full.text
+    assert "Strong positive" in full.text
+    assert "Curved pattern" in full.text
+    assert full.text.count("saga-chart-card saga-grid__span-12") >= 3
+    assert "chart-systems-matrix" not in full.text
+    assert "chart-focus-quality" not in full.text
+    assert "chart-bucket-risk" not in full.text
 
     fragment = await client.get("/saga/metrics?window=7", headers={"HX-Request": "true"})
     assert fragment.status_code == 200
@@ -192,6 +207,8 @@ async def test_saga_dashboard_empty_db_is_complete(db):
     assert dashboard["meta_summary"]["confidence"] == "low"
     assert any(item["kind"] == "saga" for item in dashboard["grimoire"]["missing_data"])
     assert dashboard["grimoire"]["verdict"]["label"] == "Data Thin"
+    heartbeat = dashboard["grimoire"]["charts"]["timeline_heartbeat"]
+    assert all(value is None for series in heartbeat["series"] for value in series["data"])
 
 
 @pytest.mark.asyncio

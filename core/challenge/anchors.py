@@ -53,6 +53,8 @@ def _entries_to_series_per_task(
     """Group entries by task_id, chronological."""
     by_task: dict[str, list[dict]] = defaultdict(list)
     for e in entries:
+        if e.get("state") not in STATE_RANK:
+            continue
         by_task[e["task_id"]].append(e)
     for tid in by_task:
         by_task[tid].sort(key=lambda e: _iso(e["log_date"]))
@@ -67,7 +69,8 @@ def _daily_quality(
     for e in entries:
         if e["task_id"] not in tracked_ids:
             continue
-        by_date[_iso(e["log_date"])].append(STATE_RANK.get(e["state"], 0))
+        if e.get("state") in STATE_RANK:
+            by_date[_iso(e["log_date"])].append(STATE_RANK[e["state"]])
     return {d: sum(v) / len(v) for d, v in by_date.items()}
 
 
