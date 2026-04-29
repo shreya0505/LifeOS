@@ -79,7 +79,7 @@ def _normalize_saga_row(row: dict) -> dict | None:
         )
         return None
 
-    if energy == 0 or pleasantness == 0 or not -5 <= energy <= 5 or not -5 <= pleasantness <= 5:
+    if energy == 0 or pleasantness == 0 or not -7 <= energy <= 7 or not -7 <= pleasantness <= 7:
         logger.warning(
             "sync.saga.skip_invalid_row id=%s energy=%s pleasantness=%s",
             normalized.get("id"),

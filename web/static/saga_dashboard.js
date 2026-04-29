@@ -139,8 +139,8 @@
       ...baseChart("scatter", 340),
       series: [{ name: "Mood center", data: points }],
       colors: ["#F4C430"],
-      xaxis: { min: -5, max: 5, tickAmount: 10, title: { text: "Pleasantness" } },
-      yaxis: { min: -5, max: 5, tickAmount: 10, title: { text: "Energy" } },
+      xaxis: { min: -7, max: 7, tickAmount: 14, title: { text: "Pleasantness" } },
+      yaxis: { min: -7, max: 7, tickAmount: 14, title: { text: "Energy" } },
       markers: { size: 7, strokeWidth: 2 },
       annotations: {
         xaxis: [{ x: 0, borderColor: "rgba(245,241,234,0.24)" }],
@@ -365,8 +365,8 @@
 
   function relationshipCopy(relationship) {
     const copy = {
-      mood_daily: "Each dot is one day with Saga mood and Daily Execution data. X is mood pleasantness from -5 to +5; Y is Quest/Pomo execution from 0 to 100.",
-      mood_long: "Each dot is one day with Saga mood and Hard 90 data. X is mood pleasantness from -5 to +5; Y is long-game integrity from 0 to 100.",
+      mood_daily: "Each dot is one day with Saga mood and Daily Execution data. X is mood pleasantness from -7 to +7; Y is Quest/Pomo execution from 0 to 100.",
+      mood_long: "Each dot is one day with Saga mood and Hard 90 data. X is mood pleasantness from -7 to +7; Y is long-game integrity from 0 to 100.",
       curiosity_long: "Each dot is one day with Tiny Experiment and Hard 90 data. X is Curiosity/Evolution from 0 to 100; Y is long-game integrity from 0 to 100.",
     };
     return copy[relationship.key] || "Each dot is one day. The chart tests whether the selected signals move together.";
@@ -511,7 +511,7 @@
         { name: "Hard 90 integrity", data: integrity },
       ],
       colors: ["#F6D365", "#61D394"],
-      xaxis: { min: -5, max: 5, tickAmount: 10, title: { text: "Mood pleasantness" } },
+      xaxis: { min: -7, max: 7, tickAmount: 14, title: { text: "Mood pleasantness" } },
       yaxis: { min: 0, max: 100, title: { text: "Score" } },
       annotations: {
         xaxis: [{ x: 0, borderColor: "rgba(245,241,234,0.24)", label: { text: "neutral mood", style: { color: "#0C1519", background: "#EACEAA" } } }],

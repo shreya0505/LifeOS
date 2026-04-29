@@ -47,7 +47,7 @@ QUADRANT_LABELS = {
 }
 
 QUADRANT_ORDER = ("yellow", "red", "green", "blue")
-MOOD_ROWS = (5, 4, 3, 2, 1, -1, -2, -3, -4, -5)
+MOOD_ROWS = (7, 6, 5, 4, 3, 2, 1, -1, -2, -3, -4, -5, -6, -7)
 
 QUEST_PRIORITY_WEIGHTS = {
     0: 1.70,
@@ -79,9 +79,10 @@ FIELD_REPORT_WEIGHTS = {
         "learning_closure": 15,
     },
     "emotional_climate": {
-        "pleasantness_health": 60,
-        "low_mood_load": 25,
+        "adaptive_valence": 45,
+        "low_acute_load": 25,
         "stability": 15,
+        "pleasant_access": 15,
     },
 }
 
@@ -608,7 +609,7 @@ async def timeline_days(db: aiosqlite.Connection, page: int = 1, per_page: int =
         energy = int(row[3] or 0)
         pleasantness = int(row[4] or 0)
         distance = math.sqrt((energy * energy) + (pleasantness * pleasantness))
-        strength = min(100, int(round((distance / math.sqrt(50)) * 100)))
+        strength = min(100, int(round((distance / math.sqrt(98)) * 100)))
         day["entries"].append({
             "id": row[0],
             "type": "saga",
@@ -924,20 +925,23 @@ def _saga_day_profile(
         red_share = quadrant_distribution.get("red", 0) / entry_count
         blue_share = quadrant_distribution.get("blue", 0) / entry_count
         green_share = quadrant_distribution.get("green", 0) / entry_count
-        unpleasant_pressure = ((5 - avg_pleasantness) / 10) * 34
-        activation_pressure = (max(avg_energy, 0) / 5) * 16
-        depletion_pressure = (max(-avg_energy, 0) / 5) * 12
-        volatility_pressure = min(volatility / 5, 1) * 24
-        quadrant_pressure = red_share * 14 + blue_share * 10 - green_share * 6
-        capture_pressure = min(entry_count, 6) * 3
+        severe_cell_pressure = mean(
+            max(0, ((-int(entry["pleasantness"]) - 4) / 3))
+            for entry in entries
+        ) * 18
+        unpleasant_pressure = max(0, ((-avg_pleasantness - 2) / 5)) * 24
+        activation_pressure = max(0, ((avg_energy - 3) / 4)) * 14
+        depletion_pressure = max(0, ((-avg_energy - 3) / 4)) * 10
+        volatility_pressure = min(volatility / 7, 1) * 18
+        quadrant_pressure = max(0, red_share - 0.35) * 10 + max(0, blue_share - 0.45) * 8 - green_share * 4
         switch_pressure = min(quadrant_switches, 4) * 2
         mood_load = int(round(_clamp(
             unpleasant_pressure
             + activation_pressure
             + depletion_pressure
+            + severe_cell_pressure
             + volatility_pressure
             + quadrant_pressure
-            + capture_pressure
             + switch_pressure
         )))
     else:
@@ -1970,14 +1974,22 @@ def _aggregate_experiment_metric(experiments: list[dict], experiments_by_day: di
 def _emotional_day_score(day: dict) -> float | None:
     if not day["saga"]["entry_count"]:
         return None
-    pleasantness_health = ((day["saga"]["avg_pleasantness"] + 5) / 10) * 100
-    low_mood_load = 100 - day["saga"]["mood_load"]
-    stability = 100 - min(100, day["saga"]["volatility"] * 12 + day["saga"]["quadrant_switches"] * 8)
+    avg_pleasantness = day["saga"]["avg_pleasantness"]
+    adaptive_valence = _clamp(
+        50
+        + max(avg_pleasantness, 0) / 7 * 35
+        - max(-avg_pleasantness - 2, 0) / 5 * 20
+    )
+    low_acute_load = 100 - day["saga"]["mood_load"]
+    stability = 100 - min(100, day["saga"]["volatility"] * 8.5 + day["saga"]["quadrant_switches"] * 8)
+    quadrant_distribution = day["saga"].get("quadrant_distribution") or {}
+    pleasant_access = 100 if quadrant_distribution.get("yellow", 0) or quadrant_distribution.get("green", 0) else 45
     weights = FIELD_REPORT_WEIGHTS["emotional_climate"]
     return _weighted_score([
-        _score_component("Pleasantness health", weights["pleasantness_health"], pleasantness_health, [], ""),
-        _score_component("Low mood load", weights["low_mood_load"], low_mood_load, [], ""),
+        _score_component("Adaptive valence", weights["adaptive_valence"], adaptive_valence, [], ""),
+        _score_component("Low acute load", weights["low_acute_load"], low_acute_load, [], ""),
         _score_component("Stability", weights["stability"], stability, [], ""),
+        _score_component("Pleasant access", weights["pleasant_access"], pleasant_access, [], ""),
     ])
 
 
@@ -2144,38 +2156,44 @@ def build_pillars(
     red_blue_ratio = meta_analysis.get("mood_map", {}).get("red_blue_ratio") or 0
     mean_mood_load = meta_analysis.get("emotion_load", {}).get("mean_mood_load") or 0
     if saga_days:
-        pleasantness_values = [
-            ((day["saga"]["avg_pleasantness"] + 5) / 10) * 100
+        adaptive_valence_values = [
+            _clamp(
+                50
+                + max(day["saga"]["avg_pleasantness"], 0) / 7 * 35
+                - max(-day["saga"]["avg_pleasantness"] - 2, 0) / 5 * 20
+            )
             for day in day_profiles
             if day["saga"]["entry_count"]
         ]
-        pleasantness_health = _mean_or_none(pleasantness_values) or 0
-        low_mood_load = _clamp(100 - mean_mood_load)
+        adaptive_valence = _mean_or_none(adaptive_valence_values) or 0
+        low_acute_load = _clamp(100 - mean_mood_load)
         stability_values = [
-            100 - min(100, day["saga"]["volatility"] * 12 + day["saga"]["quadrant_switches"] * 8)
+            100 - min(100, day["saga"]["volatility"] * 8.5 + day["saga"]["quadrant_switches"] * 8)
             for day in day_profiles
             if day["saga"]["entry_count"]
         ]
         stability_score = _mean_or_none(stability_values) or 0
+        pleasant_access = _clamp(45 + pleasant_ratio * 0.55)
     else:
-        pleasantness_health = 50
-        low_mood_load = 50
+        adaptive_valence = 50
+        low_acute_load = 50
         stability_score = 50
+        pleasant_access = 50
     emotional_weights = FIELD_REPORT_WEIGHTS["emotional_climate"]
     emotional_components = [
         _score_component(
-            "Pleasantness health",
-            emotional_weights["pleasantness_health"],
-            pleasantness_health,
-            [f"{pleasant_ratio}% pleasant-side entries", "Mood meter pleasantness maps -5..+5 to 0..100"] if saga_days else ["No captured mood days; score held neutral and confidence lowered."],
-            "Unpleasant emotions reduce Emotional Climate because this score represents system health, not moral worth.",
+            "Adaptive valence",
+            emotional_weights["adaptive_valence"],
+            adaptive_valence,
+            [f"{pleasant_ratio}% pleasant-side entries", "Mild unpleasantness is normalized; pleasantness above baseline is rewarded."] if saga_days else ["No captured mood days; score held neutral and confidence lowered."],
+            "This measures adaptive emotional bandwidth, not moral worth. Low-grade anxiety or heaviness is treated as baseline load.",
         ),
         _score_component(
-            "Low mood load",
-            emotional_weights["low_mood_load"],
-            low_mood_load,
+            "Low acute load",
+            emotional_weights["low_acute_load"],
+            low_acute_load,
             [f"{red_blue_ratio}% red/blue pressure", f"Average mood load {mean_mood_load or 0}"] if saga_days else ["No red/blue pressure observed because no emotion was captured."],
-            "Red and blue pressure increases load, so a lower load means the system has more room to move.",
+            "Only acute pressure, severe unpleasantness, high activation, depletion, volatility, and repeated switches meaningfully lower this lane.",
         ),
         _score_component(
             "Stability",
@@ -2183,6 +2201,13 @@ def build_pillars(
             stability_score,
             ["Volatility and quadrant switches reduce this component."] if saga_days else ["No volatility score without captured emotion; confidence carries the warning."],
             "Stability matters because repeated emotional whiplash consumes operational bandwidth.",
+        ),
+        _score_component(
+            "Pleasant access",
+            emotional_weights["pleasant_access"],
+            pleasant_access,
+            [f"{pleasant_ratio}% pleasant-side entries"] if saga_days else ["No pleasant access score without captured emotion."],
+            "Even brief pleasant states count because access to relief, warmth, or steadiness is useful signal in a chronically loaded system.",
         ),
     ]
     emotional_score = _weighted_score(emotional_components)
@@ -2677,8 +2702,8 @@ def build_grimoire_charts(
             "label": "Mood → Daily Execution",
             "x_label": "Mood pleasantness",
             "y_label": "Daily execution",
-            "x_min": -5,
-            "x_max": 5,
+            "x_min": -7,
+            "x_max": 7,
             "y_min": 0,
             "y_max": 100,
             "points": [
@@ -2692,8 +2717,8 @@ def build_grimoire_charts(
             "label": "Mood → Long Game",
             "x_label": "Mood pleasantness",
             "y_label": "Long game integrity",
-            "x_min": -5,
-            "x_max": 5,
+            "x_min": -7,
+            "x_max": 7,
             "y_min": 0,
             "y_max": 100,
             "points": [
@@ -2865,7 +2890,7 @@ def _block_mood_matrix(rows: list[dict]) -> dict:
 
 
 def _mood_meter_cells(rows: list[dict]) -> list[dict]:
-    """100 mood-meter cells with visit counts and opacity."""
+    """196 mood-meter cells with visit counts and opacity."""
     cells: list[dict] = []
     coordinate_counts: Counter[tuple[int, int]] = Counter()
     for row in rows:
@@ -3157,7 +3182,7 @@ def _meta_summary(meta: dict, risk_signals: list[dict], trends: dict) -> dict:
 
 def saga_mood_meter_svg(cells: list[dict]) -> Markup:
     by_key = {(cell["energy"], cell["pleasantness"]): cell for cell in cells}
-    rows = (5, 4, 3, 2, 1, -1, -2, -3, -4, -5)
+    rows = MOOD_ROWS
     cols = tuple(PLEASANTNESS_COORDS)
     size = 22
     gap = 2
@@ -3238,7 +3263,7 @@ async def saga_dashboard(db: aiosqlite.Connection, days: int = 7) -> dict:
         for entry in bundle["saga_by_day"].get(today_profile["date"], []):
             for mention in _entry_emotion_mentions(entry):
                 distance_pct = int(round(
-                    min(100, (math.sqrt((mention["energy"] ** 2) + (mention["pleasantness"] ** 2)) / math.sqrt(50)) * 100)
+                    min(100, (math.sqrt((mention["energy"] ** 2) + (mention["pleasantness"] ** 2)) / math.sqrt(98)) * 100)
                 ))
                 today_emotion_stack.append({
                     "label": mention["label"],

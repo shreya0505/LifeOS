@@ -49,15 +49,23 @@ async def _insert_saga(db, entry_id: str, day: str, energy: int = 3, pleasantnes
     )
 
 
-def test_saga_mood_catalog_has_100_nonzero_quadrant_cells():
+def test_saga_mood_catalog_has_196_nonzero_quadrant_cells():
     catalog = mood_catalog()
-    assert len(catalog) == 100
+    assert len(catalog) == 196
     assert all(cell["energy"] != 0 and cell["pleasantness"] != 0 for cell in catalog)
     by_coords = {(cell["energy"], cell["pleasantness"]): cell for cell in catalog}
+    assert by_coords[(7, -7)]["quadrant"] == "red"
+    assert by_coords[(7, -7)]["word"] == "uncontainable"
+    assert by_coords[(7, 7)]["quadrant"] == "yellow"
+    assert by_coords[(7, 7)]["word"] == "sublime"
     assert by_coords[(5, -5)]["quadrant"] == "red"
     assert by_coords[(5, -5)]["word"] == "enraged"
     assert by_coords[(5, 5)]["quadrant"] == "yellow"
     assert by_coords[(5, 5)]["word"] == "ecstatic"
+    assert by_coords[(-7, -7)]["quadrant"] == "blue"
+    assert by_coords[(-7, -7)]["word"] == "obliterated"
+    assert by_coords[(-7, 7)]["quadrant"] == "green"
+    assert by_coords[(-7, 7)]["word"] == "weightless"
     assert by_coords[(-5, 5)]["quadrant"] == "green"
     assert by_coords[(-5, -5)]["quadrant"] == "blue"
 
@@ -167,7 +175,36 @@ async def test_saga_rejects_zero_coordinate(client, db):
         "note": "",
     })
     assert r.status_code == 400
-    assert "Energy must be one of -5..-1 or 1..5." in r.text
+    assert "Energy must be one of -7..-1 or 1..7." in r.text
+
+
+@pytest.mark.asyncio
+async def test_saga_accepts_expanded_coords_and_rejects_out_of_range(client, db):
+    r = await client.post("/saga/entries", data={
+        "energy": "7",
+        "pleasantness": "-7",
+        "mood_word": "uncontainable",
+        "note": "full storm",
+    })
+    assert r.status_code == 200
+    row = await (await db.execute("SELECT energy, pleasantness, quadrant FROM saga_entries")).fetchone()
+    assert row == (7, -7, "red")
+
+    too_high = await client.post("/saga/entries", data={
+        "energy": "8",
+        "pleasantness": "-2",
+        "mood_word": "too high",
+        "note": "",
+    })
+    assert too_high.status_code == 400
+
+    too_low = await client.post("/saga/entries", data={
+        "energy": "-8",
+        "pleasantness": "-2",
+        "mood_word": "too low",
+        "note": "",
+    })
+    assert too_low.status_code == 400
 
 
 @pytest.mark.asyncio
@@ -278,7 +315,7 @@ def test_saga_timeline_extends_with_page_not_nested_scroll():
 @pytest.mark.asyncio
 async def test_saga_metrics_render(client, db):
     day = datetime.now(USER_TZ).date().isoformat()
-    for idx, coords in enumerate(((3, -2, "frustrated"), (4, -4, "terrified"), (5, -5, "enraged")), start=1):
+    for idx, coords in enumerate(((7, -7, "uncontainable"), (7, -6, "frenzied"), (6, -7, "humiliated")), start=1):
         await _insert_saga(db, f"s{idx}", day, coords[0], coords[1], coords[2], hour=idx)
     await db.commit()
 
@@ -299,8 +336,9 @@ async def test_saga_metrics_derives_relational_day_archetype(db):
     today = day.isoformat()
     yesterday = (day - timedelta(days=1)).isoformat()
 
-    await _insert_saga(db, "storm-1", today, 5, -5, "enraged", hour=9)
-    await _insert_saga(db, "storm-2", today, 4, -4, "terrified", hour=18)
+    await _insert_saga(db, "storm-1", today, 7, -7, "uncontainable", hour=9)
+    await _insert_saga(db, "storm-2", today, -7, -7, "obliterated", hour=12)
+    await _insert_saga(db, "storm-3", today, 7, -7, "uncontainable", hour=18)
     await db.execute(
         "INSERT INTO quests (id, title, status, frog, priority, created_at, completed_at, workspace_id) "
         "VALUES ('q-prev', 'Yesterday baseline', 'done', 0, 4, ?, ?, 'work')",
@@ -353,3 +391,43 @@ async def test_saga_metrics_derives_relational_day_archetype(db):
     assert current["saga"]["mood_load"] >= 65
     assert current["quest"]["output_index"] >= 55
     assert current["challenge"]["score"] >= 75
+
+
+@pytest.mark.asyncio
+async def test_saga_mood_load_normalizes_low_grade_anxiety(db):
+    today = datetime.now(USER_TZ).date().isoformat()
+    await _insert_saga(db, "low-grade", today, 3, -2, "nervous", hour=9)
+    await db.commit()
+
+    metrics = await saga_metrics(db)
+    current = metrics["current"]
+
+    assert current["saga"]["mood_load"] < 30
+    assert current["saga"]["load_label"] == "Settled"
+
+
+@pytest.mark.asyncio
+async def test_saga_mood_load_marks_severe_unpleasant_activation(db):
+    today = datetime.now(USER_TZ).date().isoformat()
+    await _insert_saga(db, "severe", today, 7, -7, "uncontainable", hour=9)
+    await db.commit()
+
+    metrics = await saga_metrics(db)
+
+    assert metrics["current"]["saga"]["mood_load"] >= 60
+
+
+@pytest.mark.asyncio
+async def test_saga_mood_load_does_not_penalize_capture_count(db):
+    today_date = datetime.now(USER_TZ).date()
+    today = today_date.isoformat()
+    yesterday = (today_date - timedelta(days=1)).isoformat()
+    await _insert_saga(db, "single", yesterday, 3, -2, "nervous", hour=9)
+    for idx, hour in enumerate((9, 11, 13, 15), start=1):
+        await _insert_saga(db, f"repeat-{idx}", today, 3, -2, "nervous", hour=hour)
+    await db.commit()
+
+    metrics = await saga_metrics(db)
+    profiles = {day["date"]: day for day in metrics["recent_days"]}
+
+    assert profiles[today]["saga"]["mood_load"] == profiles[yesterday]["saga"]["mood_load"]

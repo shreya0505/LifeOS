@@ -3,13 +3,27 @@
     return catalog.find(cell => cell.energy === energy && cell.pleasantness === pleasantness) || null;
   }
 
+  function axisMeta(catalog) {
+    const energies = [...new Set(catalog.map(cell => Number(cell.energy)))].sort((a, b) => b - a);
+    const pleasantness = [...new Set(catalog.map(cell => Number(cell.pleasantness)))].sort((a, b) => a - b);
+    return {
+      maxEnergy: Math.max(...energies),
+      minEnergy: Math.min(...energies),
+      minPleasantness: Math.min(...pleasantness),
+      maxPleasantness: Math.max(...pleasantness),
+      columns: pleasantness.length || 1,
+    };
+  }
+
   function dispatchMoodFx(type, cell) {
     window.dispatchEvent(new CustomEvent("saga:mood-fx", { detail: { type, cell } }));
   }
 
   window.sagaMoodCapture = function sagaMoodCapture(catalog) {
+    const meta = axisMeta(catalog);
     return {
       catalog,
+      axis: meta,
       selected: null,
       hovered: null,
       note: "",
@@ -56,12 +70,12 @@
       axisEnergy() {
         const cell = this.previewCell();
         if (!cell) return 50;
-        return ((5 - cell.energy) / 10) * 100;
+        return ((this.axis.maxEnergy - cell.energy) / (this.axis.maxEnergy - this.axis.minEnergy)) * 100;
       },
       axisPleasantness() {
         const cell = this.previewCell();
         if (!cell) return 50;
-        return ((cell.pleasantness + 5) / 10) * 100;
+        return ((cell.pleasantness - this.axis.minPleasantness) / (this.axis.maxPleasantness - this.axis.minPleasantness)) * 100;
       },
       hoverCell(energy, pleasantness) {
         const cell = findCell(this.catalog, energy, pleasantness);
@@ -84,7 +98,12 @@
         dispatchMoodFx("select", cell);
       },
       moveFocus(event, index) {
-        const keyMoves = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: 10, ArrowUp: -10 };
+        const keyMoves = {
+          ArrowRight: 1,
+          ArrowLeft: -1,
+          ArrowDown: this.axis.columns,
+          ArrowUp: -this.axis.columns,
+        };
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           const cell = this.catalog[index];
@@ -163,10 +182,10 @@
 
     function animateRipple(origin, strong) {
       if (!origin) return;
-      const highEnergy = Math.max(0, origin.energy) / 5;
-      const lowEnergy = Math.max(0, -origin.energy) / 5;
-      const unpleasant = Math.max(0, -origin.pleasantness) / 5;
-      const pleasant = Math.max(0, origin.pleasantness) / 5;
+      const highEnergy = Math.max(0, origin.energy) / 7;
+      const lowEnergy = Math.max(0, -origin.energy) / 7;
+      const unpleasant = Math.max(0, -origin.pleasantness) / 7;
+      const pleasant = Math.max(0, origin.pleasantness) / 7;
       const ripple = {
         x: origin.x,
         y: origin.y,

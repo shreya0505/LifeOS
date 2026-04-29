@@ -336,9 +336,9 @@
 .saga-mood-grid {
   z-index: 1;
   display: grid;
-  grid-template-columns: repeat(10, minmax(0, 1fr));
-  grid-template-rows: repeat(10, minmax(0, 1fr));
-  gap: clamp(0.18rem, 0.7vw, 0.34rem);
+  grid-template-columns: repeat(14, minmax(0, 1fr));
+  grid-template-rows: repeat(14, minmax(0, 1fr));
+  gap: clamp(0.1rem, 0.42vw, 0.22rem);
   overflow: hidden;
   border-radius: 24px;
 }
@@ -359,7 +359,7 @@
   min-width: 0;
   min-height: 0;
   border: 0;
-  border-radius: 10px;
+  border-radius: 8px;
   background:
     linear-gradient(180deg,
       color-mix(in srgb, var(--cell-accent) var(--cell-fade), rgba(245, 241, 234, 0.025)),
@@ -367,9 +367,9 @@
     color-mix(in srgb, var(--cell-accent) var(--cell-fill), var(--cell-base));
   color: color-mix(in srgb, var(--cell-accent) var(--cell-text), var(--saga-text));
   font: inherit;
-  font-size: 0.68rem;
+  font-size: clamp(0.48rem, 0.76vw, 0.61rem);
   font-weight: 800;
-  line-height: 0.96;
+  line-height: 0.92;
   text-align: center;
   text-transform: lowercase;
   cursor: pointer;
@@ -385,37 +385,39 @@
 .saga-mood-cell--red {
   --cell-accent: #E45745;
   --cell-base: #2A1718;
-  border-radius: 10px;
+  border-radius: 8px;
 }
 
 .saga-mood-cell--yellow {
   --cell-accent: #F0C84B;
   --cell-base: #2E2913;
-  border-radius: 13px;
+  border-radius: 9px;
 }
 
 .saga-mood-cell--green {
   --cell-accent: #87CFA3;
   --cell-base: #172B23;
-  border-radius: 14px;
+  border-radius: 10px;
 }
 
 .saga-mood-cell--blue {
   --cell-accent: #6F82B8;
   --cell-base: #171F33;
-  border-radius: 12px;
+  border-radius: 9px;
 }
 
 .saga-mood-cell span {
   position: relative;
-  display: block;
-  max-width: calc(100% - 0.42rem);
+  max-width: calc(100% - 0.24rem);
   padding: 0;
   background: transparent;
   overflow: hidden;
   overflow-wrap: normal;
   text-overflow: clip;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
   word-break: keep-all;
   hyphens: manual;
 }
@@ -456,6 +458,16 @@
 
 .saga-mood-cell.is-dimmed {
   opacity: 0.38;
+}
+
+@media (max-width: 680px) {
+  .saga-mood-grid {
+    gap: 0.08rem;
+  }
+
+  .saga-mood-cell span {
+    opacity: 0;
+  }
 }
 
 .saga-mood-summary {

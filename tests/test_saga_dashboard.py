@@ -120,7 +120,7 @@ async def test_saga_dashboard_shape_and_mood_meter_metrics(db):
         "meta_summary",
     }
     assert expected.issubset(dashboard.keys())
-    assert len(dashboard["mood_grid"]) == 100
+    assert len(dashboard["mood_grid"]) == 196
     assert set(dashboard["timeseries"].keys()) >= {"mood_load", "avg_energy", "avg_pleasantness"}
     assert [item["quadrant"] for item in dashboard["quadrant_stream"]["series"]] == ["yellow", "red", "green", "blue"]
     assert set(dashboard["meta_analysis"].keys()) >= {"emotion_load", "recovery", "mood_map"}
@@ -152,6 +152,12 @@ async def test_saga_dashboard_shape_and_mood_meter_metrics(db):
         "mood_long",
         "curiosity_long",
     ]
+    for relationship in dashboard["grimoire"]["charts"]["relationships"][:2]:
+        assert relationship["x_min"] == -7
+        assert relationship["x_max"] == 7
+    emotional = next(pillar for pillar in dashboard["grimoire"]["pillars"] if pillar["key"] == "emotional_climate")
+    component_labels = [component["label"] for component in emotional["explainer"]["components"]]
+    assert component_labels == ["Adaptive valence", "Low acute load", "Stability", "Pleasant access"]
     correlation = dashboard["grimoire"]["charts"]["correlation_matrix"]
     assert correlation["series"]
     first_cell = correlation["series"][0]["data"][0]
@@ -287,8 +293,8 @@ async def test_saga_dashboard_risk_volatility_rising(db):
             await _insert_saga(db, f"calm-a-{idx}", day, -2, 3, "calm", hour=9)
             await _insert_saga(db, f"calm-b-{idx}", day, -2, 3, "calm", hour=18)
         else:
-            await _insert_saga(db, f"storm-a-{idx}", day, 5, -5, "enraged", hour=9)
-            await _insert_saga(db, f"storm-b-{idx}", day, -5, -5, "despondent", hour=18)
+            await _insert_saga(db, f"storm-a-{idx}", day, 7, -7, "uncontainable", hour=9)
+            await _insert_saga(db, f"storm-b-{idx}", day, -7, -7, "obliterated", hour=18)
     await db.commit()
 
     dashboard = await saga_dashboard(db, 35)
@@ -310,9 +316,41 @@ async def test_saga_dashboard_quadrant_stream_and_mood_grid(db):
     stream = {item["quadrant"]: item["data"][-1] for item in dashboard["quadrant_stream"]["series"]}
     assert stream == {"yellow": 1, "red": 1, "green": 1, "blue": 1}
     grid = {(cell["energy"], cell["pleasantness"]): cell for cell in dashboard["mood_grid"]}
+    assert grid[(7, -7)]["quadrant"] == "red"
+    assert grid[(7, 7)]["quadrant"] == "yellow"
+    assert grid[(-7, 7)]["quadrant"] == "green"
+    assert grid[(-7, -7)]["quadrant"] == "blue"
     assert grid[(5, -5)]["quadrant"] == "red"
     assert grid[(5, 5)]["quadrant"] == "yellow"
     assert grid[(-5, 5)]["quadrant"] == "green"
     assert grid[(-5, -5)]["quadrant"] == "blue"
     assert dashboard["total_entries"] == 4
     assert dashboard["total_mood_mentions"] == 4
+
+
+@pytest.mark.asyncio
+async def test_saga_dashboard_pleasant_access_improves_emotional_climate(db):
+    yesterday = _day(-1)
+    today = _day()
+    await _insert_saga(db, "low-grade", yesterday, 3, -2, "nervous", hour=9)
+    await db.commit()
+
+    first = await saga_dashboard(db, 7)
+    first_emotional = next(p for p in first["grimoire"]["pillars"] if p["key"] == "emotional_climate")
+    first_pleasant_access = next(
+        component for component in first_emotional["explainer"]["components"]
+        if component["label"] == "Pleasant access"
+    )
+
+    await _insert_saga(db, "relief", today, -2, 3, "relieved", hour=13)
+    await db.commit()
+
+    second = await saga_dashboard(db, 7)
+    second_emotional = next(p for p in second["grimoire"]["pillars"] if p["key"] == "emotional_climate")
+    pleasant_access = next(
+        component for component in second_emotional["explainer"]["components"]
+        if component["label"] == "Pleasant access"
+    )
+
+    assert second_emotional["score"] > first_emotional["score"]
+    assert pleasant_access["score"] > first_pleasant_access["score"]
