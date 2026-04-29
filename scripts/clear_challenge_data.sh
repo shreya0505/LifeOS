@@ -24,7 +24,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 echo "Database: $DB"
 echo ""
-echo "This will permanently delete:"
+echo "This will locally delete:"
 echo "  • All tiny experiment protocols and daily signals"
 echo "  • All challenges (active + completed)"
 echo "  • All challenge tasks"
@@ -32,6 +32,11 @@ echo "  • All challenge entries (daily ratings + notes)"
 echo "  • All archived challenge eras"
 echo ""
 echo "QuestLog quests, pomos, and trophies are NOT touched."
+echo ""
+echo "If sync is enabled:"
+echo "  • This will clear local data and restore from sync"
+echo "  • This will discard unsynced local changes unless you sync first"
+echo "  • This will not delete remote data"
 echo ""
 read -p "Are you sure? (yes/no): " confirm
 
@@ -46,39 +51,15 @@ cp "$DB" "$BACKUP"
 echo ""
 echo "Backup saved: $BACKUP"
 
-python3 - "$DB" <<'PYEOF'
-import sqlite3, sys
-db = sqlite3.connect(sys.argv[1])
-db.execute("PRAGMA foreign_keys=OFF")
-try:
-    db.execute("UPDATE sync_runtime SET value = '1' WHERE key = 'suppress'")
-except sqlite3.OperationalError:
-    pass
-tables = (
-    "challenge_experiment_entries", "challenge_experiments",
-    "challenge_entries", "challenge_tasks", "challenge_eras", "challenges",
-)
-for t in tables:
-    try:
-        db.execute(f"DELETE FROM {t}")
-    except sqlite3.OperationalError as e:
-        print(f"  skip {t}: {e}")
-try:
-    for t in tables:
-        db.execute("DELETE FROM sync_changes WHERE table_name = ?", (t,))
-    placeholders = ",".join("?" * len(tables))
-    db.execute(f"DELETE FROM sync_conflicts WHERE table_name IN ({placeholders})", tables)
-finally:
-    try:
-        db.execute("UPDATE sync_runtime SET value = '0' WHERE key = 'suppress'")
-    except sqlite3.OperationalError:
-        pass
-db.execute("PRAGMA foreign_keys=ON")
-db.commit()
-db.close()
-PYEOF
+DISCARD_ARG=()
+read -p "If unsynced local Hard 90 changes exist, discard them? (yes/no): " discard_unsynced
+if [[ "$discard_unsynced" == "yes" ]]; then
+    DISCARD_ARG=(--discard-unsynced)
+fi
 
-echo "Challenge data cleared. Schema and migrations intact."
+python3 -m core.maintenance.clear_data --db "$DB" --scope challenge "${DISCARD_ARG[@]}"
+
+echo "Challenge local clear completed. Schema and migrations intact."
 
 echo ""
 shopt -s nullglob

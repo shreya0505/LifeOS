@@ -3587,6 +3587,115 @@
   text-transform: none;
 }
 
+.saga-score-explainer {
+  border-top: 1px solid rgba(234, 206, 170, 0.1);
+  padding-top: 0.45rem;
+}
+
+.saga-score-explainer summary {
+  cursor: pointer;
+  color: color-mix(in srgb, var(--accent) 48%, var(--saga-text));
+  font-family: var(--saga-mono);
+  font-size: 0.66rem;
+  font-weight: 900;
+  line-height: 1.3;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.saga-score-explainer__body {
+  display: grid;
+  gap: 0.65rem;
+  padding-top: 0.65rem;
+}
+
+.saga-score-explainer__formula,
+.saga-score-explainer__rationale {
+  margin: 0;
+  color: color-mix(in srgb, var(--saga-text) 78%, var(--accent));
+  font-size: 0.78rem;
+  line-height: 1.42;
+}
+
+.saga-score-explainer__formula {
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, rgba(234, 206, 170, 0.08));
+  border-radius: 4px;
+  padding: 0.48rem 0.55rem;
+  background: color-mix(in srgb, var(--accent) 10%, rgba(12, 21, 25, 0.58));
+  font-family: var(--saga-mono);
+  font-size: 0.68rem;
+  font-weight: 850;
+}
+
+.saga-score-explainer__weights {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.saga-score-explainer__weights article {
+  display: grid;
+  gap: 0.38rem;
+  border: 1px solid rgba(234, 206, 170, 0.08);
+  border-radius: 4px;
+  padding: 0.58rem;
+  background: rgba(12, 21, 25, 0.32);
+}
+
+.saga-score-explainer__component-head,
+.saga-score-explainer__component-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.saga-score-explainer__component-head span,
+.saga-score-explainer__component-head strong,
+.saga-score-explainer__component-meta span {
+  color: var(--saga-muted);
+  font-family: var(--saga-mono);
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1.25;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.saga-score-explainer__component-head strong {
+  color: color-mix(in srgb, var(--accent) 54%, var(--saga-text));
+}
+
+.saga-score-explainer__component-bar {
+  height: 0.34rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(245, 241, 234, 0.08);
+}
+
+.saga-score-explainer__component-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--accent) 78%, var(--saga-text));
+}
+
+.saga-score-explainer ul {
+  display: grid;
+  gap: 0.18rem;
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--saga-muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.saga-score-explainer__weights p {
+  margin: 0;
+  color: color-mix(in srgb, var(--saga-muted) 84%, var(--saga-text));
+  font-size: 0.74rem;
+  line-height: 1.38;
+}
+
 .saga-improve {
   --section-accent: #F6D365;
 }

@@ -53,6 +53,40 @@
           <span><strong>{{ number.value }}</strong>{{ number.label }}</span>
           {% endfor %}
         </div>
+        {% if pillar.explainer %}
+        <details class="saga-score-explainer">
+          <summary>How this is calculated</summary>
+          <div class="saga-score-explainer__body">
+            <p class="saga-score-explainer__formula">{{ pillar.explainer.formula }}</p>
+            <div class="saga-score-explainer__weights" aria-label="{{ pillar.name }} score components">
+              {% for component in pillar.explainer.components %}
+              <article>
+                <div class="saga-score-explainer__component-head">
+                  <span>{{ component.label }}</span>
+                  <strong>{{ component.weight }}%</strong>
+                </div>
+                <div class="saga-score-explainer__component-bar" aria-label="{{ component.label }} score {{ component.score }}">
+                  <span style="width: {{ component.score }}%"></span>
+                </div>
+                <div class="saga-score-explainer__component-meta">
+                  <span>Score {{ component.score }}</span>
+                  <span>Contribution {{ component.contribution }}</span>
+                </div>
+                {% if component.inputs %}
+                <ul>
+                  {% for input in component.inputs %}
+                  <li>{{ input }}</li>
+                  {% endfor %}
+                </ul>
+                {% endif %}
+                <p>{{ component.rationale }}</p>
+              </article>
+              {% endfor %}
+            </div>
+            <p class="saga-score-explainer__rationale">{{ pillar.explainer.rationale }}</p>
+          </div>
+        </details>
+        {% endif %}
       </article>
       {% endfor %}
     </div>
@@ -185,6 +219,27 @@
   <script id="saga-payload-{{ window }}" type="application/json">{{ d | tojson | safe }}</script>
   <script>
     (function () {
+      const root = document.currentScript.closest("[data-saga-dashboard]");
+
+      function syncScoreExplainers() {
+        if (!root) return;
+        const explainers = Array.from(root.querySelectorAll(".saga-score-explainer"));
+        if (!explainers.length) return;
+        let syncing = false;
+        explainers.forEach((explainer) => {
+          explainer.addEventListener("toggle", () => {
+            if (syncing) return;
+            syncing = true;
+            explainers.forEach((other) => {
+              if (other !== explainer) other.open = explainer.open;
+            });
+            requestAnimationFrame(() => {
+              syncing = false;
+            });
+          });
+        });
+      }
+
       function go() {
         if (window.SagaDashboard && window.SagaDashboard.init) {
           window.SagaDashboard.init({{ window }});
@@ -192,6 +247,7 @@
           setTimeout(go, 80);
         }
       }
+      syncScoreExplainers();
       go();
     })();
   </script>

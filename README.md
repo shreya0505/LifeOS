@@ -125,10 +125,10 @@ Bootstrap behavior:
 - The first device that pushes to an empty R2 prefix uploads an encrypted `bootstrap.json.enc` snapshot containing the current rows from every sync-enabled table.
 - A device applies bootstrap only once, tracked locally by `sync_state.applied_bootstrap = 1`.
 - After bootstrap, normal sync happens through encrypted change bundles. Push uploads local inserts, updates, and deletes; pull applies remote bundles from other devices.
-- The clear-data scripts below are local resets by design. They suppress sync triggers, clear local pending sync rows for the selected tables, and do not push remote deletes.
-- If a device has not applied bootstrap yet, pulling after a local clear can restore rows that still exist in the remote bootstrap.
-- If a device has already applied bootstrap, local clear stays local unless new remote change bundles later reintroduce rows.
-- To intentionally make the cloud empty for a scope, the app needs a destructive sync-reset/delete mode that creates and pushes delete changes and also refreshes or replaces the remote bootstrap. A normal local clear plus push is not enough, because the current script intentionally leaves nothing to push.
+- The clear-data scripts below are local-only with remote restore when sync is enabled. They suppress sync triggers, wipe the selected local tables, and rehydrate those tables from remote sync state.
+- Clear-data scripts do not push remote deletes. They are safe to use when you want to repair or repopulate a local device from sync.
+- If unsynced local changes exist in the selected scope, the script warns you. Sync first to preserve those edits, or explicitly confirm discard.
+- To intentionally make the cloud empty for a scope, the app needs a separate destructive sync-reset/delete-everywhere mode. A normal local clear is not that mode.
 
 ### 3. Set Up An Existing Project On A New Laptop With Sync
 
@@ -158,30 +158,57 @@ Recommended new-laptop order:
 4. Pull remote data before creating or clearing anything locally.
 5. After the first successful pull, use the app normally.
 
-Do not run a clear-data script before the first pull unless you intentionally want a local-only empty database. If the device has not applied bootstrap yet, the next pull can restore remote bootstrap rows.
+On a fresh laptop, prefer **Pull** or **Sync now** before any clear/reset command. Clear is only needed if the local DB is already stale or inconsistent.
 
-### 4. Clean Local Data And Docker Data
+### 4. Clear Or Reset Data Safely
 
-#### Clean Local Host Data
+There are two different operations:
+
+- **Clear** means local-only cleanup. For synced Web data, clear removes local rows for the chosen scope and then restores them from R2 sync. It does not delete remote data.
+- **Reset** means start fresh locally. Use reset only when you intentionally want an empty local database or JSON store. If sync is enabled, disable sync or use a new R2 prefix before resetting, otherwise remote data can come back.
+
+Recommended rule: if you use Docker, run the Docker commands. If you run the app locally, run the host commands. Host scripts do not touch the Docker volume.
+
+#### A. Clear Web Data Safely
+
+Use clear when the local SQLite DB is stale, incomplete, or inconsistent and you want it rebuilt from sync.
+
+Before clearing synced Web data:
+
+1. Press **Sync now** in the app if you want to preserve recent local edits.
+2. Stop using the app during the clear.
+3. Choose the smallest scope that fixes the issue.
+4. Answer `no` to discarding unsynced changes unless you deliberately want to lose local-only edits.
+
+Scopes:
+
+| Scope | Deletes locally | Restores from sync when enabled |
+|---|---|---|
+| `questlog` | Quests, artifact keys, pomos, trophies | Yes |
+| `challenge` | Hard 90 challenge data and linked Tiny Experiments | Yes |
+| `tiny_experiments` | Tiny Experiment protocols and daily signals only | Yes |
+| `saga` | Saga emotion log entries | Yes |
+| `all` | All Web app data | Yes |
+
+The `challenge` scope includes Tiny Experiments because those rows are linked to challenge rows. The `tiny_experiments` scope is safe when you only want to remove experiment protocols/signals while keeping the parent Hard 90 challenge.
+
+#### Clear Local Host Web Data
 
 These commands affect files on the host machine, not the Docker volume.
 
 ```bash
-# Reset TUI data, which is stored as JSON.
-./scripts/clear_data.sh
-
-# Reset local host Web QuestLog SQLite data: quests, pomos, trophies.
+# Clear local host Web QuestLog SQLite data: quests, artifacts, pomos, trophies.
 ./scripts/clear_sql_data.sh
 
-# Reset local host Hard 90 challenge data only.
+# Clear local host Hard 90 challenge data, including linked Tiny Experiments.
 ./scripts/clear_challenge_data.sh
 ```
 
-The host reset scripts create timestamped backups in `data/backups/` before clearing. They keep schema and migrations intact.
+The host clear scripts create timestamped DB backups in `data/backups/` before clearing. They keep schema and migrations intact. When sync is enabled, they restore the cleared scope from R2 and do not queue remote deletes.
 
-#### Clean Docker Data
+#### Clear Docker Web Data
 
-When running through Docker, clear the SQLite database inside the Docker volume:
+When running through Docker, clear the SQLite database inside the Docker volume. This is the usual path for the deployed app:
 
 ```bash
 # Choose which Docker web app data to clear.
@@ -203,7 +230,7 @@ LIFEOS_CLEAR_SCOPE=saga scripts/clear_docker_data.sh
 LIFEOS_CLEAR_SCOPE=all scripts/clear_docker_data.sh
 ```
 
-The Docker clear script keeps schema, migrations, and sync settings. It suppresses sync triggers during the wipe, clears local pending sync journal entries for the wiped tables, and does not queue remote deletes. See the bootstrap notes above before using clear data on a device that has not pulled sync yet.
+The Docker clear script keeps schema, migrations, and sync settings. It suppresses sync triggers during the wipe, clears local pending sync journal entries for the selected tables, restores from sync when enabled, checks linked data integrity, and does not queue remote deletes.
 
 After clearing Docker data, refresh the browser. If the UI still shows cached state, restart the service:
 
@@ -225,6 +252,45 @@ LIFEOS_CLEAR_SCOPE=saga scripts/clear_docker_data.sh
 ```
 
 Local clear and Docker clear are separate. If the app is running in Docker, use `scripts/clear_docker_data.sh`; host scripts will not touch the Docker volume.
+
+#### B. Reset Data Safely
+
+Use reset when you intentionally want a fresh local start.
+
+TUI reset:
+
+```bash
+# Reset TUI JSON data: quests, pomodoros, trophies.
+./scripts/clear_data.sh
+```
+
+The TUI uses JSON files under `data/tui/` and is not part of R2 SQLite sync. The script backs up JSON files to `data/backups/`, writes empty JSON stores, and optionally deletes old JSON backups.
+
+Local Web reset without remote restore:
+
+```bash
+# Disable sync for this shell so clear remains local-only.
+SYNC_ENABLED=false QUESTLOG_DB=./data/web/questlog.db python3 -m core.maintenance.clear_data --db ./data/web/questlog.db --scope all --discard-unsynced
+```
+
+Docker Web reset without remote restore:
+
+```bash
+# Temporarily disable sync in .env, then recreate the container.
+docker compose up --build -d
+LIFEOS_CLEAR_SCOPE=all scripts/clear_docker_data.sh
+```
+
+For a truly blank Docker volume, stop and delete the volume:
+
+```bash
+docker compose down -v
+docker compose up --build -d
+```
+
+Only use `docker compose down -v` when you are sure the Docker volume contains no data you need. It deletes the container volume, not the R2 remote sync objects.
+
+Remote reset/delete-everywhere is not currently implemented. Do not use the normal clear scripts expecting cloud data to be deleted; they are designed to avoid that.
 
 ---
 

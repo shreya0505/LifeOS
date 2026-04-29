@@ -108,6 +108,12 @@ class SyncService:
         run_id = await self._start_run("push")
         logger.info("sync.push.start run_id=%s device=%s", run_id, self.config.device_name)
         try:
+            locked = await self._clear_locked()
+            if locked:
+                result = SyncResult("push", "locked", "Clear/restore is in progress; sync push skipped.")
+                await self._finish_run(run_id, result)
+                logger.info("sync.push.locked run_id=%s", run_id)
+                return result
             await self.register_device()
             manifest = await self._load_manifest()
             if not manifest.get("bootstrap_key"):
@@ -188,6 +194,12 @@ class SyncService:
         run_id = await self._start_run("pull")
         logger.info("sync.pull.start run_id=%s device=%s", run_id, self.config.device_name)
         try:
+            locked = await self._clear_locked()
+            if locked:
+                result = SyncResult("pull", "locked", "Clear/restore is in progress; sync pull skipped.")
+                await self._finish_run(run_id, result)
+                logger.info("sync.pull.locked run_id=%s", run_id)
+                return result
             await self.register_device()
             manifest = await self._load_manifest()
             if not manifest:
@@ -291,6 +303,9 @@ class SyncService:
 
     async def run(self) -> SyncResult:
         logger.info("sync.run.start device=%s", self.config.device_name)
+        if await self._clear_locked():
+            logger.info("sync.run.locked")
+            return SyncResult("run", "locked", "Clear/restore is in progress; sync skipped.")
         pulled = await self.pull()
         if pulled.status != "ok":
             logger.warning("sync.run.pull_failed message=%s", pulled.message)
@@ -314,6 +329,116 @@ class SyncService:
             result.conflicts,
         )
         return result
+
+    async def restore_tables(self, table_names: set[str] | list[str] | tuple[str, ...]) -> SyncResult:
+        """Rehydrate selected tables from all remote sync state.
+
+        This is used by local-only clear flows. It intentionally replays remote
+        bootstrap and bundles for the selected tables without changing normal
+        applied-bundle markers, so a scoped clear does not disturb sync state for
+        unrelated app areas.
+        """
+        requested = set(table_names)
+        unknown = sorted(requested - set(SYNC_TABLE_BY_NAME))
+        if unknown:
+            return SyncResult("restore", "error", f"Unknown sync table(s): {', '.join(unknown)}.")
+
+        run_id = await self._start_run("restore")
+        logger.info("sync.restore.start run_id=%s device=%s tables=%s", run_id, self.config.device_name, sorted(requested))
+        try:
+            await self.register_device()
+            manifest = await self._load_manifest()
+            if not manifest.get("bootstrap_key") and not manifest.get("bundles"):
+                result = SyncResult("restore", "ok", "No remote sync state found.")
+                await self._finish_run(run_id, result)
+                return result
+
+            bundles_pulled = 0
+            conflicts = 0
+            restored_changes = 0
+
+            await self.db.execute("SAVEPOINT sync_restore_tables")
+            if manifest.get("bootstrap_key"):
+                logger.info("sync.restore.bootstrap.fetch run_id=%s key=%s", run_id, manifest["bootstrap_key"])
+                payload = await self.store.get_bytes(manifest["bootstrap_key"])
+                if payload:
+                    snapshot = decrypt_json(payload, self.config.encryption_passphrase)
+                    for table in SYNC_TABLES:
+                        if table.name not in requested:
+                            continue
+                        for row in snapshot.get("tables", {}).get(table.name, []):
+                            row = _normalize_workspace_row(table, row)
+                            if not row or table.pk not in row:
+                                continue
+                            change = {
+                                "table": table.name,
+                                "record_id": str(row[table.pk]),
+                                "op": "UPDATE",
+                                "base_revision": 0,
+                                "revision": row.get("sync_revision", 1),
+                                "origin_device": row.get("sync_origin_device") or snapshot.get("device", ""),
+                                "row": row,
+                            }
+                            applied_ok, conflicted = await self._apply_change(change)
+                            if applied_ok:
+                                restored_changes += 1
+                            if conflicted:
+                                conflicts += 1
+
+            for entry in sorted(manifest.get("bundles", []), key=lambda item: item.get("created_at", "")):
+                payload = await self.store.get_bytes(entry["key"])
+                if payload is None:
+                    logger.warning("sync.restore.bundle.missing run_id=%s bundle_id=%s key=%s", run_id, entry.get("id"), entry.get("key"))
+                    continue
+                bundle = decrypt_json(payload, self.config.encryption_passphrase)
+                bundle_applied = 0
+                for change in bundle.get("changes", []):
+                    if change.get("table") not in requested:
+                        continue
+                    applied_ok, conflicted = await self._apply_change(change)
+                    if applied_ok:
+                        restored_changes += 1
+                        bundle_applied += 1
+                    if conflicted:
+                        conflicts += 1
+                if bundle_applied:
+                    bundles_pulled += 1
+
+            await self._set_state("last_pull_at", _now())
+            await self._set_state("last_error", "")
+            await self.db.execute("RELEASE SAVEPOINT sync_restore_tables")
+            await self.db.commit()
+            message = f"Restored {restored_changes} remote change(s) from {bundles_pulled} bundle(s)."
+            if conflicts:
+                message += f" {conflicts} conflict(s) need review."
+            result = SyncResult(
+                "restore",
+                "ok",
+                message,
+                bundles_pulled=bundles_pulled,
+                changes_pushed=0,
+                conflicts=conflicts,
+            )
+            await self._finish_run(run_id, result)
+            logger.info(
+                "sync.restore.ok run_id=%s changes=%s bundles=%s conflicts=%s",
+                run_id,
+                restored_changes,
+                bundles_pulled,
+                conflicts,
+            )
+            return result
+        except Exception as exc:
+            logger.exception("sync.restore.error run_id=%s", run_id)
+            try:
+                await self.db.execute("ROLLBACK TO SAVEPOINT sync_restore_tables")
+                await self.db.execute("RELEASE SAVEPOINT sync_restore_tables")
+            except Exception:
+                pass
+            result = SyncResult("restore", "error", str(exc))
+            await self._set_state("last_error", f"Restore failed: {exc}")
+            await self._finish_run(run_id, result)
+            return result
 
     async def open_conflicts(self) -> list[dict]:
         cursor = await self.db.execute(
@@ -546,6 +671,7 @@ class SyncService:
 
     async def _apply_with_suppression(self, change: dict) -> None:
         table = SYNC_TABLE_BY_NAME[change["table"]]
+        previous_suppress = await self._get_runtime("suppress", "0")
         await self.db.execute("UPDATE sync_runtime SET value = '1' WHERE key = 'suppress'")
         try:
             if change["op"] == "DELETE":
@@ -555,7 +681,7 @@ class SyncService:
                 logger.info("sync.change.db.upsert table=%s record_id=%s", table.name, change["record_id"])
                 await self._upsert_row(table, change["row"])
         finally:
-            await self.db.execute("UPDATE sync_runtime SET value = '0' WHERE key = 'suppress'")
+            await self.db.execute("UPDATE sync_runtime SET value = ? WHERE key = 'suppress'", (previous_suppress,))
 
     async def _upsert_row(self, table: SyncTable, row: dict) -> None:
         columns = await self._table_columns(table.name)
@@ -671,6 +797,14 @@ class SyncService:
             "updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')",
             (key, value),
         )
+
+    async def _get_runtime(self, key: str, default: str = "") -> str:
+        cursor = await self.db.execute("SELECT value FROM sync_runtime WHERE key = ?", (key,))
+        row = await cursor.fetchone()
+        return row[0] if row else default
+
+    async def _clear_locked(self) -> bool:
+        return await self._get_runtime("clear_lock", "0") == "1"
 
     async def _scalar(self, sql: str) -> Any:
         cursor = await self.db.execute(sql)

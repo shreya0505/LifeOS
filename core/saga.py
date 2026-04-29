@@ -49,6 +49,42 @@ QUADRANT_LABELS = {
 QUADRANT_ORDER = ("yellow", "red", "green", "blue")
 MOOD_ROWS = (5, 4, 3, 2, 1, -1, -2, -3, -4, -5)
 
+QUEST_PRIORITY_WEIGHTS = {
+    0: 1.70,
+    1: 1.45,
+    2: 1.20,
+    3: 1.00,
+    4: 0.75,
+}
+QUEST_FROG_MULTIPLIER = 1.35
+CHALLENGE_BUCKET_WEIGHTS = {
+    "anchor": 50,
+    "improver": 35,
+    "enricher": 15,
+}
+FIELD_REPORT_WEIGHTS = {
+    "daily_execution": {
+        "quest_quality": 65,
+        "focus_quality": 25,
+        "frog_consistency": 10,
+    },
+    "long_game": {
+        "hard90_integrity": 85,
+        "experiment_enricher_signal": 15,
+    },
+    "evolution": {
+        "active_trial_health": 35,
+        "logging_consistency": 30,
+        "verdict_hygiene": 20,
+        "learning_closure": 15,
+    },
+    "emotional_climate": {
+        "pleasantness_health": 60,
+        "low_mood_load": 25,
+        "stability": 15,
+    },
+}
+
 
 def render_markdown_note(value: str | None) -> str:
     """Render a small, escaped Markdown subset for saved Saga notes."""
@@ -715,9 +751,87 @@ def _band(value: float, cuts: tuple[float, float, float], names: tuple[str, str,
     return names[3]
 
 
+def _safe_int(value, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _local_date_from_iso(value: str | None) -> date | None:
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value[:10])
+    except ValueError:
+        try:
+            return parse_iso(value).date() if parse_iso(value) else None
+        except ValueError:
+            return None
+
+
+def _quest_age_days(quest: dict) -> int:
+    completed = _local_date_from_iso(quest.get("completed_at"))
+    created = _local_date_from_iso(quest.get("created_at")) or _local_date_from_iso(quest.get("started_at"))
+    if not completed or not created:
+        return 0
+    return max(0, (completed - created).days)
+
+
+def _quest_age_multiplier(age_days: int) -> float:
+    if age_days >= 14:
+        return 1.40
+    if age_days >= 7:
+        return 1.25
+    if age_days >= 2:
+        return 1.10
+    return 1.00
+
+
 def _quest_weight(quest: dict) -> float:
-    priority = int(quest.get("priority") if quest.get("priority") is not None else 4)
-    return 1 + (0.35 if quest.get("frog") else 0) + max(0, 4 - priority) * 0.12
+    priority = max(0, min(4, _safe_int(quest.get("priority"), 4)))
+    priority_weight = QUEST_PRIORITY_WEIGHTS.get(priority, QUEST_PRIORITY_WEIGHTS[4])
+    frog_multiplier = QUEST_FROG_MULTIPLIER if quest.get("frog") else 1.00
+    age_multiplier = _quest_age_multiplier(_quest_age_days(quest))
+    return round(priority_weight * frog_multiplier * age_multiplier, 2)
+
+
+def _challenge_state_score(state: str | None) -> int:
+    rank = STATE_RANK.get(state or "", 1)
+    return int(round(((rank - 1) / 4) * 100))
+
+
+def _weighted_average(rows: list[tuple[float | int | None, float | int]]) -> float | None:
+    weighted = [(float(score), float(weight)) for score, weight in rows if score is not None and weight]
+    total_weight = sum(weight for _score, weight in weighted)
+    if not total_weight:
+        return None
+    return sum(score * weight for score, weight in weighted) / total_weight
+
+
+def _score_component(
+    label: str,
+    weight: int,
+    score: float | int | None,
+    inputs: list[str],
+    rationale: str,
+) -> dict:
+    resolved = _clamp(score or 0)
+    return {
+        "label": label,
+        "weight": weight,
+        "score": int(round(resolved)),
+        "contribution": round((resolved * weight) / 100, 1),
+        "inputs": inputs,
+        "rationale": rationale,
+    }
+
+
+def _weighted_score(components: list[dict]) -> float:
+    total_weight = sum(component["weight"] for component in components)
+    if not total_weight:
+        return 0
+    return _clamp(sum(component["score"] * component["weight"] for component in components) / total_weight)
 
 
 def _challenge_integrity(challenges: list[dict]) -> dict:
@@ -734,22 +848,28 @@ def _challenge_integrity(challenges: list[dict]) -> dict:
             "raw_rows": [],
         }
 
-    scores = [((STATE_RANK.get(item["state"], 1) - 1) / 4) * 100 for item in rows]
-    score = int(round(mean(scores)))
+    scores = [_challenge_state_score(item.get("state")) for item in rows]
     held = sum(1 for item in rows if item["state"] == "COMPLETED_SATISFACTORY")
     weak = sum(1 for item in rows if STATE_RANK.get(item["state"], 1) <= 3)
     buckets: dict[str, list[int]] = defaultdict(list)
     for item in rows:
-        buckets[item["bucket"]].append(STATE_RANK.get(item["state"], 1))
+        buckets[item["bucket"]].append(_challenge_state_score(item.get("state")))
     bucket_rows = [
         {
             "bucket": bucket,
             "label": bucket.title(),
-            "score": int(round(mean(((rank - 1) / 4) * 100 for rank in ranks))),
+            "score": int(round(mean(ranks))),
             "count": len(ranks),
+            "weight": CHALLENGE_BUCKET_WEIGHTS.get(bucket, 0),
         }
         for bucket, ranks in sorted(buckets.items())
     ]
+    weighted_score = _weighted_average([
+        (row["score"], CHALLENGE_BUCKET_WEIGHTS.get(row["bucket"], 0))
+        for row in bucket_rows
+        if row["bucket"] in CHALLENGE_BUCKET_WEIGHTS
+    ])
+    score = int(round(weighted_score if weighted_score is not None else mean(scores)))
     return {
         "score": score,
         "label": _band(score, (45, 70, 86), ("Frayed", "Mixed", "Held", "Clean")),
@@ -833,7 +953,7 @@ def _saga_day_profile(
     quest_weight = round(sum(_quest_weight(quest) for quest in quests), 1)
     baseline = max(quest_baseline, 1)
     output_index = int(round(_clamp((quest_weight / baseline) * 50))) if quest_count else 0
-    output_delta = int(round(((quest_count - quest_baseline) / baseline) * 100)) if baseline else 0
+    output_delta = int(round(((quest_weight - quest_baseline) / baseline) * 100)) if baseline else 0
     output_label = _band(output_index, (25, 55, 80), ("Sparse", "Light", "Above Base", "Surging"))
 
     challenge = _challenge_integrity(challenges)
@@ -1215,22 +1335,25 @@ async def _collect_window(db: aiosqlite.Connection, days: int) -> dict:
                 label_counts[mention["label"]] += 1
 
     quest_cursor = await db.execute(
-        "SELECT id, completed_at, frog, priority, project, labels, workspace_id "
+        "SELECT id, title, created_at, started_at, completed_at, frog, priority, project, labels, workspace_id "
         "FROM quests WHERE status = 'done' AND completed_at IS NOT NULL"
     )
     quests_by_day: dict[str, list[dict]] = defaultdict(list)
     for row in await quest_cursor.fetchall():
-        local_date = to_local_date(row[1])
+        local_date = to_local_date(row[4])
         if local_date < start.isoformat() or local_date > end.isoformat():
             continue
         quests_by_day[local_date].append({
             "id": row[0],
-            "completed_at": row[1],
-            "frog": bool(row[2]),
-            "priority": row[3] if row[3] is not None else 4,
-            "project": row[4],
-            "labels": display_labels(row[5]),
-            "workspace": row[6],
+            "title": row[1],
+            "created_at": row[2],
+            "started_at": row[3],
+            "completed_at": row[4],
+            "frog": bool(row[5]),
+            "priority": row[6] if row[6] is not None else 4,
+            "project": row[7],
+            "labels": display_labels(row[8]),
+            "workspace": row[9],
         })
 
     pomo_cursor = await db.execute(
@@ -1301,7 +1424,7 @@ async def _collect_window(db: aiosqlite.Connection, days: int) -> dict:
 
     exp_cursor = await db.execute(
         "SELECT e.id, e.action, e.status, e.started_at, e.ends_at, e.verdict, "
-        "e.created_at, ee.log_date, ee.state, ee.notes "
+        "e.created_at, e.observation_notes, e.conclusion_notes, ee.log_date, ee.state, ee.notes "
         "FROM challenge_experiments e "
         "LEFT JOIN challenge_experiment_entries ee ON ee.experiment_id = e.id "
         "WHERE COALESCE(e.started_at, e.created_at) <= ? "
@@ -1328,13 +1451,15 @@ async def _collect_window(db: aiosqlite.Connection, days: int) -> dict:
             "ends_at": row[4],
             "verdict": row[5],
             "created_at": row[6],
+            "observation_notes": row[7],
+            "conclusion_notes": row[8],
             "entries": [],
         })
-        if row[7]:
+        if row[9]:
             exp["entries"].append({
-                "log_date": row[7],
-                "state": row[8],
-                "notes": row[9],
+                "log_date": row[9],
+                "state": row[10],
+                "notes": row[11],
             })
 
     for exp in experiments_by_id.values():
@@ -1389,8 +1514,8 @@ async def _collect_window(db: aiosqlite.Connection, days: int) -> dict:
             "abandoned": 0,
             "logged": 0,
         }))
-    quest_counts = [len(quests_by_day.get(day, [])) for day in calendar_days]
-    quest_baseline = mean(quest_counts[:-1]) if len(quest_counts) > 1 else 0
+    quest_quality_totals = [sum(_quest_weight(quest) for quest in quests_by_day.get(day, [])) for day in calendar_days]
+    quest_baseline = mean(quest_quality_totals[:-1]) if len(quest_quality_totals) > 1 else 0
     day_profiles = [
         _saga_day_profile(
             day,
@@ -1402,6 +1527,18 @@ async def _collect_window(db: aiosqlite.Connection, days: int) -> dict:
         for day in calendar_days
     ]
     _apply_recovery_archetypes(day_profiles)
+    for profile in day_profiles:
+        weighted = _field_report_day_scores(
+            profile,
+            pomo_by_day.get(profile["date"], {}),
+            experiments_by_day.get(profile["date"], {}),
+        )
+        profile["field_report"] = weighted
+        if weighted["alignment"] is not None:
+            profile["alignment"] = {
+                "score": int(round(weighted["alignment"])),
+                "label": _alignment_label(int(round(weighted["daily_execution"] or 0)), int(round(weighted["long_game"] or 0))),
+            }
     return {
         "start": start,
         "end": end,
@@ -1714,6 +1851,7 @@ def _pillar(
     confidence: str,
     headline: str,
     numbers: list[dict],
+    explainer: dict | None = None,
     tone: str | None = None,
 ) -> dict:
     resolved = int(round(_clamp(score or 0)))
@@ -1724,6 +1862,7 @@ def _pillar(
         "confidence": confidence,
         "headline": headline,
         "numbers": numbers,
+        "explainer": explainer or {},
         "tone": tone or ("strong" if resolved >= 72 else "watch" if resolved >= 45 else "risk"),
     }
 
@@ -1737,6 +1876,149 @@ def _confidence(active: int, total: int) -> str:
     if coverage >= 0.35:
         return "medium"
     return "low"
+
+
+def _focus_quality_score(pomo: dict) -> float:
+    actual_pomos = _safe_int(pomo.get("actual_pomos"))
+    completed_segments = _safe_int(pomo.get("completed_work_segments"))
+    work_segments = _safe_int(pomo.get("work_segments"))
+    interruptions = _safe_int(pomo.get("interruptions"))
+    hollow = _safe_int(pomo.get("hollow"))
+    berserker = _safe_int(pomo.get("berserker"))
+    effort = min(100, actual_pomos * 24 + completed_segments * 18 + max(0, work_segments - completed_segments) * 6 + berserker * 8)
+    drag = (interruptions / max(completed_segments, 1)) * 14 + hollow * 18
+    return _clamp(effort - drag)
+
+
+def _experiment_enricher_score(experiments: list[dict], experiments_by_day: dict[str, dict]) -> float:
+    exp_total = len(experiments)
+    if not exp_total:
+        return 0
+    exp_started = sum(1 for exp in experiments if exp.get("started_at"))
+    exp_logged = sum(len(exp.get("entries") or []) for exp in experiments)
+    exp_judged = sum(1 for exp in experiments if exp.get("status") == "judged")
+    exp_abandoned = sum(1 for exp in experiments if exp.get("status") == "abandoned")
+    exp_due = sum(day.get("verdict_due", 0) for day in experiments_by_day.values())
+    return _clamp(exp_started * 18 + exp_logged * 10 + exp_judged * 14 + exp_abandoned * 6 - exp_due * 12)
+
+
+def _experiment_day_score(exp: dict) -> float:
+    active = _safe_int(exp.get("active"))
+    started = _safe_int(exp.get("started"))
+    touched = _safe_int(exp.get("touched"))
+    logged = _safe_int(exp.get("logged"))
+    judged = _safe_int(exp.get("judged"))
+    abandoned = _safe_int(exp.get("abandoned"))
+    verdict_due = _safe_int(exp.get("verdict_due"))
+    active_trial = min(100, active * 55 + started * 35 + touched * 10)
+    logging = min(100, (touched or logged) * 100)
+    verdict = _clamp(100 - verdict_due * 35) if (active or started or touched or judged or abandoned or verdict_due) else 0
+    closure = min(100, judged * 100 + abandoned * 70)
+    components = [
+        _score_component("Active trial health", 35, active_trial, [], ""),
+        _score_component("Logging consistency", 30, logging, [], ""),
+        _score_component("Verdict hygiene", 20, verdict, [], ""),
+        _score_component("Learning closure", 15, closure, [], ""),
+    ]
+    return _weighted_score(components)
+
+
+def _aggregate_experiment_metric(experiments: list[dict], experiments_by_day: dict[str, dict], days: int) -> dict:
+    exp_total = len(experiments)
+    exp_started = sum(1 for exp in experiments if exp.get("started_at"))
+    exp_logged = sum(len(exp.get("entries") or []) for exp in experiments)
+    exp_judged = sum(1 for exp in experiments if exp.get("status") == "judged")
+    exp_abandoned = sum(1 for exp in experiments if exp.get("status") == "abandoned")
+    exp_due = sum(day.get("verdict_due", 0) for day in experiments_by_day.values())
+    experiment_days = sum(
+        1 for day in experiments_by_day.values()
+        if day.get("active") or day.get("started") or day.get("touched") or day.get("judged") or day.get("abandoned")
+    )
+    active_days = sum(1 for day in experiments_by_day.values() if day.get("active") or day.get("started"))
+    logged_days = sum(1 for day in experiments_by_day.values() if day.get("touched") or day.get("logged"))
+    noted_abandoned = sum(
+        1 for exp in experiments
+        if exp.get("status") == "abandoned" and (exp.get("observation_notes") or exp.get("conclusion_notes") or exp.get("entries"))
+    )
+    active_trial = _clamp((active_days / max(days, 1)) * 100 + exp_started * 8)
+    logging = _clamp((logged_days / max(active_days, 1)) * 100) if exp_total else 0
+    verdict = _clamp(100 - exp_due * 25) if exp_total else 0
+    closure = min(100, exp_judged * 35 + noted_abandoned * 25 + max(0, exp_abandoned - noted_abandoned) * 12)
+    weights = FIELD_REPORT_WEIGHTS["evolution"]
+    components = [
+        _score_component("Active trial health", weights["active_trial_health"], active_trial, [f"{active_days} active trial day{'s' if active_days != 1 else ''}", f"{exp_started} started"], "A trial only counts as health when it is actually running in the window."),
+        _score_component("Logging consistency", weights["logging_consistency"], logging, [f"{logged_days} logged day{'s' if logged_days != 1 else ''}", f"{exp_logged} experiment log{'s' if exp_logged != 1 else ''}"], "Tiny Experiments improve the system when they create observed evidence, not just intentions."),
+        _score_component("Verdict hygiene", weights["verdict_hygiene"], verdict, [f"{exp_due} verdict due"], "Verdict debt lowers health because open loops keep trial data from becoming learning."),
+        _score_component("Learning closure", weights["learning_closure"], closure, [f"{exp_judged} judged", f"{noted_abandoned} abandoned with notes"], "Judged trials count most, but an abandoned trial with notes still teaches the system something."),
+    ]
+    return {
+        "score": _weighted_score(components),
+        "confidence": "high" if exp_total and experiment_days >= max(1, days // 3) else "medium" if exp_total else "low",
+        "components": components,
+        "counts": {
+            "exp_total": exp_total,
+            "exp_started": exp_started,
+            "exp_logged": exp_logged,
+            "exp_judged": exp_judged,
+            "exp_abandoned": exp_abandoned,
+            "exp_due": exp_due,
+            "experiment_days": experiment_days,
+        },
+    }
+
+
+def _emotional_day_score(day: dict) -> float | None:
+    if not day["saga"]["entry_count"]:
+        return None
+    pleasantness_health = ((day["saga"]["avg_pleasantness"] + 5) / 10) * 100
+    low_mood_load = 100 - day["saga"]["mood_load"]
+    stability = 100 - min(100, day["saga"]["volatility"] * 12 + day["saga"]["quadrant_switches"] * 8)
+    weights = FIELD_REPORT_WEIGHTS["emotional_climate"]
+    return _weighted_score([
+        _score_component("Pleasantness health", weights["pleasantness_health"], pleasantness_health, [], ""),
+        _score_component("Low mood load", weights["low_mood_load"], low_mood_load, [], ""),
+        _score_component("Stability", weights["stability"], stability, [], ""),
+    ])
+
+
+def _field_report_day_scores(day: dict, pomo: dict, exp: dict) -> dict:
+    has_daily_signal = bool(day["quest"]["count"] or pomo.get("actual_pomos") or pomo.get("completed_work_segments"))
+    focus = _focus_quality_score(pomo)
+    frog = 100 if day["quest"].get("frog_count") else 0
+    daily = None
+    if has_daily_signal:
+        weights = FIELD_REPORT_WEIGHTS["daily_execution"]
+        daily = _weighted_score([
+            _score_component("Quest quality", weights["quest_quality"], day["quest"]["output_index"], [], ""),
+            _score_component("Focus quality", weights["focus_quality"], focus, [], ""),
+            _score_component("Frog consistency", weights["frog_consistency"], frog, [], ""),
+        ])
+
+    hard90 = day["challenge"]["score"]
+    exp_signal = _experiment_day_score(exp)
+    long = None
+    if hard90 is not None:
+        weights = FIELD_REPORT_WEIGHTS["long_game"]
+        long = _weighted_score([
+            _score_component("Hard 90 integrity", weights["hard90_integrity"], hard90, [], ""),
+            _score_component("Tiny Experiment enricher signal", weights["experiment_enricher_signal"], exp_signal, [], ""),
+        ])
+
+    has_evolution_signal = bool(exp.get("active") or exp.get("touched") or exp.get("started") or exp.get("verdict_due") or exp.get("judged") or exp.get("abandoned"))
+    evolution = _experiment_day_score(exp) if has_evolution_signal else None
+    emotion = _emotional_day_score(day)
+    alignment = None
+    if daily is not None and long is not None:
+        alignment = _clamp(daily * 0.45 + long * 0.55)
+    return {
+        "daily_execution": daily,
+        "focus_quality": focus if pomo.get("focus_days") else None,
+        "long_game": long,
+        "evolution": evolution,
+        "emotional_climate": emotion,
+        "alignment": alignment,
+        "experiment_enricher_signal": exp_signal if has_evolution_signal else None,
+    }
 
 
 def build_pillars(
@@ -1759,16 +2041,61 @@ def build_pillars(
     output_values = [day["quest"]["output_index"] for day in day_profiles if day["quest"]["count"]]
     output_mean = _mean_or_none(output_values) or 0
     total_frogs = sum(day["quest"]["frog_count"] for day in day_profiles)
-    priority_weights = []
+    priority_counts: Counter[int] = Counter()
+    quest_ages = []
     for day in day_profiles:
         for quest in day.get("quest_items", []):
-            priority_weights.append(max(0, 5 - int(quest.get("priority", 4))))
+            priority_counts[max(0, min(4, _safe_int(quest.get("priority"), 4)))] += 1
+            quest_ages.append(_quest_age_days(quest))
     pomo_total = sum(day.get("actual_pomos", 0) for day in pomo_by_day.values())
     interruptions = sum(day.get("interruptions", 0) for day in pomo_by_day.values())
     completed_segments = sum(day.get("completed_work_segments", 0) for day in pomo_by_day.values())
-    pomo_score = _clamp((pomo_total / max(days * 2, 1)) * 100 - (interruptions / max(completed_segments, 1)) * 12)
-    frog_score = min(100, total_frogs * 18)
-    daily_score = _clamp((output_mean * 0.55) + (pomo_score * 0.30) + (frog_score * 0.15))
+    work_segments = sum(day.get("work_segments", 0) for day in pomo_by_day.values())
+    hollow = sum(day.get("hollow", 0) for day in pomo_by_day.values())
+    berserker = sum(day.get("berserker", 0) for day in pomo_by_day.values())
+    focus_score = _focus_quality_score({
+        "actual_pomos": pomo_total,
+        "completed_work_segments": completed_segments,
+        "work_segments": work_segments,
+        "interruptions": interruptions,
+        "hollow": hollow,
+        "berserker": berserker,
+    })
+    frog_score = _clamp((total_frogs / max(quest_days, 1)) * 100) if quest_days else 0
+    daily_weights = FIELD_REPORT_WEIGHTS["daily_execution"]
+    daily_components = [
+        _score_component(
+            "Quest quality",
+            daily_weights["quest_quality"],
+            output_mean,
+            [
+                "Priority weights: P0 1.70, P1 1.45, P2 1.20, P3 1.00, P4 0.75",
+                "Priority mix: " + ", ".join(f"P{level} {priority_counts.get(level, 0)}" for level in range(5)),
+                f"{sum(priority_counts.values())} completed quest{'s' if sum(priority_counts.values()) != 1 else ''}",
+                f"Average age at completion {round(mean(quest_ages), 1) if quest_ages else 0}d",
+            ],
+            "Quest count is not scored equally. A P0 frog completed after aging carries more health signal than several low-priority completions.",
+        ),
+        _score_component(
+            "Focus quality",
+            daily_weights["focus_quality"],
+            focus_score,
+            [
+                f"{pomo_total} actual pomo{'s' if pomo_total != 1 else ''}",
+                f"{completed_segments} completed work segment{'s' if completed_segments != 1 else ''}",
+                f"{interruptions} interruption{'s' if interruptions != 1 else ''}; {hollow} hollow; {berserker} berserker",
+            ],
+            "Completed focus raises health; interruptions and hollow sessions show quality drag that raw pomo count would hide.",
+        ),
+        _score_component(
+            "Frog consistency",
+            daily_weights["frog_consistency"],
+            frog_score,
+            [f"{total_frogs} frog{'s' if total_frogs != 1 else ''} across {quest_days} quest day{'s' if quest_days != 1 else ''}"],
+            "Frogs are the avoided or high-leverage quests, so they get a small explicit consistency lane.",
+        ),
+    ]
+    daily_score = _weighted_score(daily_components)
     daily_confidence = _confidence(max(quest_days, focus_days), days)
 
     challenge_values = [day["challenge"]["score"] for day in day_profiles if day["challenge"]["score"] is not None]
@@ -1780,23 +2107,85 @@ def build_pillars(
             if row.get("bucket") in {"anchor", "improver"} and row.get("state") != "COMPLETED_SATISFACTORY":
                 priority_misses += 1
                 bucket_misses[row.get("bucket") or "unknown"] += 1
-    long_score = _clamp(challenge_mean - priority_misses * 4)
+    experiment_enricher_score = _experiment_enricher_score(experiments, experiments_by_day)
+    long_weights = FIELD_REPORT_WEIGHTS["long_game"]
+    long_components = [
+        _score_component(
+            "Hard 90 integrity",
+            long_weights["hard90_integrity"],
+            challenge_mean,
+            [
+                "Bucket weights: Anchor 50%, Improver 35%, Enricher 15%",
+                f"{bucket_misses.get('anchor', 0)} Anchor miss{'es' if bucket_misses.get('anchor', 0) != 1 else ''}",
+                f"{bucket_misses.get('improver', 0)} Improver miss{'es' if bucket_misses.get('improver', 0) != 1 else ''}",
+            ],
+            "Anchor carries 50% of Hard 90 because it represents identity-level adherence; Enricher carries 15% because it is useful but less load-bearing.",
+        ),
+        _score_component(
+            "Tiny Experiment enricher signal",
+            long_weights["experiment_enricher_signal"],
+            experiment_enricher_score,
+            ["Tiny Experiments are scored as Enricher-level signal inside Long Game Integrity."],
+            "Experiments can support the long game, but they cannot rescue weak Anchor or Improver adherence.",
+        ),
+    ]
+    long_score = _weighted_score(long_components)
     long_confidence = _confidence(challenge_days, days)
 
-    exp_total = len(experiments)
-    exp_started = sum(1 for exp in experiments if exp.get("started_at"))
-    exp_logged = sum(len(exp.get("entries") or []) for exp in experiments)
-    exp_judged = sum(1 for exp in experiments if exp.get("status") == "judged")
-    exp_abandoned = sum(1 for exp in experiments if exp.get("status") == "abandoned")
-    exp_due = sum(day.get("verdict_due", 0) for day in experiments_by_day.values())
-    participation = min(100, exp_started * 18 + exp_logged * 8 + exp_judged * 12 + exp_abandoned * 5)
-    evolution_score = _clamp(participation - exp_due * 10)
-    evolution_confidence = "high" if exp_total and experiment_days >= max(1, days // 3) else "medium" if exp_total else "low"
+    experiment_metric = _aggregate_experiment_metric(experiments, experiments_by_day, days)
+    exp_total = experiment_metric["counts"]["exp_total"]
+    exp_started = experiment_metric["counts"]["exp_started"]
+    exp_logged = experiment_metric["counts"]["exp_logged"]
+    exp_due = experiment_metric["counts"]["exp_due"]
+    evolution_score = experiment_metric["score"]
+    evolution_confidence = experiment_metric["confidence"]
 
     pleasant_ratio = meta_analysis.get("mood_map", {}).get("pleasant_ratio") or 0
     red_blue_ratio = meta_analysis.get("mood_map", {}).get("red_blue_ratio") or 0
     mean_mood_load = meta_analysis.get("emotion_load", {}).get("mean_mood_load") or 0
-    emotional_score = _clamp((pleasant_ratio * 0.62) + ((100 - red_blue_ratio) * 0.18) + ((100 - mean_mood_load) * 0.20))
+    if saga_days:
+        pleasantness_values = [
+            ((day["saga"]["avg_pleasantness"] + 5) / 10) * 100
+            for day in day_profiles
+            if day["saga"]["entry_count"]
+        ]
+        pleasantness_health = _mean_or_none(pleasantness_values) or 0
+        low_mood_load = _clamp(100 - mean_mood_load)
+        stability_values = [
+            100 - min(100, day["saga"]["volatility"] * 12 + day["saga"]["quadrant_switches"] * 8)
+            for day in day_profiles
+            if day["saga"]["entry_count"]
+        ]
+        stability_score = _mean_or_none(stability_values) or 0
+    else:
+        pleasantness_health = 50
+        low_mood_load = 50
+        stability_score = 50
+    emotional_weights = FIELD_REPORT_WEIGHTS["emotional_climate"]
+    emotional_components = [
+        _score_component(
+            "Pleasantness health",
+            emotional_weights["pleasantness_health"],
+            pleasantness_health,
+            [f"{pleasant_ratio}% pleasant-side entries", "Mood meter pleasantness maps -5..+5 to 0..100"] if saga_days else ["No captured mood days; score held neutral and confidence lowered."],
+            "Unpleasant emotions reduce Emotional Climate because this score represents system health, not moral worth.",
+        ),
+        _score_component(
+            "Low mood load",
+            emotional_weights["low_mood_load"],
+            low_mood_load,
+            [f"{red_blue_ratio}% red/blue pressure", f"Average mood load {mean_mood_load or 0}"] if saga_days else ["No red/blue pressure observed because no emotion was captured."],
+            "Red and blue pressure increases load, so a lower load means the system has more room to move.",
+        ),
+        _score_component(
+            "Stability",
+            emotional_weights["stability"],
+            stability_score,
+            ["Volatility and quadrant switches reduce this component."] if saga_days else ["No volatility score without captured emotion; confidence carries the warning."],
+            "Stability matters because repeated emotional whiplash consumes operational bandwidth.",
+        ),
+    ]
+    emotional_score = _weighted_score(emotional_components)
     emotional_confidence = _confidence(saga_days, days)
 
     pillars = [
@@ -1812,6 +2201,11 @@ def build_pillars(
                 {"label": "Pomos", "value": pomo_total},
                 {"label": "Interruptions", "value": interruptions},
             ],
+            {
+                "formula": "65% Quest quality + 25% Focus quality + 10% Frog consistency",
+                "rationale": "Daily Execution measures quality-adjusted traction. Raw quest count remains visible, but priority, frog status, age at completion, and focus cleanliness decide most of the score.",
+                "components": daily_components,
+            },
         ),
         _pillar(
             "long_game",
@@ -1825,6 +2219,11 @@ def build_pillars(
                 {"label": "Anchor misses", "value": bucket_misses.get("anchor", 0)},
                 {"label": "Improver misses", "value": bucket_misses.get("improver", 0)},
             ],
+            {
+                "formula": "85% Hard 90 integrity + 15% Tiny Experiment enricher signal",
+                "rationale": "Long Game Integrity is anchored in Hard 90. Tiny Experiments help at Enricher weight, but Anchor and Improver adherence remain load-bearing.",
+                "components": long_components,
+            },
         ),
         _pillar(
             "evolution",
@@ -1838,6 +2237,11 @@ def build_pillars(
                 {"label": "Logs", "value": exp_logged},
                 {"label": "Verdicts due", "value": exp_due},
             ],
+            {
+                "formula": "35% Active trial health + 30% Logging consistency + 20% Verdict hygiene + 15% Learning closure",
+                "rationale": "Evolution rewards learning loops, not just experiment volume. Running, logging, judging, and closing trials turn curiosity into system health.",
+                "components": experiment_metric["components"],
+            },
         ),
         _pillar(
             "emotional_climate",
@@ -1851,6 +2255,11 @@ def build_pillars(
                 {"label": "Mood load", "value": mean_mood_load or "—"},
                 {"label": "Capture days", "value": saga_days},
             ],
+            {
+                "formula": "60% Pleasantness health + 25% Low mood load + 15% Stability",
+                "rationale": "Emotional Climate reads the operating conditions around the system. Unpleasantness and volatility reduce health; missing capture lowers confidence instead of pretending the mood was bad.",
+                "components": emotional_components,
+            },
         ),
     ]
 
@@ -1882,6 +2291,10 @@ def build_pillars(
         "pleasant_ratio": pleasant_ratio,
         "red_blue_ratio": red_blue_ratio,
         "mean_mood_load": mean_mood_load,
+        "quest_quality_score": round(output_mean),
+        "focus_quality_score": round(focus_score),
+        "frog_consistency_score": round(frog_score),
+        "experiment_enricher_score": round(experiment_enricher_score),
     }
     return pillars, missing_data, context
 
@@ -2130,30 +2543,31 @@ def build_grimoire_charts(
     for day in day_profiles:
         pomo = pomo_by_day.get(day["date"], {})
         exp = experiments_by_day.get(day["date"], {})
+        weighted = day.get("field_report") or _field_report_day_scores(day, pomo, exp)
         has_daily_signal = bool(day["quest"]["count"] or pomo.get("actual_pomos") or pomo.get("completed_work_segments"))
-        has_evolution_signal = bool(exp.get("active") or exp.get("touched") or exp.get("started") or exp.get("verdict_due"))
-        daily = _clamp(day["quest"]["output_index"] * 0.72 + min(100, (pomo.get("actual_pomos", 0) or 0) * 18) * 0.28)
-        long = day["challenge"]["score"] if day["challenge"]["score"] is not None else -1
-        evolution = _clamp((exp.get("active", 0) * 20) + (exp.get("touched", 0) * 28) + (exp.get("started", 0) * 20) - (exp.get("verdict_due", 0) * 14))
-        emotion = _clamp(((day["saga"]["avg_pleasantness"] + 5) / 10) * 70 + (100 - day["saga"]["mood_load"]) * 0.30) if day["saga"]["entry_count"] else -1
-        daily_value = round(daily) if has_daily_signal else None
-        long_value = round(long) if long >= 0 else None
-        evolution_value = round(evolution) if has_evolution_signal else None
-        emotion_value = round(emotion) if emotion >= 0 else None
+        has_evolution_signal = bool(exp.get("active") or exp.get("touched") or exp.get("started") or exp.get("verdict_due") or exp.get("judged") or exp.get("abandoned"))
+        daily = weighted["daily_execution"]
+        long = weighted["long_game"]
+        evolution = weighted["evolution"]
+        emotion = weighted["emotional_climate"]
+        daily_value = round(daily) if daily is not None and has_daily_signal else None
+        long_value = round(long) if long is not None else None
+        evolution_value = round(evolution) if evolution is not None and has_evolution_signal else None
+        emotion_value = round(emotion) if emotion is not None else None
         priority_misses = sum(
             1
             for row in day["challenge"].get("raw_rows", [])
             if row.get("bucket") in {"anchor", "improver"} and row.get("state") != "COMPLETED_SATISFACTORY"
         )
-        daily_scores.append(round(daily))
-        long_scores.append(round(long) if long >= 0 else 0)
-        evolution_scores.append(round(evolution))
-        emotional_scores.append(round(emotion) if emotion >= 0 else 0)
-        systems_matrix["Daily"].append(round(daily) if has_daily_signal else -1)
-        systems_matrix["Long Game"].append(round(long) if long >= 0 else -1)
-        systems_matrix["Evolution"].append(round(evolution) if has_evolution_signal else -1)
-        systems_matrix["Emotion"].append(round(emotion) if emotion >= 0 else -1)
-        if has_daily_signal and long >= 0:
+        daily_scores.append(round(daily) if daily is not None else 0)
+        long_scores.append(round(long) if long is not None else 0)
+        evolution_scores.append(round(evolution) if evolution is not None else 0)
+        emotional_scores.append(round(emotion) if emotion is not None else 0)
+        systems_matrix["Daily"].append(round(daily) if daily is not None and has_daily_signal else -1)
+        systems_matrix["Long Game"].append(round(long) if long is not None else -1)
+        systems_matrix["Evolution"].append(round(evolution) if evolution is not None and has_evolution_signal else -1)
+        systems_matrix["Emotion"].append(round(emotion) if emotion is not None else -1)
+        if has_daily_signal and long is not None and daily is not None:
             scatter.append({
                 "label": day["label"],
                 "date": day["date"],
@@ -2170,7 +2584,7 @@ def build_grimoire_charts(
                 "date": day["date"],
                 "pleasantness": day["saga"]["avg_pleasantness"],
                 "output": round(daily) if has_daily_signal else None,
-                "integrity": round(long) if long >= 0 else None,
+                "integrity": round(long) if long is not None else None,
                 "mood_load": day["saga"]["mood_load"],
             })
         metric_rows.append({
@@ -2206,8 +2620,8 @@ def build_grimoire_charts(
         if day["saga"]["entry_count"]:
             mood_split[split_key]["days"] += 1
             mood_split[split_key]["output"].append(day["quest"]["output_index"])
-            if day["challenge"]["score"] is not None:
-                mood_split[split_key]["challenge"].append(day["challenge"]["score"])
+            if long is not None:
+                mood_split[split_key]["challenge"].append(long)
             for row in day["challenge"].get("raw_rows", []):
                 if row.get("state") != "COMPLETED_SATISFACTORY":
                     bucket_risk.setdefault(row.get("bucket") or "unknown", {"pleasant": 0, "unpleasant": 0})

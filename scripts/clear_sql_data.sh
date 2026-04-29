@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# clear_sql_data.sh — Reset SQLite user data (quests, pomos, trophies)
-# Keeps schema and migrations intact. Backs up first, then optionally
-# deletes all backups.
+# clear_sql_data.sh — Reset QuestLog SQLite data.
+# When sync is enabled, this clears local data and restores it from sync.
+# Keeps schema and migrations intact. Backs up first, then optionally deletes backups.
 
 cd "$(dirname "$0")/.."
 
@@ -22,10 +22,16 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 echo "Database: $DB"
 echo ""
-echo "This will permanently delete:"
+echo "This will locally delete:"
 echo "  • All quests"
+echo "  • All artifact keys"
 echo "  • All pomo sessions and segments"
 echo "  • All trophy records"
+echo ""
+echo "If sync is enabled:"
+echo "  • This will clear local data and restore from sync"
+echo "  • This will discard unsynced local changes unless you sync first"
+echo "  • This will not delete remote data"
 echo ""
 read -p "Are you sure? (yes/no): " confirm
 
@@ -40,35 +46,15 @@ cp "$DB" "$BACKUP"
 echo ""
 echo "Backup saved: $BACKUP"
 
-python3 - "$DB" <<'PYEOF'
-import sqlite3, sys
-db = sqlite3.connect(sys.argv[1])
-db.execute("PRAGMA foreign_keys=OFF")
-try:
-    db.execute("UPDATE sync_runtime SET value = '1' WHERE key = 'suppress'")
-except sqlite3.OperationalError:
-    pass
-db.execute("DELETE FROM pomo_segments")
-db.execute("DELETE FROM pomo_sessions")
-db.execute("DELETE FROM trophy_records")
-db.execute("DELETE FROM quests")
-try:
-    db.execute("DELETE FROM sync_changes")
-    db.execute("DELETE FROM sync_conflicts")
-    db.execute("UPDATE sync_state SET value = '' WHERE key IN ('last_pull_at', 'last_push_at', 'last_error')")
-    db.execute("UPDATE sync_state SET value = '[]' WHERE key = 'applied_bundles'")
-    db.execute("UPDATE sync_state SET value = '0' WHERE key = 'applied_bootstrap'")
-finally:
-    try:
-        db.execute("UPDATE sync_runtime SET value = '0' WHERE key = 'suppress'")
-    except sqlite3.OperationalError:
-        pass
-db.execute("PRAGMA foreign_keys=ON")
-db.commit()
-db.close()
-PYEOF
+DISCARD_ARG=()
+read -p "If unsynced local QuestLog changes exist, discard them? (yes/no): " discard_unsynced
+if [[ "$discard_unsynced" == "yes" ]]; then
+  DISCARD_ARG=(--discard-unsynced)
+fi
 
-echo "Data cleared. Schema and migrations intact."
+python3 -m core.maintenance.clear_data --db "$DB" --scope questlog "${DISCARD_ARG[@]}"
+
+echo "Local clear completed. Schema and migrations intact."
 
 # Offer backup deletion
 echo ""
@@ -88,4 +74,4 @@ if [[ $BACKUP_COUNT -gt 0 ]]; then
 fi
 
 echo ""
-echo "Restart the app to start fresh."
+echo "Restart the app if the UI had cached state."
