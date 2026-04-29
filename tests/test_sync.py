@@ -176,3 +176,155 @@ async def test_pull_queues_same_row_conflict(sync_db):
         c["table_name"] == "challenges" and c["record_id"] == "ch1"
         for c in conflicts
     )
+
+
+@pytest.mark.asyncio
+async def test_pull_skips_legacy_saga_rows_without_mood_meter_coords(sync_db):
+    store = MemoryObjectStore()
+    db = await sync_db("legacy-saga")
+    cfg = _config("work-laptop")
+    svc = SyncService(db, cfg, store)
+    await svc.register_device()
+
+    await store.put_bytes(
+        "bootstrap.json.enc",
+        encrypt_json(
+            {
+                "version": 1,
+                "device": "old-laptop",
+                "created_at": "2026-04-28T00:00:00Z",
+                "tables": {
+                    "saga_entries": [
+                        {
+                            "id": "old-saga",
+                            "timestamp": "2026-04-28T09:00:00Z",
+                            "local_date": "2026-04-28",
+                            "emotion_family": "joy",
+                            "emotion_label": "calm",
+                            "intensity": 5,
+                            "created_at": "2026-04-28T09:00:00Z",
+                            "updated_at": "2026-04-28T09:00:00Z",
+                            "sync_revision": 1,
+                            "sync_origin_device": "old-laptop",
+                        }
+                    ]
+                },
+            },
+            cfg.encryption_passphrase,
+        ),
+    )
+    await store.put_json(
+        "manifest.json",
+        {
+            "version": 1,
+            "bootstrap_key": "bootstrap.json.enc",
+            "bundles": [],
+            "updated_at": "2026-04-28T00:00:00Z",
+        },
+    )
+
+    result = await svc.pull()
+
+    assert result.status == "ok"
+    row = await (await db.execute("SELECT COUNT(*) FROM saga_entries")).fetchone()
+    assert row == (0,)
+
+
+@pytest.mark.asyncio
+async def test_pull_derives_missing_saga_quadrant_from_coords(sync_db):
+    store = MemoryObjectStore()
+    db = await sync_db("partial-saga")
+    cfg = _config("work-laptop")
+    svc = SyncService(db, cfg, store)
+    await svc.register_device()
+
+    await store.put_bytes(
+        "bootstrap.json.enc",
+        encrypt_json(
+            {
+                "version": 1,
+                "device": "other-laptop",
+                "created_at": "2026-04-28T00:00:00Z",
+                "tables": {
+                    "saga_entries": [
+                        {
+                            "id": "partial-saga",
+                            "timestamp": "2026-04-28T09:00:00Z",
+                            "local_date": "2026-04-28",
+                            "energy": 4,
+                            "pleasantness": -2,
+                            "created_at": "2026-04-28T09:00:00Z",
+                            "updated_at": "2026-04-28T09:00:00Z",
+                            "sync_revision": 1,
+                            "sync_origin_device": "other-laptop",
+                        }
+                    ]
+                },
+            },
+            cfg.encryption_passphrase,
+        ),
+    )
+    await store.put_json(
+        "manifest.json",
+        {
+            "version": 1,
+            "bootstrap_key": "bootstrap.json.enc",
+            "bundles": [],
+            "updated_at": "2026-04-28T00:00:00Z",
+        },
+    )
+
+    result = await svc.pull()
+
+    assert result.status == "ok"
+    row = await (await db.execute(
+        "SELECT energy, pleasantness, quadrant, mood_word FROM saga_entries WHERE id = 'partial-saga'"
+    )).fetchone()
+    assert row == (4, -2, "red", "red")
+
+
+@pytest.mark.asyncio
+async def test_pull_skips_any_remote_row_that_violates_local_constraints(sync_db):
+    store = MemoryObjectStore()
+    db = await sync_db("invalid-row")
+    cfg = _config("work-laptop")
+    svc = SyncService(db, cfg, store)
+    await svc.register_device()
+
+    await store.put_bytes(
+        "bootstrap.json.enc",
+        encrypt_json(
+            {
+                "version": 1,
+                "device": "old-laptop",
+                "created_at": "2026-04-28T00:00:00Z",
+                "tables": {
+                    "challenges": [
+                        {
+                            "id": "bad-challenge",
+                            "start_date": "2026-04-28",
+                            "created_at": "2026-04-28T00:00:00Z",
+                            "sync_revision": 1,
+                            "sync_origin_device": "old-laptop",
+                        }
+                    ]
+                },
+            },
+            cfg.encryption_passphrase,
+        ),
+    )
+    await store.put_json(
+        "manifest.json",
+        {
+            "version": 1,
+            "bootstrap_key": "bootstrap.json.enc",
+            "bundles": [],
+            "updated_at": "2026-04-28T00:00:00Z",
+        },
+    )
+
+    result = await svc.pull()
+
+    assert result.status == "ok"
+    row = await (await db.execute("SELECT COUNT(*) FROM challenges WHERE id = 'bad-challenge'")).fetchone()
+    assert row == (0,)

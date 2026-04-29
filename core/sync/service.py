@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import sqlite3
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -46,6 +47,8 @@ def _normalize_workspace_row(table: SyncTable, row: dict | None) -> dict | None:
     """Accept pre-workspace sync rows by assigning them to Work."""
     if row is None:
         return None
+    if table.name == "saga_entries":
+        return _normalize_saga_row(row)
     normalized = dict(row)
     if table.name in {"quests", "artifact_keys", "pomo_sessions", "pomo_segments", "trophy_records"}:
         normalized["workspace_id"] = normalized.get("workspace_id") or "work"
@@ -54,6 +57,57 @@ def _normalize_workspace_row(table: SyncTable, row: dict | None) -> dict | None:
     if table.name == "trophy_records" and not normalized.get("id") and normalized.get("trophy_id"):
         normalized["id"] = f"{normalized.get('workspace_id', 'work')}:{normalized['trophy_id']}"
     return normalized
+
+
+def _normalize_saga_row(row: dict) -> dict | None:
+    """Accept only rows compatible with the current Mood Meter schema.
+
+    Remote sync can still contain pre-Mood-Meter Saga rows from the old
+    Plutchik model. Migration 012 intentionally dropped those rows locally, so
+    sync should skip them rather than failing the whole pull on NOT NULL
+    constraints for energy/pleasantness.
+    """
+    normalized = dict(row)
+    try:
+        energy = int(normalized.get("energy"))
+        pleasantness = int(normalized.get("pleasantness"))
+    except (TypeError, ValueError):
+        logger.warning(
+            "sync.saga.skip_legacy_row id=%s reason=missing_mood_meter_coords keys=%s",
+            normalized.get("id"),
+            sorted(normalized.keys()),
+        )
+        return None
+
+    if energy == 0 or pleasantness == 0 or not -5 <= energy <= 5 or not -5 <= pleasantness <= 5:
+        logger.warning(
+            "sync.saga.skip_invalid_row id=%s energy=%s pleasantness=%s",
+            normalized.get("id"),
+            energy,
+            pleasantness,
+        )
+        return None
+
+    normalized["energy"] = energy
+    normalized["pleasantness"] = pleasantness
+    normalized["quadrant"] = normalized.get("quadrant") or _saga_quadrant(energy, pleasantness)
+    normalized["mood_word"] = (
+        normalized.get("mood_word")
+        or normalized.get("emotion_label")
+        or normalized.get("quadrant")
+        or "unknown"
+    )
+    return normalized
+
+
+def _saga_quadrant(energy: int, pleasantness: int) -> str:
+    if energy > 0 and pleasantness > 0:
+        return "yellow"
+    if energy > 0:
+        return "red"
+    if pleasantness > 0:
+        return "green"
+    return "blue"
 
 
 @dataclass
@@ -624,6 +678,14 @@ class SyncService:
         table = SYNC_TABLE_BY_NAME[change["table"]]
         if change.get("row") is not None:
             change = {**change, "row": _normalize_workspace_row(table, change.get("row"))}
+            if change["row"] is None and change["op"] != "DELETE":
+                logger.info(
+                    "sync.change.apply.skip_incompatible table=%s record_id=%s op=%s",
+                    table.name,
+                    change.get("record_id"),
+                    change.get("op"),
+                )
+                return True, False
             if change["row"] and change["record_id"] not in {change["row"].get(table.pk), str(change["row"].get(table.pk))}:
                 change["record_id"] = str(change["row"].get(table.pk))
         record_id = str(change["record_id"])
@@ -631,13 +693,15 @@ class SyncService:
         remote = change.get("row")
 
         if local is None:
-            await self._apply_with_suppression(change)
+            if not await self._apply_or_skip_invalid(change):
+                return True, False
             logger.info("sync.change.apply.ok table=%s record_id=%s op=%s reason=no_local_row", table.name, record_id, change["op"])
             return True, False
 
         if change["op"] == "DELETE":
             if int(local.get("sync_revision") or 0) <= int(change.get("base_revision") or 0):
-                await self._apply_with_suppression(change)
+                if not await self._apply_or_skip_invalid(change):
+                    return True, False
                 logger.info("sync.change.apply.ok table=%s record_id=%s op=DELETE", table.name, record_id)
                 return True, False
             await self._queue_conflict(table, record_id, local, remote, change, "Local row changed after remote delete.")
@@ -654,7 +718,8 @@ class SyncService:
             local.get("sync_origin_device") == change.get("origin_device")
             and local_rev < remote_rev
         ):
-            await self._apply_with_suppression(change)
+            if not await self._apply_or_skip_invalid(change):
+                return True, False
             logger.info(
                 "sync.change.apply.ok table=%s record_id=%s op=%s local_rev=%s base_rev=%s remote_rev=%s",
                 table.name,
@@ -668,6 +733,27 @@ class SyncService:
 
         await self._queue_conflict(table, record_id, local, remote, change, "Both devices changed this row.")
         return False, True
+
+    async def _apply_or_skip_invalid(self, change: dict) -> bool:
+        """Apply a remote change, or skip it if it cannot satisfy local schema.
+
+        Sync payloads can outlive schema changes. A single legacy row with a
+        missing NOT NULL field, invalid CHECK value, or broken FK should not
+        poison the entire pull. Returning False means "treat this remote change
+        as consumed but not applied locally."
+        """
+        try:
+            await self._apply_with_suppression(change)
+            return True
+        except sqlite3.IntegrityError as exc:
+            logger.warning(
+                "sync.change.apply.skip_constraint table=%s record_id=%s op=%s error=%s",
+                change.get("table"),
+                change.get("record_id"),
+                change.get("op"),
+                exc,
+            )
+            return False
 
     async def _apply_with_suppression(self, change: dict) -> None:
         table = SYNC_TABLE_BY_NAME[change["table"]]

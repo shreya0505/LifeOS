@@ -127,7 +127,7 @@ async def test_tiny_experiment_clear_leaves_parent_challenge_data_consistent(tmp
 
 
 @pytest.mark.asyncio
-async def test_tiny_experiment_restore_refuses_orphan_remote_rows(tmp_path):
+async def test_tiny_experiment_restore_skips_orphan_remote_rows(tmp_path):
     store = MemoryObjectStore()
     db1_path = tmp_path / "remote.db"
     db2_path = tmp_path / "local.db"
@@ -138,14 +138,14 @@ async def test_tiny_experiment_restore_refuses_orphan_remote_rows(tmp_path):
         pushed = await SyncService(db1, _config("personal-laptop"), store).push()
         assert pushed.status == "ok"
 
-        with pytest.raises(RuntimeError):
-            await clear_scope(
-                str(db2_path),
-                "tiny_experiments",
-                config=_config("work-laptop"),
-                store=store,
-            )
+        result = await clear_scope(
+            str(db2_path),
+            "tiny_experiments",
+            config=_config("work-laptop"),
+            store=store,
+        )
 
+        assert result.sync_enabled is True
         assert await _count(db2, "challenge_experiment_entries") == 0
         assert await _count(db2, "challenge_experiments") == 0
         assert await _fk_failures(db2) == []
