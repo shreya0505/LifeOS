@@ -123,6 +123,7 @@ async def test_saga_dashboard_shape_and_mood_meter_metrics(db):
     assert len(dashboard["mood_grid"]) == 196
     assert set(dashboard["timeseries"].keys()) >= {"mood_load", "avg_energy", "avg_pleasantness"}
     assert [item["quadrant"] for item in dashboard["quadrant_stream"]["series"]] == ["yellow", "red", "green", "blue"]
+    assert [item["label"] for item in dashboard["quadrant_stream"]["series"]] == ["Radiance", "Hellfire", "Sanctuary", "Abyss"]
     assert set(dashboard["meta_analysis"].keys()) >= {"emotion_load", "recovery", "mood_map"}
     assert all(len(kpi["spark"]) == 7 for kpi in dashboard["headline"]["kpis"].values())
     assert dashboard["narrative"]["grain"] == "week"

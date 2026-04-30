@@ -57,15 +57,15 @@ def test_saga_mood_catalog_has_196_nonzero_quadrant_cells():
     assert by_coords[(7, -7)]["quadrant"] == "red"
     assert by_coords[(7, -7)]["word"] == "uncontainable"
     assert by_coords[(7, 7)]["quadrant"] == "yellow"
-    assert by_coords[(7, 7)]["word"] == "sublime"
+    assert by_coords[(7, 7)]["word"] == "exultant"
     assert by_coords[(5, -5)]["quadrant"] == "red"
     assert by_coords[(5, -5)]["word"] == "enraged"
     assert by_coords[(5, 5)]["quadrant"] == "yellow"
     assert by_coords[(5, 5)]["word"] == "ecstatic"
     assert by_coords[(-7, -7)]["quadrant"] == "blue"
-    assert by_coords[(-7, -7)]["word"] == "obliterated"
+    assert by_coords[(-7, -7)]["word"] == "self-obliterating"
     assert by_coords[(-7, 7)]["quadrant"] == "green"
-    assert by_coords[(-7, 7)]["word"] == "weightless"
+    assert by_coords[(-7, 7)]["word"] == "sublime"
     assert by_coords[(-5, 5)]["quadrant"] == "green"
     assert by_coords[(-5, -5)]["quadrant"] == "blue"
 
@@ -134,6 +134,25 @@ async def test_saga_crud_routes(client, db):
     r = await client.get("/saga")
     assert r.status_code == 200
     assert "What is the weather inside?" in r.text
+    assert "saga-quadrant-field" in r.text
+    assert r.text.count("saga-quadrant-card saga-quadrant-card--") == 4
+    assert "Hellfire" in r.text
+    assert "Radiance" in r.text
+    assert "Sanctuary" in r.text
+    assert "Abyss" in r.text
+    assert "--energy-level" in r.text
+    assert "--pleasant-level" in r.text
+    assert "--edge-intensity" in r.text
+    assert "--axis-intensity" in r.text
+    assert "Back to realms" in r.text
+    assert "@click=\"chooseQuadrant('red')\"" in r.text
+    assert "@keydown=\"moveQuadrantFocus($event, 0)\"" in r.text
+    assert "@keydown=\"moveFocus($event)\"" in r.text
+    assert "x-show=\"activeQuadrant === 'red'\"" in r.text
+    assert "saga-mood-fx" not in r.text
+    assert "anime.min.js" not in r.text
+    assert "saga-quadrant-blob" not in r.text
+    assert 'name="energy" :value="selected ? selected.energy : \'\'' in r.text
 
     r = await client.post("/saga/entries", data={
         "energy": "3",
@@ -143,7 +162,7 @@ async def test_saga_crud_routes(client, db):
     })
     assert r.status_code == 200
     assert "frustrated" in r.text
-    assert "red" in r.text
+    assert "Hellfire" in r.text
 
     row = await (await db.execute("SELECT id, quadrant FROM saga_entries")).fetchone()
     entry_id = row[0]
@@ -322,7 +341,7 @@ async def test_saga_metrics_render(client, db):
     r = await client.get("/saga/metrics")
     assert r.status_code == 200
     assert "The Field Report" in r.text
-    assert "Red Spillover" in r.text
+    assert "Hellfire Spillover" in r.text
     assert "Mood load consumed execution" in r.text
     assert "Mood × Output co-movement" in r.text
     assert "Energy × Pleasantness drift" in r.text
@@ -384,7 +403,7 @@ async def test_saga_metrics_derives_relational_day_archetype(db):
     metrics = await saga_metrics(db)
     current = metrics["current"]
 
-    assert current["archetype"] == "Red Forge"
+    assert current["archetype"] == "Hellfire Forge"
     assert current["relations"]["emotion_quest"] == "Output held under mood load"
     assert current["relations"]["emotion_challenge"] == "Discipline held under load"
     assert current["relations"]["quest_challenge"] == "Aligned progress"

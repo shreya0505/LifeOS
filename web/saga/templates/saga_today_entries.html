@@ -6,7 +6,7 @@
     <div class="saga-note-card__body">{{ entry.note_html | safe }}</div>
     <footer>
       <time>{{ entry.timestamp[11:16] }}</time>
-      <span class="saga-quadrant-badge">{{ entry.quadrant }}</span>
+      <span class="saga-quadrant-badge">{{ entry.quadrant_label | default(entry.quadrant) }}</span>
       <span>{{ entry.mood_word }} · E:{{ entry.energy }} P:{{ entry.pleasantness }}</span>
     </footer>
   </article>

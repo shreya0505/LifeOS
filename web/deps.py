@@ -14,6 +14,7 @@ from core.storage.sqlite_backend import (
 from core.storage.saga_backend import SqliteSagaRepo
 from core.storage.challenge_backend import (
     SqliteChallengeRepo,
+    SqliteChallengeHolidayRepo,
     SqliteChallengeTaskRepo,
     SqliteChallengeEntryRepo,
     SqliteChallengeEraRepo,
@@ -39,6 +40,10 @@ def get_workspace_repo(request: Request) -> SqliteWorkspaceRepo:
 
 def get_challenge_repo(request: Request) -> SqliteChallengeRepo:
     return SqliteChallengeRepo(request.app.state.db)
+
+
+def get_challenge_holiday_repo(request: Request) -> SqliteChallengeHolidayRepo:
+    return SqliteChallengeHolidayRepo(request.app.state.db)
 
 
 def get_challenge_task_repo(request: Request) -> SqliteChallengeTaskRepo:

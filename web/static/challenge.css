@@ -1511,6 +1511,30 @@
   padding: 2px 4px;
   cursor: pointer;
 }
+.ch-btn-holiday {
+  background: transparent;
+  border: none;
+  color: #d1a65a;
+  font-family: var(--ch-font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 2px 0;
+  cursor: pointer;
+}
+.ch-btn-holiday:hover:not(:disabled) { color: #f0c56b; }
+.ch-btn-holiday:disabled {
+  color: var(--ch-muted-2);
+  cursor: not-allowed;
+}
+.ch-holiday-confirm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+}
 
 /* ── Metrics (magazine) ──────────────────────────────── */
 .ch-mag { max-width: 1040px; margin: 0 auto; }
@@ -2041,6 +2065,15 @@
   letter-spacing: 0.25px;
 }
 .ch-backfill-banner--today { color: rgba(255, 255, 255, 0.5); }
+.ch-backfill-banner--locked,
+.ch-backfill-banner--holiday {
+  color: rgba(240, 197, 107, 0.78);
+  border-bottom-color: rgba(240, 197, 107, 0.18);
+}
+.ch-backfill-banner--locked .ch-backfill-day,
+.ch-backfill-banner--holiday .ch-backfill-day {
+  color: #f0c56b;
+}
 .ch-pending-banner {
   display: flex;
   align-items: center;

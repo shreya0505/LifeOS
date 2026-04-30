@@ -28,6 +28,19 @@
     <div class="ch-seal-meta">
       <span class="ch-seal-meta__stat">{{ tracked_rated }}/{{ tracked_total }} rated</span>
       <span class="ch-seal-meta__sep" aria-hidden="true">·</span>
+      <span class="ch-holiday" x-data="{ confirm: false }">
+        <button type="button" class="ch-btn-holiday" x-show="!confirm" @click="confirm = true"
+                {% if is_sealed_today %}disabled aria-disabled="true" title="{{ seal_block_reason }}"{% endif %}>
+          holiday
+        </button>
+        <form x-show="confirm" method="post" action="/challenge/today/holiday" class="ch-holiday-confirm">
+          <input type="hidden" name="reason" value="">
+          <span class="ch-forfeit-text">SKIP DAY {{ target_day_num }}?</span>
+          <button type="submit" class="ch-btn-forfeit-yes">CONFIRM HOLIDAY</button>
+          <button type="button" class="ch-btn-forfeit-no" @click="confirm = false">CANCEL</button>
+        </form>
+      </span>
+      <span class="ch-seal-meta__sep" aria-hidden="true">·</span>
       <span class="ch-forfeit" x-data="{ confirm: false }">
         <button type="button" class="ch-btn-forfeit" x-show="!confirm" @click="confirm = true">
           relinquish

@@ -14,16 +14,23 @@ from core.config import USER_TZ
 
 QUADRANT_COLORS = {
     "yellow": "#F4C430",
-    "red": "#E25555",
-    "green": "#5BB97C",
-    "blue": "#3F7CCB",
+    "red": "#8F1F17",
+    "green": "#2F7D4A",
+    "blue": "#252A33",
+}
+
+QUADRANT_LABELS = {
+    "yellow": "Radiance",
+    "red": "Hellfire",
+    "green": "Sanctuary",
+    "blue": "Abyss",
 }
 
 VALID_MOOD_COORDS = {-7, -6, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6, 7}
 
 MOOD_WORDS: dict[tuple[int, int], str] = {
     (7, -7): "uncontainable", (7, -6): "frenzied", (7, -5): "incensed", (7, -4): "unraveling", (7, -3): "spinning", (7, -2): "overwrought", (7, -1): "overstimulated",
-    (7, 1): "fervent", (7, 2): "exuberant", (7, 3): "impassioned", (7, 4): "euphoric", (7, 5): "rapturous", (7, 6): "transcendent", (7, 7): "sublime",
+    (7, 1): "fervent", (7, 2): "exuberant", (7, 3): "impassioned", (7, 4): "euphoric", (7, 5): "rapturous", (7, 6): "transcendent", (7, 7): "exultant",
     (6, -7): "humiliated", (6, -6): "seething", (6, -5): "enflamed", (6, -4): "desperate", (6, -3): "obsessed", (6, -2): "hypervigilant", (6, -1): "keyed up",
     (6, 1): "vigorous", (6, 2): "animated", (6, 3): "exhilarated", (6, 4): "jubilant", (6, 5): "overjoyed", (6, 6): "glowing", (6, 7): "soaring",
     (5, -7): "vengeful", (5, -6): "mortified", (5, -5): "enraged", (5, -4): "panicked", (5, -3): "furious", (5, -2): "on edge", (5, -1): "tense",
@@ -36,20 +43,20 @@ MOOD_WORDS: dict[tuple[int, int], str] = {
     (2, 1): "interested", (2, 2): "hopeful", (2, 3): "pleased", (2, 4): "happy", (2, 5): "playful", (2, 6): "loving", (2, 7): "affectionate",
     (1, -7): "bitter", (1, -6): "embarrassed", (1, -5): "annoyed", (1, -4): "concerned", (1, -3): "frustrated", (1, -2): "edgy", (1, -1): "unsettled",
     (1, 1): "engaged", (1, 2): "open", (1, 3): "warm", (1, 4): "grateful", (1, 5): "lighthearted", (1, 6): "moved", (1, 7): "touched",
-    (-1, -7): "remorseful", (-1, -6): "self-conscious", (-1, -5): "hurt", (-1, -4): "disappointed", (-1, -3): "discouraged", (-1, -2): "lonely", (-1, -1): "down",
+    (-1, -7): "cringey", (-1, -6): "self-conscious", (-1, -5): "awkward", (-1, -4): "second-guessing", (-1, -3): "uneasy", (-1, -2): "lonely", (-1, -1): "down",
     (-1, 1): "at ease", (-1, 2): "mellow", (-1, 3): "content", (-1, 4): "tender", (-1, 5): "peaceful", (-1, 6): "nurtured", (-1, 7): "cherished",
-    (-2, -7): "regretful", (-2, -6): "self-reproachful", (-2, -5): "sad", (-2, -4): "gloomy", (-2, -3): "weary", (-2, -2): "drained", (-2, -1): "flat",
+    (-2, -7): "regretful", (-2, -6): "self-critical", (-2, -5): "embarrassed", (-2, -4): "ruminating", (-2, -3): "worried", (-2, -2): "drained", (-2, -1): "flat",
     (-2, 1): "settled", (-2, 2): "calm", (-2, 3): "relieved", (-2, 4): "balanced", (-2, 5): "serene", (-2, 6): "cozy", (-2, 7): "embraced",
-    (-3, -7): "defective", (-3, -6): "self-loathing", (-3, -5): "desolate", (-3, -4): "heavy", (-3, -3): "exhausted", (-3, -2): "detached", (-3, -1): "numb",
+    (-3, -7): "inadequate", (-3, -6): "self-loathing", (-3, -5): "cringe-sick", (-3, -4): "dread-heavy", (-3, -3): "exhausted", (-3, -2): "detached", (-3, -1): "numb",
     (-3, 1): "quiet", (-3, 2): "restful", (-3, 3): "secure", (-3, 4): "comforted", (-3, 5): "tranquil", (-3, 6): "nourished", (-3, 7): "cradled",
-    (-4, -7): "crushed", (-4, -6): "worthless", (-4, -5): "miserable", (-4, -4): "hopeless", (-4, -3): "depleted", (-4, -2): "isolated", (-4, -1): "apathetic",
+    (-4, -7): "crushed", (-4, -6): "unworthy", (-4, -5): "mortified", (-4, -4): "hopeless", (-4, -3): "depleted", (-4, -2): "isolated", (-4, -1): "apathetic",
     (-4, 1): "still", (-4, 2): "patient", (-4, 3): "safe", (-4, 4): "grounded", (-4, 5): "restored", (-4, 6): "replenished", (-4, 7): "whole",
-    (-5, -7): "annihilated", (-5, -6): "hollowed out", (-5, -5): "despondent", (-5, -4): "grieving", (-5, -3): "burned out", (-5, -2): "empty", (-5, -1): "shut down",
+    (-5, -7): "self-disgusted", (-5, -6): "hollowed out", (-5, -5): "despondent", (-5, -4): "dread-soaked", (-5, -3): "burned out", (-5, -2): "empty", (-5, -1): "shut down",
     (-5, 1): "sleepy", (-5, 2): "soft", (-5, 3): "unhurried", (-5, 4): "placid", (-5, 5): "blissful", (-5, 6): "drowsy", (-5, 7): "boundless",
-    (-6, -7): "shattered", (-6, -6): "wretched", (-6, -5): "devastated", (-6, -4): "forsaken", (-6, -3): "broken", (-6, -2): "hollow", (-6, -1): "lifeless",
+    (-6, -7): "shame-spiraling", (-6, -6): "wretched", (-6, -5): "devastated", (-6, -4): "forsaken", (-6, -3): "broken", (-6, -2): "hollow", (-6, -1): "lifeless",
     (-6, 1): "dormant", (-6, 2): "languid", (-6, 3): "lulled", (-6, 4): "absorbed", (-6, 5): "at peace", (-6, 6): "soothed", (-6, 7): "beatific",
-    (-7, -7): "obliterated", (-7, -6): "collapsed", (-7, -5): "void", (-7, -4): "dissociated", (-7, -3): "frozen", (-7, -2): "inert", (-7, -1): "absent",
-    (-7, 1): "suspended", (-7, 2): "meditative", (-7, 3): "floating", (-7, 4): "surrendered", (-7, 5): "dissolved", (-7, 6): "timeless", (-7, 7): "weightless",
+    (-7, -7): "self-obliterating", (-7, -6): "collapsed", (-7, -5): "void", (-7, -4): "dissociated", (-7, -3): "frozen", (-7, -2): "inert", (-7, -1): "absent",
+    (-7, 1): "suspended", (-7, 2): "meditative", (-7, 3): "floating", (-7, 4): "surrendered", (-7, 5): "dissolved", (-7, 6): "timeless", (-7, 7): "sublime",
 }
 
 MOOD_COORDS = [7, 6, 5, 4, 3, 2, 1, -1, -2, -3, -4, -5, -6, -7]
@@ -144,6 +151,7 @@ def _row_to_entry(row: tuple) -> dict:
         "energy": row[3],
         "pleasantness": row[4],
         "quadrant": quadrant,
+        "quadrant_label": QUADRANT_LABELS.get(quadrant, quadrant.title()),
         "mood_word": row[6],
         "note": row[7],
         "created_at": row[8],
@@ -186,6 +194,7 @@ class SqliteSagaRepo:
             "energy": e,
             "pleasantness": p,
             "quadrant": quadrant,
+            "quadrant_label": QUADRANT_LABELS.get(quadrant, quadrant.title()),
             "mood_word": word,
             "note": _clean_note(note),
             "created_at": now,

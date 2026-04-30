@@ -21,6 +21,7 @@ SCOPE_TABLES: dict[str, tuple[str, ...]] = {
         "challenge_experiment_entries",
         "challenge_experiments",
         "challenge_entries",
+        "challenge_holidays",
         "challenge_tasks",
         "challenge_eras",
         "challenges",

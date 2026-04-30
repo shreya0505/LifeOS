@@ -27,27 +27,82 @@
         <input type="hidden" name="mood_word" :value="selected ? selected.word : ''">
 
         <div class="saga-mood-preview"
-             :class="{ 'is-empty': !previewCell() }"
-             :style="'--quadrant-accent: ' + (previewCell() ? previewCell().accent : '#CF9D7B')">
+             :class="{ 'is-empty': !previewItem() }"
+             :style="'--quadrant-accent: ' + previewAccent()">
           <div>
-            <span x-text="previewCell() ? quadrantLabel(previewCell().quadrant) : 'Mood meter'"></span>
-            <strong x-text="previewCell() ? previewCell().word : 'Name it'"></strong>
+            <span x-text="previewLabel()"></span>
+            <strong x-text="previewTitle()"></strong>
           </div>
-          <p x-text="previewCell() ? coordsLabel(previewCell()) : 'Energy runs top to bottom. Pleasantness runs left to right.'"></p>
+          <p x-text="previewDetail()"></p>
         </div>
 
         <div class="saga-mood-pad"
              aria-label="Yale mood meter"
-             :style="'--energy-position: ' + axisEnergy() + '%; --pleasantness-position: ' + axisPleasantness() + '%; --quadrant-accent: ' + (previewCell() ? previewCell().accent : '#CF9D7B')">
-          <div class="saga-mood-axis saga-mood-axis--energy" aria-hidden="true">
+             :class="{ 'is-quadrant-stage': stage === 'quadrants', 'is-mood-stage': stage === 'moods', 'is-red': activeQuadrant === 'red', 'is-yellow': activeQuadrant === 'yellow', 'is-blue': activeQuadrant === 'blue', 'is-green': activeQuadrant === 'green' }"
+             :style="'--energy-position: ' + axisEnergy() + '%; --pleasantness-position: ' + axisPleasantness() + '%; --quadrant-accent: ' + previewAccent()">
+          <div class="saga-quadrant-field"
+               x-show="stage === 'quadrants'"
+               x-transition.opacity.duration.180ms
+               role="grid"
+               aria-label="Mood realm choices">
+            {% for quadrant, name, label, accent in [
+              ("red", "Hellfire", "High energy unpleasant", "#8F1F17"),
+              ("yellow", "Radiance", "High energy pleasant", "#F4C430"),
+              ("blue", "Abyss", "Low energy unpleasant", "#252A33"),
+              ("green", "Sanctuary", "Low energy pleasant", "#2F7D4A")
+            ] %}
+            <button class="saga-quadrant-card saga-quadrant-card--{{ quadrant }}"
+                    type="button"
+                    role="gridcell"
+                    data-quadrant="{{ quadrant }}"
+                    style="--quadrant-accent: {{ accent }}"
+                    :class="{ 'is-active': activeQuadrant === '{{ quadrant }}' }"
+                    aria-label="{{ label }}"
+                    @mouseenter="hoverQuadrant('{{ quadrant }}')"
+                    @mouseleave="clearQuadrantHover()"
+                    @focus="hoverQuadrant('{{ quadrant }}')"
+                    @blur="clearQuadrantHover()"
+                    @keydown="moveQuadrantFocus($event, {{ loop.index0 }})"
+                    @click="chooseQuadrant('{{ quadrant }}')">
+              <span>{{ name }}</span>
+              <strong>{{ label }}</strong>
+            </button>
+            {% endfor %}
+          </div>
+
+          <div class="saga-mood-toolbar"
+               x-show="stage === 'moods'"
+               x-transition.opacity.duration.180ms
+               x-cloak>
+            <button class="saga-mood-back" type="button" aria-label="Back to realms" @click="backToQuadrants()">Back</button>
+          </div>
+
+          <div class="saga-mood-axis saga-mood-axis--energy" aria-hidden="true" x-show="stage === 'moods'" x-cloak>
             <span></span>
           </div>
-          <div class="saga-mood-axis saga-mood-axis--pleasantness" aria-hidden="true">
+          <div class="saga-mood-axis saga-mood-axis--pleasantness" aria-hidden="true" x-show="stage === 'moods'" x-cloak>
             <span></span>
           </div>
-          <canvas id="saga-mood-fx" class="saga-mood-fx" aria-hidden="true"></canvas>
-          <div class="saga-mood-grid" role="grid" aria-label="Energy by pleasantness mood grid">
+          <div class="saga-mood-axis-guide" x-show="stage === 'moods'" x-transition.opacity.duration.180ms x-cloak>
+            <div class="saga-axis-rail saga-axis-rail--energy" aria-hidden="true">
+              <span x-text="energyAxisLabel()"></span>
+            </div>
+            <div class="saga-axis-rail saga-axis-rail--pleasantness"
+                 :class="{ 'is-unpleasant': activeQuadrant === 'red' || activeQuadrant === 'blue' }"
+                 aria-hidden="true">
+              <span x-text="pleasantnessAxisLabel()"></span>
+            </div>
+          </div>
+          <div class="saga-mood-grid"
+               x-show="stage === 'moods'"
+               x-transition.opacity.duration.180ms
+               x-cloak
+               role="grid"
+               aria-label="Energy by pleasantness mood grid">
             {% for cell in mood_catalog %}
+            {% set energy_abs = cell.energy if cell.energy > 0 else -cell.energy %}
+            {% set pleasant_abs = cell.pleasantness if cell.pleasantness > 0 else -cell.pleasantness %}
+            {% set edge_intensity = cell.saturation %}
             <button class="saga-mood-cell saga-mood-cell--{{ cell.quadrant }}{% if cell.energy > 0 %} saga-mood-cell--high{% else %} saga-mood-cell--low{% endif %}{% if cell.pleasantness < 0 %} saga-mood-cell--unpleasant{% else %} saga-mood-cell--pleasant{% endif %}"
                     type="button"
                     role="gridcell"
@@ -56,18 +111,20 @@
                     data-word="{{ cell.word }}"
                     data-quadrant="{{ cell.quadrant }}"
                     data-accent="{{ cell.accent }}"
+                    x-show="activeQuadrant === '{{ cell.quadrant }}'"
                     :class="{
                       'is-hovered': hovered && hovered.energy === {{ cell.energy }} && hovered.pleasantness === {{ cell.pleasantness }},
+                      'is-axis-neighbor': hovered && !(hovered.energy === {{ cell.energy }} && hovered.pleasantness === {{ cell.pleasantness }}) && (hovered.energy === {{ cell.energy }} || hovered.pleasantness === {{ cell.pleasantness }}),
                       'is-selected': selected && selected.energy === {{ cell.energy }} && selected.pleasantness === {{ cell.pleasantness }},
                       'is-dimmed': selected && !(selected.energy === {{ cell.energy }} && selected.pleasantness === {{ cell.pleasantness }})
                     }"
                     :aria-pressed="(selected ? (selected.energy === {{ cell.energy }} && selected.pleasantness === {{ cell.pleasantness }}) : false).toString()"
                     aria-label="{{ cell.word }}. Energy {{ cell.energy }}, pleasantness {{ cell.pleasantness }}."
-                    style="--quadrant-accent: {{ cell.accent }}; --cell-fill: {{ (10 + cell.axis_intensity * 62) | round }}%; --cell-fade: {{ (3 + cell.axis_intensity * 26) | round }}%; --cell-text: {{ (30 + cell.axis_intensity * 42) | round }}%;"
+                    style="--quadrant-accent: {{ cell.accent }}; --energy-level: {{ (energy_abs / 7) | round(3) }}; --pleasant-level: {{ (pleasant_abs / 7) | round(3) }}; --edge-intensity: {{ edge_intensity }}; --axis-intensity: {{ cell.axis_intensity }}; --cell-fill: {{ (10 + cell.axis_intensity * 44) | round }}%; --cell-text: {{ (36 + cell.axis_intensity * 34) | round }}%; --abyss-fill: {{ (22 - (pleasant_abs / 7) * 18 + (1 - energy_abs / 7) * 4) | round }}%; --abyss-text: {{ (48 + (pleasant_abs / 7) * 34) | round }}%;"
                     @mouseenter="hoverCell({{ cell.energy }}, {{ cell.pleasantness }})"
                     @mouseleave="clearHover()"
                     @focus="hoverCell({{ cell.energy }}, {{ cell.pleasantness }})"
-                    @keydown="moveFocus($event, {{ loop.index0 }})"
+                    @keydown="moveFocus($event)"
                     @click="toggleCell({{ cell.energy }}, {{ cell.pleasantness }})">
               <span>{{ cell.word }}</span>
             </button>
@@ -117,6 +174,5 @@
   </section>
 </div>
 
-<script src="/static/anime.min.js"></script>
 <script src="/static/saga_mood.js"></script>
 {% endblock %}

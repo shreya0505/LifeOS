@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from datetime import timedelta
 
 from core.challenge import level_engine, reset_engine
 from core.challenge.config import CHALLENGE_LENGTH_DAYS
@@ -10,6 +11,7 @@ from core.storage.challenge_backend import (
     SqliteChallengeEntryRepo,
     SqliteChallengeEraRepo,
     SqliteChallengeExperimentRepo,
+    SqliteChallengeHolidayRepo,
     SqliteChallengeRepo,
     SqliteChallengeTaskRepo,
 )
@@ -141,6 +143,24 @@ async def test_challenge_update_level(db):
     active = await repo.get_active()
     assert active["current_level"] == 3
     assert active["current_level_name"] == "Relentless Wanderer"
+
+
+@pytest.mark.asyncio
+async def test_challenge_holiday_repo_creates_once_and_queues_sync(db):
+    ch_repo = SqliteChallengeRepo(db)
+    holiday_repo = SqliteChallengeHolidayRepo(db)
+    today = today_local().isoformat()
+    ch = await ch_repo.create("Era X", today, "Relentless")
+
+    first = await holiday_repo.create(ch["id"], today, "travel")
+    second = await holiday_repo.create(ch["id"], today, "travel again")
+
+    assert second["id"] == first["id"]
+    assert await holiday_repo.dates_for_challenge(ch["id"]) == {today}
+    rows = await (await db.execute(
+        "SELECT table_name FROM sync_changes WHERE table_name = 'challenge_holidays'"
+    )).fetchall()
+    assert rows
 
 
 @pytest.mark.asyncio
@@ -321,6 +341,72 @@ async def test_today_entry_route_allows_notes_before_rating_and_queues_sync(clie
         "SELECT table_name FROM sync_changes WHERE table_name = 'challenge_entries'"
     )).fetchone()
     assert sync_row == ("challenge_entries",)
+
+
+@pytest.mark.asyncio
+async def test_holiday_deletes_existing_logs_freezes_progress_and_extends_trial(client, db):
+    await client.post("/challenge/setup", data={"anchor[]": "Morning run"})
+    ch = await SqliteChallengeRepo(db).get_active()
+    [task] = await SqliteChallengeTaskRepo(db).get_by_challenge(ch["id"])
+    today = today_local().isoformat()
+
+    await client.post(
+        f"/challenge/today/entry/{task['id']}",
+        data={"state": "COMPLETED_SATISFACTORY", "notes": "would be deleted"},
+    )
+    exp_repo = SqliteChallengeExperimentRepo(db)
+    exp = await exp_repo.create(ch["id"], "No scroll", "Focus rises", "week")
+    await exp_repo.start(exp["id"], today)
+    await exp_repo.upsert_entry(exp["id"], ch["id"], today, "STARTED", "signal")
+
+    response = await client.post("/challenge/today/holiday", data={"reason": "travel"})
+
+    assert response.status_code == 200
+    active = await SqliteChallengeRepo(db).get_active()
+    assert active["days_elapsed"] == 0
+    assert active["days_remaining"] == 90
+    assert "Holiday marked" in response.text
+    assert "Next challenge day" in response.text
+    assert await SqliteChallengeHolidayRepo(db).dates_for_challenge(ch["id"]) == {today}
+    entry_count = await (await db.execute("SELECT COUNT(*) FROM challenge_entries")).fetchone()
+    exp_entry_count = await (await db.execute("SELECT COUNT(*) FROM challenge_experiment_entries")).fetchone()
+    assert entry_count[0] == 0
+    assert exp_entry_count[0] == 0
+    updated = await exp_repo.get_by_id(exp["id"])
+    assert updated["ends_at"] == (today_local() + timedelta(days=7)).isoformat()
+
+
+@pytest.mark.asyncio
+async def test_holidays_do_not_break_anchor_reset_window(client, db):
+    await client.post("/challenge/setup", data={"anchor[]": "Morning run"})
+    ch_repo = SqliteChallengeRepo(db)
+    task_repo = SqliteChallengeTaskRepo(db)
+    ch = await ch_repo.get_active()
+    start_date = (today_local() - timedelta(days=4)).isoformat()
+    await db.execute("UPDATE challenges SET start_date = ? WHERE id = ?", (start_date, ch["id"]))
+    await db.commit()
+    [task] = await task_repo.get_by_challenge(ch["id"])
+
+    for _ in range(2):
+        await client.post(
+            f"/challenge/today/entry/{task['id']}",
+            data={"state": "NOT_DONE"},
+        )
+        sealed = await client.post("/challenge/today/seal")
+        assert sealed.status_code == 200
+        await client.post("/challenge/today/holiday", data={"reason": "rest"})
+
+    await client.post(
+        f"/challenge/today/entry/{task['id']}",
+        data={"state": "NOT_DONE"},
+    )
+    reset = await client.post("/challenge/today/seal")
+
+    assert reset.status_code == 200
+    assert "era ends" in reset.text.lower()
+    active = await ch_repo.get_active()
+    assert active is not None
+    assert active["start_date"] == (today_local() + timedelta(days=1)).isoformat()
 
 
 # ── SqliteChallengeEraRepo ───────────────────────────────────────────────────
@@ -817,6 +903,7 @@ async def test_challenge_forfeit_confirmed_resets_and_starts_same_challenges(cli
     task_repo = SqliteChallengeTaskRepo(db)
     active = await ch_repo.get_active()
     assert active is not None
+    assert active["start_date"] == (today_local() + timedelta(days=1)).isoformat()
     tasks = await task_repo.get_by_challenge(active["id"])
     assert {t["name"] for t in tasks} == {"Morning run", "Read"}
 
@@ -837,3 +924,25 @@ async def test_challenge_forfeit_confirmed_can_restart_with_setup(client, db):
 
     ch_repo = SqliteChallengeRepo(db)
     assert await ch_repo.get_active() is None
+
+
+@pytest.mark.asyncio
+async def test_future_start_challenge_rejects_entries_and_experiment_start(client, db):
+    await client.post("/challenge/setup", data={"anchor[]": "Morning run"})
+    await client.post(
+        "/challenge/forfeit",
+        data={"confirm": "yes", "restart_mode": "same"},
+    )
+    ch = await SqliteChallengeRepo(db).get_active()
+    [task] = await SqliteChallengeTaskRepo(db).get_by_challenge(ch["id"])
+
+    entry_response = await client.post(
+        f"/challenge/today/entry/{task['id']}",
+        data={"state": "COMPLETED_SATISFACTORY"},
+    )
+    assert entry_response.status_code == 400
+
+    exp_repo = SqliteChallengeExperimentRepo(db)
+    exp = await exp_repo.create(ch["id"], "No scroll", "Focus rises", "day")
+    start_response = await client.post(f"/challenge/experiments/{exp['id']}/start")
+    assert start_response.status_code == 400

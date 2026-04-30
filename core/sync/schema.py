@@ -23,6 +23,7 @@ class SyncTable:
 SYNC_TABLES: tuple[SyncTable, ...] = (
     SyncTable("workspaces", "id"),
     SyncTable("challenges", "id"),
+    SyncTable("challenge_holidays", "id"),
     SyncTable("challenge_tasks", "id"),
     SyncTable("challenge_entries", "id"),
     SyncTable("challenge_eras", "id"),

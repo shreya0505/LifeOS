@@ -7,7 +7,7 @@ Day {{ days_elapsed }}/{{ days_total }} · {{ challenge.era_name }}
 {% block content %}
 <div class="ch-today{% if is_sealed_today %} is-locked-day{% endif %}">
 
-  {% if is_sealed_today %}
+  {% if is_sealed_today and not is_future_start and not is_holiday_today %}
   <div class="ch-lock-watermark" aria-hidden="true">
     <div class="ch-lock-watermark__disc">
       <span class="ch-lock-watermark__glyph">◈</span>
@@ -28,7 +28,7 @@ Day {{ days_elapsed }}/{{ days_total }} · {{ challenge.era_name }}
       <h1 class="ch-era-name" title="Era">{{ challenge.era_name }}</h1>
       <div class="ch-header-meta">
         <span class="ch-day-counter" title="Day {{ days_elapsed }} of {{ days_total }}">
-          Day <span class="ch-day-num">{{ days_elapsed }}</span><span class="ch-day-slash">/</span><span class="ch-day-total">{{ days_total }}</span>
+          Day <span class="ch-day-num">{{ target_day_num if not is_sealed_today else days_elapsed }}</span><span class="ch-day-slash">/</span><span class="ch-day-total">{{ days_total }}</span>
         </span>
         <span class="ch-header-sep" aria-hidden="true">·</span>
         <span class="ch-today-date">{{ today_fmt }}</span>
@@ -39,11 +39,28 @@ Day {{ days_elapsed }}/{{ days_total }} · {{ challenge.era_name }}
          aria-label="Challenge progress">
       {% for d in range(days_total) %}
         {% set n = d + 1 %}
-        <span class="ch-tick{% if n < days_elapsed %} is-done{% elif n == days_elapsed %} is-today{% endif %}"
+        <span class="ch-tick{% if n <= days_elapsed %} is-done{% elif n == target_day_num and not is_sealed_today %} is-today{% endif %}"
               title="Day {{ n }} · {{ tick_dates[d] }}"></span>
       {% endfor %}
     </div>
   </div>
+
+  {% if is_future_start %}
+  <div class="ch-backfill-banner ch-backfill-banner--locked" role="status">
+    <span class="ch-backfill-kicker">New Era</span>
+    <span class="ch-backfill-day">Day 1</span>
+    <span class="ch-backfill-sep">·</span>
+    <span class="ch-backfill-date">Starts {{ target_date_fmt }}</span>
+    <span class="ch-backfill-behind">{{ days_until_start }} day{{ 's' if days_until_start != 1 else '' }} until first seal</span>
+  </div>
+  {% elif is_holiday_today and is_sealed_today %}
+  <div class="ch-backfill-banner ch-backfill-banner--holiday" role="status">
+    <span class="ch-backfill-kicker">Holiday</span>
+    <span class="ch-backfill-day">State frozen</span>
+    <span class="ch-backfill-sep">·</span>
+    <span class="ch-backfill-date">Next challenge day {{ target_date_fmt }}</span>
+  </div>
+  {% endif %}
 
   {% if pending_verdict_count > 0 %}
   <a class="ch-pending-banner" href="/challenge/experiments">
@@ -71,6 +88,10 @@ Day {{ days_elapsed }}/{{ days_total }} · {{ challenge.era_name }}
 
   {% if just_sealed %}
   <div class="ch-seal-toast">Day {{ just_sealed_day or (target_day_num - 1) }} sealed.</div>
+  {% endif %}
+
+  {% if just_holiday %}
+  <div class="ch-seal-toast">Holiday marked for {{ just_holiday_date }}. Progress frozen.</div>
   {% endif %}
 
   {% for bucket in buckets %}

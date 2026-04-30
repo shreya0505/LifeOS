@@ -50,6 +50,7 @@ def test_sync_tables_include_tiny_experiments():
     names = sync_table_names()
     assert "challenge_experiments" in names
     assert "challenge_experiment_entries" in names
+    assert "challenge_holidays" in names
 
 
 @pytest.mark.asyncio
@@ -77,6 +78,10 @@ async def test_push_pull_bootstraps_hard_90_tables(sync_db):
     await db1.execute(
         "INSERT INTO challenge_entries (id, task_id, challenge_id, log_date, state, notes) "
         "VALUES ('entry-note', 'task1', 'ch1', '2026-04-25', NULL, 'captured before rating')"
+    )
+    await db1.execute(
+        "INSERT INTO challenge_holidays (id, challenge_id, log_date, reason) "
+        "VALUES ('holiday1', 'ch1', '2026-04-26', 'travel')"
     )
     await db1.execute(
         "INSERT INTO challenge_experiments "
@@ -108,6 +113,8 @@ async def test_push_pull_bootstraps_hard_90_tables(sync_db):
     assert row[0] == "STARTED"
     row = await (await db2.execute("SELECT state, notes FROM challenge_entries WHERE id = 'entry-note'")).fetchone()
     assert row == (None, "captured before rating")
+    row = await (await db2.execute("SELECT reason FROM challenge_holidays WHERE id = 'holiday1'")).fetchone()
+    assert row == ("travel",)
     row = await (await db2.execute("SELECT action FROM challenge_experiments WHERE id = 'exp1'")).fetchone()
     assert row[0] == "No-scroll morning"
     row = await (await db2.execute("SELECT state FROM challenge_experiment_entries WHERE id = 'expe1'")).fetchone()

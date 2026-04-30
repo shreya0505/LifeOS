@@ -63,6 +63,10 @@ async def _insert_challenge_with_tiny_experiment(conn):
         "(id, experiment_id, challenge_id, log_date, state, notes) "
         "VALUES ('expe1', 'exp1', 'ch1', '2026-04-29', 'STARTED', 'linked')"
     )
+    await conn.execute(
+        "INSERT INTO challenge_holidays (id, challenge_id, log_date, reason) "
+        "VALUES ('holiday1', 'ch1', '2026-04-30', 'travel')"
+    )
     await conn.commit()
 
 
@@ -78,7 +82,9 @@ async def _fk_failures(conn):
 def test_clear_scopes_encode_challenge_tiny_relationship():
     assert "challenge_experiment_entries" in SCOPE_TABLES["challenge"]
     assert "challenge_experiments" in SCOPE_TABLES["challenge"]
+    assert "challenge_holidays" in SCOPE_TABLES["challenge"]
     assert SCOPE_TABLES["challenge"].index("challenge_experiment_entries") < SCOPE_TABLES["challenge"].index("challenge_experiments")
+    assert SCOPE_TABLES["challenge"].index("challenge_holidays") < SCOPE_TABLES["challenge"].index("challenges")
     assert SCOPE_TABLES["tiny_experiments"] == ("challenge_experiment_entries", "challenge_experiments")
 
 
@@ -98,6 +104,7 @@ async def test_challenge_clear_also_deletes_linked_tiny_experiment_data(tmp_path
         assert result.sync_enabled is False
         assert await _count(db, "challenge_experiment_entries") == 0
         assert await _count(db, "challenge_experiments") == 0
+        assert await _count(db, "challenge_holidays") == 0
         assert await _count(db, "challenges") == 0
         assert await _fk_failures(db) == []
     finally:
@@ -120,6 +127,7 @@ async def test_tiny_experiment_clear_leaves_parent_challenge_data_consistent(tmp
         assert result.sync_enabled is False
         assert await _count(db, "challenge_experiment_entries") == 0
         assert await _count(db, "challenge_experiments") == 0
+        assert await _count(db, "challenge_holidays") == 1
         assert await _count(db, "challenges") == 1
         assert await _fk_failures(db) == []
     finally:

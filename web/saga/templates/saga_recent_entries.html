@@ -14,7 +14,7 @@
         {% endif %}
       </span>
       <span class="saga-entry-row__meta">
-        {{ entry.quadrant }} · E:{{ entry.energy }} P:{{ entry.pleasantness }}
+        {{ entry.quadrant_label | default(entry.quadrant) }} · E:{{ entry.energy }} P:{{ entry.pleasantness }}
       </span>
       <span class="saga-entry-row__chevron" aria-hidden="true"></span>
     </button>

@@ -202,24 +202,38 @@
 }
 
 .saga-capture {
-  padding-top: 1.25rem;
+  display: grid;
+  gap: 1rem;
+  padding-top: 1.05rem;
 }
 
 .saga-mood-preview {
   --quadrant-accent: var(--saga-brass);
   display: flex;
-  align-items: end;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  min-height: 4.5rem;
-  margin-bottom: 1rem;
-  padding: 0 0 0.9rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--quadrant-accent) 32%, transparent);
+  min-height: 4rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--quadrant-accent) 26%, rgba(245, 241, 234, 0.08));
+  border-radius: var(--saga-radius);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--quadrant-accent) 12%, transparent), transparent 42%),
+    rgba(22, 33, 39, 0.38);
+  transition:
+    border-color 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.saga-mood-preview.is-empty {
+  border-color: rgba(234, 206, 170, 0.08);
+  background: rgba(22, 33, 39, 0.26);
 }
 
 .saga-mood-preview div {
   display: grid;
-  gap: 0.25rem;
+  gap: 0.22rem;
+  min-width: 0;
 }
 
 .saga-mood-preview span,
@@ -234,14 +248,14 @@
 .saga-mood-preview strong {
   color: color-mix(in srgb, var(--quadrant-accent) 76%, var(--saga-text));
   font-family: var(--saga-serif);
-  font-size: clamp(1.7rem, 5vw, 2.6rem);
+  font-size: clamp(1.35rem, 3.6vw, 2rem);
   font-weight: 600;
-  line-height: 1;
+  line-height: 1.05;
   text-transform: capitalize;
 }
 
 .saga-mood-preview p {
-  max-width: 18rem;
+  max-width: 17rem;
   margin: 0;
   color: var(--saga-muted);
   font-size: 0.78rem;
@@ -252,34 +266,117 @@
 .saga-mood-pad {
   position: relative;
   aspect-ratio: 1;
-  width: min(100%, 860px);
+  width: min(100%, 760px);
   margin: 0 auto;
+  --axis-top: clamp(3.15rem, 7vw, 4rem);
+  --axis-right: clamp(0.9rem, 3vw, 1.4rem);
+  --axis-bottom: clamp(3.15rem, 5.8vw, 3.8rem);
+  --axis-left: clamp(2.8rem, 5vw, 3.4rem);
   --energy-position: 50%;
   --pleasantness-position: 50%;
   --quadrant-accent: var(--saga-brass);
-  border-radius: 28px;
+  border: 1px solid rgba(234, 206, 170, 0.06);
+  border-radius: var(--saga-radius);
   background:
-    linear-gradient(90deg,
-      rgba(154, 50, 58, 0.16) 0%,
-      rgba(154, 50, 58, 0.04) 45%,
-      rgba(190, 150, 45, 0.05) 55%,
-      rgba(190, 150, 45, 0.15) 100%),
-    linear-gradient(180deg,
-      rgba(245, 241, 234, 0.055) 0%,
-      transparent 48%,
-      rgba(58, 95, 149, 0.12) 100%),
-    rgba(12, 21, 25, 0.2);
+    linear-gradient(180deg, rgba(245, 241, 234, 0.035), transparent 42%),
+    rgba(12, 21, 25, 0.24);
+  overflow: hidden;
 }
 
-.saga-mood-fx,
 .saga-mood-grid,
-.saga-mood-axis {
+.saga-mood-axis,
+.saga-quadrant-field {
   position: absolute;
   inset: 0;
 }
 
+.saga-quadrant-field {
+  z-index: 1;
+  inset: clamp(0.7rem, 3vw, 1.4rem);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: clamp(0.55rem, 1.4vw, 0.9rem);
+}
+
+.saga-quadrant-card {
+  --quadrant-accent: var(--saga-brass);
+  position: relative;
+  display: grid;
+  align-content: end;
+  justify-items: start;
+  gap: 0.55rem;
+  min-width: 0;
+  min-height: 0;
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+  border: 1px solid color-mix(in srgb, var(--quadrant-accent) 26%, rgba(245, 241, 234, 0.08));
+  border-radius: var(--saga-radius);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--quadrant-accent) 18%, transparent), transparent 58%),
+    rgba(22, 33, 39, 0.62);
+  color: var(--saga-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(245, 241, 234, 0.045);
+  transition:
+    background 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    color 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.saga-quadrant-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: var(--quadrant-accent);
+  opacity: 0.72;
+}
+
+.saga-quadrant-card span {
+  font-family: var(--saga-serif);
+  font-size: clamp(1.35rem, 3.8vw, 2.35rem);
+  font-weight: 600;
+  line-height: 1;
+  text-transform: capitalize;
+}
+
+.saga-quadrant-card strong {
+  max-width: 15rem;
+  color: rgba(245, 241, 234, 0.66);
+  font-size: clamp(0.68rem, 1.2vw, 0.82rem);
+  font-weight: 900;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.saga-quadrant-card:hover,
+.saga-quadrant-card:focus-visible,
+.saga-quadrant-card.is-active {
+  outline: 0;
+  border-color: color-mix(in srgb, var(--quadrant-accent) 58%, rgba(245, 241, 234, 0.10));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--quadrant-accent) 28%, transparent), transparent 62%),
+    rgba(22, 33, 39, 0.76);
+  box-shadow:
+    inset 0 1px 0 rgba(245, 241, 234, 0.06),
+    0 14px 34px rgba(0, 0, 0, 0.18);
+  transform: translateY(-1px);
+}
+
+.saga-quadrant-card:focus-visible {
+  box-shadow:
+    0 0 0 2px rgba(245, 241, 234, 0.42),
+    0 0 0 5px color-mix(in srgb, var(--quadrant-accent) 28%, transparent);
+}
+
 .saga-mood-axis {
-  z-index: 2;
+  z-index: 1;
   pointer-events: none;
 }
 
@@ -287,7 +384,8 @@
 .saga-mood-axis::after {
   content: "";
   position: absolute;
-  background: rgba(245, 241, 234, 0.16);
+  background: color-mix(in srgb, var(--quadrant-accent) 34%, rgba(245, 241, 234, 0.12));
+  opacity: 0.62;
 }
 
 .saga-mood-axis--energy::before {
@@ -305,8 +403,14 @@
   aspect-ratio: 1;
   border-radius: 999px;
   background: var(--quadrant-accent);
-  box-shadow: 0 0 18px color-mix(in srgb, var(--quadrant-accent) 58%, transparent);
-  transition: top 160ms ease, background 160ms ease;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--quadrant-accent) 12%, transparent);
+  transition: top 220ms cubic-bezier(0.2, 0.8, 0.2, 1), background 160ms ease;
+}
+
+.saga-mood-pad.is-red .saga-mood-axis--energy span,
+.saga-mood-pad.is-blue .saga-mood-axis--energy span {
+  right: -0.78rem;
+  left: auto;
 }
 
 .saga-mood-axis--pleasantness::before {
@@ -324,23 +428,216 @@
   aspect-ratio: 1;
   border-radius: 999px;
   background: var(--quadrant-accent);
-  box-shadow: 0 0 18px color-mix(in srgb, var(--quadrant-accent) 58%, transparent);
-  transition: left 160ms ease, background 160ms ease;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--quadrant-accent) 12%, transparent);
+  transition: left 220ms cubic-bezier(0.2, 0.8, 0.2, 1), background 160ms ease;
 }
 
-.saga-mood-fx {
-  display: none;
-  pointer-events: none;
+.saga-mood-pad.is-green .saga-mood-axis--pleasantness span,
+.saga-mood-pad.is-blue .saga-mood-axis--pleasantness span {
+  top: -0.78rem;
+  bottom: auto;
 }
 
 .saga-mood-grid {
-  z-index: 1;
+  z-index: 2;
   display: grid;
-  grid-template-columns: repeat(14, minmax(0, 1fr));
-  grid-template-rows: repeat(14, minmax(0, 1fr));
-  gap: clamp(0.1rem, 0.42vw, 0.22rem);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-rows: repeat(7, minmax(0, 1fr));
+  gap: clamp(0.16rem, 0.62vw, 0.38rem);
+  padding: var(--axis-top) var(--axis-right) var(--axis-bottom) var(--axis-left);
   overflow: hidden;
-  border-radius: 24px;
+  border-radius: var(--saga-radius);
+  opacity: 1;
+  transition: opacity 180ms ease;
+}
+
+.saga-mood-pad.is-red {
+  --axis-right: clamp(2.8rem, 5vw, 3.4rem);
+  --axis-left: clamp(0.9rem, 3vw, 1.4rem);
+}
+
+.saga-mood-pad.is-green {
+  --axis-top: clamp(4.35rem, 7.6vw, 5.1rem);
+  --axis-bottom: clamp(1.05rem, 3vw, 1.5rem);
+}
+
+.saga-mood-pad.is-blue {
+  --axis-top: clamp(4.35rem, 7.6vw, 5.1rem);
+  --axis-right: clamp(2.8rem, 5vw, 3.4rem);
+  --axis-bottom: clamp(1.05rem, 3vw, 1.5rem);
+  --axis-left: clamp(0.9rem, 3vw, 1.4rem);
+}
+
+.saga-mood-toolbar {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  right: 0.75rem;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.75rem;
+  pointer-events: none;
+}
+
+.saga-mood-back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--quadrant-accent) 30%, rgba(245, 241, 234, 0.10));
+  border-radius: var(--saga-radius);
+  background: rgba(12, 21, 25, 0.72);
+  color: color-mix(in srgb, var(--quadrant-accent) 72%, var(--saga-text));
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    background 160ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 160ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    color 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.saga-mood-back:hover,
+.saga-mood-back:focus-visible {
+  outline: 0;
+  border-color: color-mix(in srgb, var(--quadrant-accent) 56%, rgba(245, 241, 234, 0.12));
+  background: color-mix(in srgb, var(--quadrant-accent) 16%, rgba(12, 21, 25, 0.84));
+}
+
+.saga-mood-axis-guide {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.saga-axis-rail {
+  position: absolute;
+  color: color-mix(in srgb, var(--quadrant-accent) 54%, rgba(245, 241, 234, 0.58));
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.saga-axis-rail::before,
+.saga-axis-rail::after {
+  content: "";
+  position: absolute;
+  display: block;
+}
+
+.saga-axis-rail--energy {
+  top: var(--axis-top);
+  bottom: var(--axis-bottom);
+  left: clamp(0.78rem, 2vw, 1.05rem);
+  width: 1.35rem;
+}
+
+.saga-mood-pad.is-red .saga-axis-rail--energy,
+.saga-mood-pad.is-blue .saga-axis-rail--energy {
+  right: clamp(0.78rem, 2vw, 1.05rem);
+  left: auto;
+}
+
+.saga-axis-rail--energy::before {
+  top: 0.42rem;
+  bottom: 0.12rem;
+  left: 50%;
+  width: 1px;
+  background: color-mix(in srgb, var(--quadrant-accent) 42%, rgba(245, 241, 234, 0.16));
+}
+
+.saga-axis-rail--energy::after {
+  top: 0;
+  left: calc(50% - 0.26rem);
+  width: 0;
+  height: 0;
+  border-right: 0.26rem solid transparent;
+  border-bottom: 0.42rem solid color-mix(in srgb, var(--quadrant-accent) 64%, rgba(245, 241, 234, 0.42));
+  border-left: 0.26rem solid transparent;
+}
+
+.saga-mood-pad.is-green .saga-axis-rail--energy::before,
+.saga-mood-pad.is-blue .saga-axis-rail--energy::before {
+  top: 0.12rem;
+  bottom: 0.42rem;
+}
+
+.saga-mood-pad.is-green .saga-axis-rail--energy::after,
+.saga-mood-pad.is-blue .saga-axis-rail--energy::after {
+  top: auto;
+  bottom: 0;
+  border-top: 0.42rem solid color-mix(in srgb, var(--quadrant-accent) 64%, rgba(245, 241, 234, 0.42));
+  border-bottom: 0;
+}
+
+.saga-axis-rail--energy span {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translate(-38%, -50%) rotate(-90deg);
+  transform-origin: center;
+}
+
+.saga-axis-rail--pleasantness {
+  right: var(--axis-right);
+  bottom: clamp(1.1rem, 2.4vw, 1.35rem);
+  left: var(--axis-left);
+  height: 1.4rem;
+}
+
+.saga-mood-pad.is-green .saga-axis-rail--pleasantness,
+.saga-mood-pad.is-blue .saga-axis-rail--pleasantness {
+  top: clamp(3.35rem, 6.4vw, 4.1rem);
+  bottom: auto;
+}
+
+.saga-axis-rail--pleasantness::before {
+  top: calc(50% - 1px);
+  right: 0.12rem;
+  left: 0.42rem;
+  height: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--quadrant-accent) 56%, rgba(245, 241, 234, 0.22));
+}
+
+.saga-axis-rail--pleasantness::after {
+  top: calc(50% - 0.26rem);
+  right: 0;
+  width: 0;
+  height: 0;
+  border-top: 0.26rem solid transparent;
+  border-bottom: 0.26rem solid transparent;
+  border-left: 0.42rem solid color-mix(in srgb, var(--quadrant-accent) 64%, rgba(245, 241, 234, 0.42));
+}
+
+.saga-axis-rail--pleasantness.is-unpleasant::before {
+  right: 0.42rem;
+  left: 0.12rem;
+}
+
+.saga-axis-rail--pleasantness.is-unpleasant::after {
+  right: auto;
+  left: 0;
+  border-right: 0.42rem solid color-mix(in srgb, var(--quadrant-accent) 64%, rgba(245, 241, 234, 0.42));
+  border-left: 0;
+}
+
+.saga-axis-rail--pleasantness span {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  padding: 0 0.42rem;
+  background: rgba(12, 21, 25, 0.82);
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
 }
 
 .saga-mood-cell {
@@ -348,66 +645,80 @@
   --cell-accent: var(--quadrant-accent);
   --cell-base: rgba(22, 31, 35, 0.98);
   --cell-fill: 34%;
-  --cell-fade: 16%;
   --cell-text: 44%;
-  --cell-hover-fill: calc(var(--cell-fill) + 8%);
-  --cell-hover-text: calc(var(--cell-text) + 12%);
+  --energy-level: 0.5;
+  --pleasant-level: 0.5;
+  --edge-intensity: 0.5;
+  --axis-intensity: 0.5;
+  --cell-hover-fill: calc(var(--cell-fill) + 7%);
+  --cell-hover-text: calc(var(--cell-text) + 10%);
   position: relative;
   overflow: hidden;
   display: grid;
   place-items: center;
   min-width: 0;
   min-height: 0;
-  border: 0;
-  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--cell-accent) 18%, rgba(245, 241, 234, 0.08));
+  border-radius: var(--saga-radius);
   background:
-    linear-gradient(180deg,
-      color-mix(in srgb, var(--cell-accent) var(--cell-fade), rgba(245, 241, 234, 0.025)),
-      transparent 62%),
+    linear-gradient(180deg, rgba(245, 241, 234, 0.035), transparent 54%),
     color-mix(in srgb, var(--cell-accent) var(--cell-fill), var(--cell-base));
   color: color-mix(in srgb, var(--cell-accent) var(--cell-text), var(--saga-text));
   font: inherit;
-  font-size: clamp(0.48rem, 0.76vw, 0.61rem);
+  font-size: clamp(0.52rem, 0.78vw, 0.68rem);
   font-weight: 800;
-  line-height: 0.92;
+  line-height: 1.05;
   text-align: center;
   text-transform: lowercase;
   cursor: pointer;
-  box-shadow: none;
-  transform: none;
+  box-shadow: inset 0 1px 0 rgba(245, 241, 234, 0.035);
   transition:
-    background 360ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    color 320ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    filter 420ms cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 320ms ease;
+    background 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    color 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .saga-mood-cell--red {
-  --cell-accent: #E45745;
-  --cell-base: #2A1718;
-  border-radius: 8px;
+  --cell-accent: #B33122;
+  --cell-base: #240706;
 }
 
 .saga-mood-cell--yellow {
-  --cell-accent: #F0C84B;
-  --cell-base: #2E2913;
-  border-radius: 9px;
+  --cell-accent: #F4C430;
+  --cell-base: #2C2108;
 }
 
 .saga-mood-cell--green {
-  --cell-accent: #87CFA3;
-  --cell-base: #172B23;
-  border-radius: 10px;
+  --cell-accent: #3F8F52;
+  --cell-base: #0E2417;
 }
 
 .saga-mood-cell--blue {
-  --cell-accent: #6F82B8;
-  --cell-base: #171F33;
-  border-radius: 9px;
+  --cell-accent: #343943;
+  --cell-base: #010204;
+  background:
+    linear-gradient(180deg, rgba(245, 241, 234, 0.018), transparent 56%),
+    color-mix(in srgb, var(--cell-accent) var(--abyss-fill, 10%), var(--cell-base));
+  color: color-mix(in srgb, #8C95A7 var(--abyss-text, 68%), var(--saga-text));
+  border-color: color-mix(in srgb, #8C95A7 14%, rgba(245, 241, 234, 0.04));
+}
+
+.saga-mood-cell--low {
+  color: color-mix(in srgb, var(--cell-accent) calc(var(--cell-text) - 6%), var(--saga-text));
+}
+
+.saga-mood-cell--high {
+  background:
+    linear-gradient(180deg, rgba(245, 241, 234, 0.055), transparent 54%),
+    color-mix(in srgb, var(--cell-accent) calc(var(--cell-fill) + 4%), var(--cell-base));
 }
 
 .saga-mood-cell span {
   position: relative;
+  z-index: 1;
   max-width: calc(100% - 0.24rem);
   padding: 0;
   background: transparent;
@@ -427,46 +738,156 @@
 .saga-mood-cell.is-hovered {
   z-index: 2;
   outline: 0;
-  background:
-    linear-gradient(180deg,
-      color-mix(in srgb, var(--cell-accent) var(--cell-fade), rgba(245, 241, 234, 0.055)),
-      transparent 62%),
-    color-mix(in srgb, var(--cell-accent) var(--cell-hover-fill), var(--cell-base));
+  border-color: color-mix(in srgb, var(--cell-accent) 58%, rgba(245, 241, 234, 0.12));
+  background: color-mix(in srgb, var(--cell-accent) var(--cell-hover-fill), var(--cell-base));
   color: color-mix(in srgb, var(--cell-accent) var(--cell-hover-text), var(--saga-text));
-  filter: saturate(1.06) brightness(1.035);
-  transform: none;
-  box-shadow: none;
+  box-shadow:
+    inset 0 1px 0 rgba(245, 241, 234, 0.05),
+    0 8px 20px rgba(0, 0, 0, 0.18);
+  transform: translateY(-1px);
 }
 
 .saga-mood-cell:focus-visible {
-  outline: 1px solid color-mix(in srgb, var(--cell-accent) var(--cell-hover-text), var(--saga-text));
+  outline: 2px solid color-mix(in srgb, var(--cell-accent) 54%, var(--saga-text));
   outline-offset: 2px;
 }
 
 .saga-mood-cell.is-selected {
   z-index: 3;
-  background:
-    linear-gradient(180deg,
-      color-mix(in srgb, var(--cell-accent) var(--cell-fade), rgba(245, 241, 234, 0.055)),
-      transparent 62%),
-    color-mix(in srgb, var(--cell-accent) var(--cell-hover-fill), var(--cell-base));
+  border-color: color-mix(in srgb, var(--cell-accent) 72%, var(--saga-text));
+  background: color-mix(in srgb, var(--cell-accent) calc(var(--cell-hover-fill) + 6%), var(--cell-base));
   color: color-mix(in srgb, var(--cell-accent) var(--cell-hover-text), var(--saga-text));
-  filter: saturate(1.14) brightness(1.08);
-  transform: none;
-  box-shadow: none;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--cell-accent) 44%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--cell-accent) 16%, transparent);
+}
+
+.saga-mood-cell--blue:hover,
+.saga-mood-cell--blue:focus-visible,
+.saga-mood-cell--blue.is-hovered {
+  border-color: color-mix(in srgb, #8C95A7 32%, rgba(245, 241, 234, 0.08));
+  background:
+    linear-gradient(180deg, rgba(245, 241, 234, 0.026), transparent 56%),
+    color-mix(in srgb, var(--cell-accent) calc(var(--abyss-fill, 10%) + 4%), var(--cell-base));
+  color: color-mix(in srgb, #A7B0C2 var(--abyss-text, 72%), var(--saga-text));
+}
+
+.saga-mood-cell--blue.is-selected {
+  border-color: color-mix(in srgb, #A7B0C2 48%, var(--saga-text));
+  background:
+    linear-gradient(180deg, rgba(245, 241, 234, 0.032), transparent 56%),
+    color-mix(in srgb, var(--cell-accent) calc(var(--abyss-fill, 10%) + 6%), var(--cell-base));
+  color: color-mix(in srgb, #B6BFD0 var(--abyss-text, 78%), var(--saga-text));
 }
 
 .saga-mood-cell.is-dimmed {
-  opacity: 0.38;
+  opacity: 0.46;
+}
+
+.saga-mood-cell.is-axis-neighbor:not(.is-selected) {
+  opacity: 0.92;
+  border-color: color-mix(in srgb, var(--cell-accent) 34%, rgba(245, 241, 234, 0.10));
 }
 
 @media (max-width: 680px) {
+  .saga-mood-preview {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .saga-mood-preview p {
+    max-width: none;
+    text-align: left;
+  }
+
+  .saga-quadrant-field {
+    gap: 0.35rem;
+  }
+
+  .saga-quadrant-card {
+    padding: 0.85rem;
+  }
+
+  .saga-quadrant-card strong {
+    font-size: 0.62rem;
+  }
+
+  .saga-mood-pad {
+    --axis-top: 3.7rem;
+    --axis-right: 0.7rem;
+    --axis-bottom: 2.85rem;
+    --axis-left: 2.45rem;
+  }
+
+  .saga-mood-pad.is-red {
+    --axis-right: 2.45rem;
+    --axis-left: 0.7rem;
+  }
+
+  .saga-mood-pad.is-green {
+    --axis-top: 4.35rem;
+    --axis-bottom: 0.9rem;
+  }
+
+  .saga-mood-pad.is-blue {
+    --axis-top: 4.35rem;
+    --axis-right: 2.45rem;
+    --axis-bottom: 0.9rem;
+    --axis-left: 0.7rem;
+  }
+
   .saga-mood-grid {
-    gap: 0.08rem;
+    gap: 0.12rem;
+  }
+
+  .saga-mood-toolbar {
+    align-items: flex-start;
+  }
+
+  .saga-axis-rail {
+    font-size: 0.54rem;
+  }
+
+  .saga-axis-rail--energy {
+    left: 0.64rem;
+  }
+
+  .saga-mood-pad.is-red .saga-axis-rail--energy,
+  .saga-mood-pad.is-blue .saga-axis-rail--energy {
+    right: 0.64rem;
+    left: auto;
+  }
+
+  .saga-axis-rail--pleasantness {
+    bottom: 0.82rem;
+  }
+
+  .saga-mood-pad.is-green .saga-axis-rail--pleasantness,
+  .saga-mood-pad.is-blue .saga-axis-rail--pleasantness {
+    top: 3.25rem;
+    bottom: auto;
   }
 
   .saga-mood-cell span {
     opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .saga-page *,
+  .saga-page *::before,
+  .saga-page *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .saga-quadrant-card:hover,
+  .saga-quadrant-card:focus-visible,
+  .saga-mood-cell:hover,
+  .saga-mood-cell:focus-visible,
+  .saga-mood-cell.is-hovered {
+    transform: none;
   }
 }
 

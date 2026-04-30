@@ -47,7 +47,7 @@
                   <div class="saga-day-note__body">{{ entry.note_html | safe }}</div>
                   <div class="saga-day-note__mood" aria-label="Entry mood">
                     <span class="saga-mood-pill saga-mood-pill--emotion">{{ entry.mood_word }}</span>
-                    <span class="saga-mood-pill saga-mood-pill--quadrant">{{ entry.quadrant }}</span>
+                    <span class="saga-mood-pill saga-mood-pill--quadrant">{{ entry.quadrant_label | default(entry.quadrant) }}</span>
                     <span class="saga-mood-pill saga-mood-pill--coords">E:{{ entry.energy }} P:{{ entry.pleasantness }}</span>
                   </div>
                 </div>

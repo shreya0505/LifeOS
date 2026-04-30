@@ -16,6 +16,7 @@ from web.deps import (
     get_challenge_entry_repo,
     get_challenge_era_repo,
     get_challenge_experiment_repo,
+    get_challenge_holiday_repo,
     get_challenge_repo,
     get_challenge_task_repo,
 )
@@ -28,31 +29,56 @@ def _render(request, name, context):
     return templates.TemplateResponse(request, name, context)
 
 
-def _days_elapsed(start_date: str) -> int:
-    """Inclusive calendar-day counter: start_date = day 1."""
-    start = date.fromisoformat(start_date)
-    today = today_local()
-    if today < start:
+def _date_for_accountable_day(start_dt: date, day_num: int, holiday_dates: set[str]) -> date:
+    current = start_dt
+    counted = 0
+    while True:
+        if current.isoformat() not in holiday_dates:
+            counted += 1
+            if counted == day_num:
+                return current
+        current += timedelta(days=1)
+
+
+def _accountable_days_through(start_dt: date, through_dt: date, holiday_dates: set[str]) -> int:
+    if through_dt < start_dt:
         return 0
-    return (today - start).days + 1
+    count = 0
+    current = start_dt
+    while current <= through_dt:
+        if current.isoformat() not in holiday_dates:
+            count += 1
+        current += timedelta(days=1)
+    return count
 
 
-def _target_info(challenge: dict) -> dict:
+def _target_info(challenge: dict, holiday_dates: set[str]) -> dict:
     """Compute which day the user should currently fill.
 
     target_day_num = first unsealed day (challenge.days_elapsed + 1).
-    If stored days already >= calendar day → caught up, nothing to fill.
+    Holidays are not accountable days. If the next accountable date is in the
+    future, the challenge is locked until that date.
     """
     start_dt = date.fromisoformat(challenge["start_date"])
-    calendar_day = _days_elapsed(challenge["start_date"])
+    today = today_local()
+    calendar_day = _accountable_days_through(start_dt, today, holiday_dates)
     stored = challenge["days_elapsed"] or 0
     target_day_num = stored + 1
-    caught_up_sealed = stored >= calendar_day  # today sealed, nothing to fill
-    # Clamp target_date to today when caught up (display only)
-    effective_day = min(target_day_num, max(calendar_day, 1))
-    target_date = start_dt + timedelta(days=effective_day - 1)
+    target_date = _date_for_accountable_day(start_dt, target_day_num, holiday_dates)
+    is_future_start = today < start_dt
+    is_holiday_today = today.isoformat() in holiday_dates
+    caught_up_sealed = target_date > today
     days_behind = max(0, calendar_day - target_day_num)
-    is_backfill = (not caught_up_sealed) and target_day_num < calendar_day
+    is_backfill = (not caught_up_sealed) and target_date < today
+    days_until_start = max(0, (target_date - today).days)
+    if is_future_start:
+        locked_reason = f"New era begins {target_date.strftime('%b %d')}."
+    elif is_holiday_today and caught_up_sealed:
+        locked_reason = "Holiday logged. State is frozen until the next challenge day."
+    elif caught_up_sealed:
+        locked_reason = f"DAY {stored} LOCKED · NEXT WINDOW {target_date.strftime('%b %d').upper()}"
+    else:
+        locked_reason = ""
     return {
         "target_day_num": target_day_num,
         "target_date": target_date.isoformat(),
@@ -61,6 +87,10 @@ def _target_info(challenge: dict) -> dict:
         "caught_up_sealed": caught_up_sealed,
         "is_backfill": is_backfill,
         "days_behind": days_behind,
+        "is_future_start": is_future_start,
+        "is_holiday_today": is_holiday_today,
+        "days_until_start": days_until_start,
+        "locked_reason": locked_reason,
     }
 
 
@@ -113,9 +143,17 @@ def _decorate_experiments(experiments: list[dict]) -> list[dict]:
 
 
 async def _build_today_context(
-    challenge: dict, task_repo, entry_repo, experiment_repo=None,
+    challenge: dict, task_repo, entry_repo, experiment_repo=None, holiday_repo=None,
 ) -> dict:
-    info = _target_info(challenge)
+    holiday_dates = (
+        await holiday_repo.dates_for_challenge(challenge["id"])
+        if holiday_repo is not None else set()
+    )
+    holidays = (
+        await holiday_repo.get_by_challenge(challenge["id"])
+        if holiday_repo is not None else []
+    )
+    info = _target_info(challenge, holiday_dates)
     target_date = info["target_date"]
     today_str = today_local().isoformat()
 
@@ -170,7 +208,7 @@ async def _build_today_context(
     if can_seal:
         seal_block_reason = ""
     elif caught_up_sealed:
-        seal_block_reason = f"DAY {challenge['days_elapsed']} LOCKED · NEXT WINDOW TOMORROW"
+        seal_block_reason = info["locked_reason"]
     elif tracked_total == 0:
         seal_block_reason = "NO TRACKED TASKS · NOTHING TO LOCK"
     else:
@@ -180,8 +218,7 @@ async def _build_today_context(
 
     return {
         "challenge": challenge,
-        # header still shows calendar-derived day count
-        "days_elapsed": info["calendar_day"],
+        "days_elapsed": min(C.CHALLENGE_LENGTH_DAYS, challenge["days_elapsed"] or 0),
         "days_total": C.CHALLENGE_LENGTH_DAYS,
         # input-day info
         "target_day_num": info["target_day_num"],
@@ -189,6 +226,12 @@ async def _build_today_context(
         "target_date_fmt": info["target_date_fmt"],
         "is_backfill": info["is_backfill"],
         "days_behind": info["days_behind"],
+        "is_future_start": info["is_future_start"],
+        "is_holiday_today": info["is_holiday_today"],
+        "days_until_start": info["days_until_start"],
+        "locked_reason": info["locked_reason"],
+        "holidays": holidays,
+        "holiday_count": len(holidays),
         "buckets": C.BUCKETS,
         "bucket_labels": C.BUCKET_LABELS,
         "bucket_descriptions": C.BUCKET_DESCRIPTIONS,
@@ -297,12 +340,13 @@ async def today_page(
     task_repo=Depends(get_challenge_task_repo),
     entry_repo=Depends(get_challenge_entry_repo),
     experiment_repo=Depends(get_challenge_experiment_repo),
+    holiday_repo=Depends(get_challenge_holiday_repo),
 ):
     ch = await challenge_repo.get_active()
     if ch is None:
         return RedirectResponse("/challenge/setup", status_code=303)
 
-    ctx = await _build_today_context(ch, task_repo, entry_repo, experiment_repo)
+    ctx = await _build_today_context(ch, task_repo, entry_repo, experiment_repo, holiday_repo)
     return _render(request, "challenge_today.html", ctx)
 
 
@@ -316,6 +360,7 @@ async def update_entry(
     task_repo=Depends(get_challenge_task_repo),
     entry_repo=Depends(get_challenge_entry_repo),
     experiment_repo=Depends(get_challenge_experiment_repo),
+    holiday_repo=Depends(get_challenge_holiday_repo),
 ):
     ch = await challenge_repo.get_active()
     if ch is None:
@@ -328,9 +373,10 @@ async def update_entry(
     if state is not None and state not in C.STATES:
         return HTMLResponse("Invalid state", status_code=400)
 
-    info = _target_info(ch)
+    holiday_dates = await holiday_repo.dates_for_challenge(ch["id"])
+    info = _target_info(ch, holiday_dates)
     if info["caught_up_sealed"]:
-        return HTMLResponse("Nothing to fill — come back tomorrow.", status_code=400)
+        return HTMLResponse(info["locked_reason"] or "Nothing to fill yet.", status_code=400)
     target_date = info["target_date"]
     # Sealed days are immutable: reject any write whose target_date is already sealed.
     # (By construction target_date is the next unsealed day, so this is a safety net.)
@@ -341,7 +387,7 @@ async def update_entry(
         await entry_repo.upsert(task_id, ch["id"], target_date, state, note_value)
 
     # Recompute context, re-render single card + OOB seal button refresh
-    ctx = await _build_today_context(ch, task_repo, entry_repo, experiment_repo)
+    ctx = await _build_today_context(ch, task_repo, entry_repo, experiment_repo, holiday_repo)
     # Find updated task row
     task_row = None
     for b in C.BUCKETS:
@@ -359,6 +405,38 @@ async def update_entry(
     return HTMLResponse(card_html + bar_html)
 
 
+@router.post("/today/holiday", response_class=HTMLResponse)
+async def mark_holiday(
+    request: Request,
+    reason: str = Form(""),
+    challenge_repo=Depends(get_challenge_repo),
+    task_repo=Depends(get_challenge_task_repo),
+    entry_repo=Depends(get_challenge_entry_repo),
+    experiment_repo=Depends(get_challenge_experiment_repo),
+    holiday_repo=Depends(get_challenge_holiday_repo),
+):
+    ch = await challenge_repo.get_active()
+    if ch is None:
+        return HTMLResponse("", status_code=404)
+
+    holiday_dates = await holiday_repo.dates_for_challenge(ch["id"])
+    info = _target_info(ch, holiday_dates)
+    if info["caught_up_sealed"]:
+        return HTMLResponse(info["locked_reason"] or "No fillable day to mark as holiday.", status_code=400)
+
+    target_date = info["target_date"]
+    await entry_repo.delete_by_date(ch["id"], target_date)
+    await experiment_repo.delete_entries_by_date(ch["id"], target_date)
+    await holiday_repo.create(ch["id"], target_date, reason.strip() or None)
+    await experiment_repo.extend_running_for_holiday(ch["id"], target_date)
+
+    ch2 = await challenge_repo.get_active()
+    ctx = await _build_today_context(ch2, task_repo, entry_repo, experiment_repo, holiday_repo)
+    ctx["just_holiday"] = True
+    ctx["just_holiday_date"] = date.fromisoformat(target_date).strftime("%b %d")
+    return _render(request, "challenge_today.html", ctx)
+
+
 @router.post("/today/seal", response_class=HTMLResponse)
 async def seal_day(
     request: Request,
@@ -367,14 +445,16 @@ async def seal_day(
     entry_repo=Depends(get_challenge_entry_repo),
     era_repo=Depends(get_challenge_era_repo),
     experiment_repo=Depends(get_challenge_experiment_repo),
+    holiday_repo=Depends(get_challenge_holiday_repo),
 ):
     ch = await challenge_repo.get_active()
     if ch is None:
         return HTMLResponse("", status_code=404)
 
-    info = _target_info(ch)
+    holiday_dates = await holiday_repo.dates_for_challenge(ch["id"])
+    info = _target_info(ch, holiday_dates)
     if info["caught_up_sealed"]:
-        ctx = await _build_today_context(ch, task_repo, entry_repo, experiment_repo)
+        ctx = await _build_today_context(ch, task_repo, entry_repo, experiment_repo, holiday_repo)
         return _render(request, "challenge_today.html", ctx)
 
     target_date = info["target_date"]
@@ -389,7 +469,7 @@ async def seal_day(
             t["bucket"] in C.TRACKED_BUCKETS
             and (entry is None or entry.get("state") not in C.STATES)
         ):
-            ctx = await _build_today_context(ch, task_repo, entry_repo, experiment_repo)
+            ctx = await _build_today_context(ch, task_repo, entry_repo, experiment_repo, holiday_repo)
             return _render(request, "challenge_today.html", ctx)
 
     # Check reset across tracked tasks (per-task rolling window) — runs every seal
@@ -434,9 +514,8 @@ async def seal_day(
         # create new challenge + copy tasks)
         new_era = await era_names.pick_era_name(era_repo)
         new_adj = era_names.pick_midweek_adjective()
-        new_ch = await challenge_repo.create(
-            new_era, today_str, new_adj,
-        )
+        next_start = (today_local() + timedelta(days=1)).isoformat()
+        new_ch = await challenge_repo.create(new_era, next_start, new_adj)
         task_copies = [{"name": t["name"], "bucket": t["bucket"]} for t in tasks]
         await task_repo.create_batch(new_ch["id"], task_copies)
         lvl_id, lvl_name, _ = level_engine.compute_level(0, new_adj)
@@ -491,7 +570,7 @@ async def seal_day(
 
     # Normal seal
     ch2 = await challenge_repo.get_active()
-    ctx = await _build_today_context(ch2, task_repo, entry_repo, experiment_repo)
+    ctx = await _build_today_context(ch2, task_repo, entry_repo, experiment_repo, holiday_repo)
     ctx["just_sealed"] = True
     ctx["just_sealed_day"] = new_days
     return _render(request, "challenge_today.html", ctx)
@@ -516,7 +595,7 @@ async def forfeit(
         return RedirectResponse("/challenge/setup", status_code=303)
 
     today_str = today_local().isoformat()
-    days_done = _days_elapsed(ch["start_date"])
+    days_done = ch["days_elapsed"] or 0
     midweek_adj = ch["midweek_adjective"] or ""
     _, peak_name, _ = level_engine.compute_level(ch["peak_level"], midweek_adj)
     prose = metrics_engine.era_prose(
@@ -535,7 +614,8 @@ async def forfeit(
     tasks = await task_repo.get_by_challenge(ch["id"])
     new_era = await era_names.pick_era_name(era_repo)
     new_adj = era_names.pick_midweek_adjective()
-    new_ch = await challenge_repo.create(new_era, today_str, new_adj)
+    next_start = (today_local() + timedelta(days=1)).isoformat()
+    new_ch = await challenge_repo.create(new_era, next_start, new_adj)
     await task_repo.create_batch(
         new_ch["id"],
         [{"name": t["name"], "bucket": t["bucket"]} for t in tasks],
@@ -584,7 +664,7 @@ async def metrics_page(
     for t in tasks:
         entries_by_bucket[t["bucket"]].extend(entries_by_task.get(t["id"], []))
 
-    days_elapsed = _days_elapsed(ch["start_date"])
+    days_elapsed = ch["days_elapsed"] or 0
     enricher_stats = metrics_engine.enricher_engagement(
         entries_by_bucket["enricher"], days_elapsed,
     )
@@ -821,8 +901,17 @@ async def create_experiment(
 async def start_experiment(
     request: Request,
     experiment_id: str,
+    challenge_repo=Depends(get_challenge_repo),
     experiment_repo=Depends(get_challenge_experiment_repo),
+    holiday_repo=Depends(get_challenge_holiday_repo),
 ):
+    ch = await challenge_repo.get_active()
+    if ch is None:
+        return HTMLResponse("No active challenge", status_code=400)
+    holiday_dates = await holiday_repo.dates_for_challenge(ch["id"])
+    info = _target_info(ch, holiday_dates)
+    if info["caught_up_sealed"]:
+        return HTMLResponse(info["locked_reason"] or "No fillable challenge day.", status_code=400)
     exp = await experiment_repo.start(experiment_id, today_local().isoformat())
     if exp is None:
         return HTMLResponse("Could not begin trial", status_code=400)
@@ -842,6 +931,7 @@ async def update_experiment_entry(
     task_repo=Depends(get_challenge_task_repo),
     entry_repo=Depends(get_challenge_entry_repo),
     experiment_repo=Depends(get_challenge_experiment_repo),
+    holiday_repo=Depends(get_challenge_holiday_repo),
 ):
     ch = await challenge_repo.get_active()
     if ch is None:
@@ -854,9 +944,10 @@ async def update_experiment_entry(
     if state is not None and state not in C.STATES:
         return HTMLResponse("Invalid state", status_code=400)
 
-    info = _target_info(ch)
+    holiday_dates = await holiday_repo.dates_for_challenge(ch["id"])
+    info = _target_info(ch, holiday_dates)
     if info["caught_up_sealed"]:
-        return HTMLResponse("Nothing to fill — come back tomorrow.", status_code=400)
+        return HTMLResponse(info["locked_reason"] or "Nothing to fill yet.", status_code=400)
     if info["target_day_num"] <= (ch["days_elapsed"] or 0):
         return HTMLResponse("Day already sealed — entries are locked.", status_code=400)
     note_value = notes.strip() or None
@@ -868,7 +959,7 @@ async def update_experiment_entry(
             state,
             note_value,
         )
-    ctx = await _build_today_context(ch, task_repo, entry_repo, experiment_repo)
+    ctx = await _build_today_context(ch, task_repo, entry_repo, experiment_repo, holiday_repo)
     experiment = next((e for e in ctx["experiments"] if e["id"] == experiment_id), None)
     if experiment is None:
         return HTMLResponse("", status_code=404)
@@ -969,11 +1060,11 @@ async def history_page(
         active_tasks = await task_repo.get_by_challenge(active["id"])
         active_entries = await entry_repo.get_all_for_challenge(active["id"])
         today_iso = today_local().isoformat()
-        today_day = _days_elapsed(active["start_date"])
+        today_day = active.get("days_elapsed") or 0
         active_anchors = anchor_engine.compute_era_anchors(
             start_date=active["start_date"],
             end_date=today_iso,
-            duration_days=max(active.get("days_elapsed") or 0, today_day),
+            duration_days=today_day,
             entries=active_entries,
             tasks=active_tasks,
             reset_cause=None,

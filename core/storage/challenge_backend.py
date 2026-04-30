@@ -43,6 +43,16 @@ def _challenge_row_to_dict(r: tuple) -> dict:
     }
 
 
+def _holiday_row_to_dict(r: tuple) -> dict:
+    return {
+        "id": r[0],
+        "challenge_id": r[1],
+        "log_date": r[2],
+        "reason": r[3],
+        "created_at": r[4],
+    }
+
+
 class SqliteChallengeRepo:
     def __init__(self, db: aiosqlite.Connection) -> None:
         self._db = db
@@ -125,6 +135,57 @@ class SqliteChallengeRepo:
             "UPDATE challenges SET status = 'reset' WHERE id = ?", (challenge_id,),
         )
         await self._db.commit()
+
+
+_HOLIDAY_COLS = "id, challenge_id, log_date, reason, created_at"
+
+
+class SqliteChallengeHolidayRepo:
+    def __init__(self, db: aiosqlite.Connection) -> None:
+        self._db = db
+
+    async def create(self, challenge_id: str, log_date: str, reason: str | None = None) -> dict:
+        cursor = await self._db.execute(
+            f"SELECT {_HOLIDAY_COLS} FROM challenge_holidays "
+            "WHERE challenge_id = ? AND log_date = ?",
+            (challenge_id, log_date),
+        )
+        existing = await cursor.fetchone()
+        if existing:
+            return _holiday_row_to_dict(existing)
+
+        hid = _gen_id()
+        now = _now_iso()
+        await self._db.execute(
+            f"INSERT INTO challenge_holidays ({_HOLIDAY_COLS}) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (hid, challenge_id, log_date, reason, now),
+        )
+        await self._db.commit()
+        return {
+            "id": hid,
+            "challenge_id": challenge_id,
+            "log_date": log_date,
+            "reason": reason,
+            "created_at": now,
+        }
+
+    async def get_by_challenge(self, challenge_id: str) -> list[dict]:
+        cursor = await self._db.execute(
+            f"SELECT {_HOLIDAY_COLS} FROM challenge_holidays "
+            "WHERE challenge_id = ? ORDER BY log_date",
+            (challenge_id,),
+        )
+        rows = await cursor.fetchall()
+        return [_holiday_row_to_dict(r) for r in rows]
+
+    async def dates_for_challenge(self, challenge_id: str) -> set[str]:
+        cursor = await self._db.execute(
+            "SELECT log_date FROM challenge_holidays WHERE challenge_id = ?",
+            (challenge_id,),
+        )
+        rows = await cursor.fetchall()
+        return {r[0] for r in rows}
 
 
 def _task_row_to_dict(r: tuple) -> dict:
@@ -255,6 +316,14 @@ class SqliteChallengeEntryRepo:
         )
         rows = await cursor.fetchall()
         return [_entry_row_to_dict(r) for r in rows]
+
+    async def delete_by_date(self, challenge_id: str, log_date: str) -> int:
+        cursor = await self._db.execute(
+            "DELETE FROM challenge_entries WHERE challenge_id = ? AND log_date = ?",
+            (challenge_id, log_date),
+        )
+        await self._db.commit()
+        return cursor.rowcount
 
     async def mark_fail_triggered(self, entry_id: str, is_hard: bool) -> None:
         col = "hard_fail_triggered" if is_hard else "soft_fail_triggered"
@@ -513,6 +582,18 @@ class SqliteChallengeExperimentRepo:
         await self._db.commit()
         return await self.get_by_id(experiment_id)
 
+    async def extend_running_for_holiday(self, challenge_id: str, holiday_date: str) -> int:
+        cursor = await self._db.execute(
+            "UPDATE challenge_experiments "
+            "SET ends_at = date(ends_at, '+1 day') "
+            "WHERE challenge_id = ? AND status = 'running' "
+            "AND started_at IS NOT NULL AND ends_at IS NOT NULL "
+            "AND date(started_at) <= date(?) AND date(ends_at) >= date(?)",
+            (challenge_id, holiday_date, holiday_date),
+        )
+        await self._db.commit()
+        return cursor.rowcount
+
     async def trash_draft(self, experiment_id: str) -> bool:
         cursor = await self._db.execute(
             "DELETE FROM challenge_experiments WHERE id = ? AND status = 'draft'",
@@ -579,3 +660,12 @@ class SqliteChallengeExperimentRepo:
         )
         rows = await cursor.fetchall()
         return [_experiment_entry_row_to_dict(r) for r in rows]
+
+    async def delete_entries_by_date(self, challenge_id: str, log_date: str) -> int:
+        cursor = await self._db.execute(
+            "DELETE FROM challenge_experiment_entries "
+            "WHERE challenge_id = ? AND log_date = ?",
+            (challenge_id, log_date),
+        )
+        await self._db.commit()
+        return cursor.rowcount

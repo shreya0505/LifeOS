@@ -27,6 +27,7 @@ from core.storage.saga_backend import (
     MOOD_WORDS,
     PLEASANTNESS_COORDS,
     QUADRANT_COLORS,
+    QUADRANT_LABELS,
     VALID_MOOD_COORDS,
     quadrant_for,
 )
@@ -37,13 +38,6 @@ SOURCE_LABELS = {
     "saga": "Saga",
     "questlog": "Questlog",
     "hard90": "Hard 90",
-}
-
-QUADRANT_LABELS = {
-    "yellow": "High energy pleasant",
-    "red": "High energy unpleasant",
-    "green": "Low energy pleasant",
-    "blue": "Low energy unpleasant",
 }
 
 QUADRANT_ORDER = ("yellow", "red", "green", "blue")
@@ -619,6 +613,7 @@ async def timeline_days(db: aiosqlite.Connection, page: int = 1, per_page: int =
             "energy": energy,
             "pleasantness": pleasantness,
             "quadrant": row[5],
+            "quadrant_label": QUADRANT_LABELS.get(row[5], str(row[5]).title()),
             "quadrant_accent": QUADRANT_COLORS.get(row[5], "#CF9D7B"),
             "mood_word": row[6],
             "mood_strength": strength,
@@ -1105,27 +1100,27 @@ def _day_archetype(
         return "Clean Alignment"
     if mood_load >= 65:
         if dominant_quadrant == "red" and output_index >= 55 and (challenge_score is None or challenge_score >= 70):
-            return "Red Forge"
+            return "Hellfire Forge"
         if dominant_quadrant == "red" or avg_energy > 0:
-            return "Red Spillover"
-        return "Blue Drag"
+            return "Hellfire Spillover"
+        return "Abyss Drag"
     if dominant_quadrant == "green":
-        return "Green Reset"
+        return "Sanctuary Reset"
     if dominant_quadrant == "yellow":
-        return "Yellow Spark"
+        return "Radiance Spark"
     if dominant_quadrant == "blue" or avg_pleasantness < 0:
-        return "Blue Drag"
-    return "Green Reset"
+        return "Abyss Drag"
+    return "Sanctuary Reset"
 
 
 def _day_verdict(archetype: str, relations: dict) -> str:
     verdicts = {
         "Clean Alignment": "Mood, output, and long-term systems moved together.",
-        "Red Forge": "High-energy unpleasantness was converted into execution without breaking the long game.",
-        "Red Spillover": "Activated unpleasantness is pressing into the rest of the system.",
-        "Blue Drag": "Low-energy unpleasantness is weighing on motion and recovery.",
-        "Green Reset": "The system is downshifting into steadier, more regulated territory.",
-        "Yellow Spark": "Pleasant activation is available; useful momentum can be harvested.",
+        "Hellfire Forge": "High-energy unpleasantness was converted into execution without breaking the long game.",
+        "Hellfire Spillover": "Activated unpleasantness is pressing into the rest of the system.",
+        "Abyss Drag": "Low-energy unpleasantness is weighing on motion and recovery.",
+        "Sanctuary Reset": "The system is downshifting into steadier, more regulated territory.",
+        "Radiance Spark": "Pleasant activation is available; useful momentum can be harvested.",
         "Busy Drift": "Quest motion outpaced long-term alignment.",
         "Recovery Turn": "The system downshifted after pressure while preserving long-term posture.",
         "No Signal": "Capture emotion, complete quests, or log challenge progress to begin the field report.",
@@ -2276,7 +2271,7 @@ def build_pillars(
             f"{pleasant_ratio}% pleasant-side entries; {red_blue_ratio}% red/blue pressure.",
             [
                 {"label": "Pleasant", "value": f"{pleasant_ratio}%"},
-                {"label": "Red/Blue", "value": f"{red_blue_ratio}%"},
+                {"label": "Hellfire/Abyss", "value": f"{red_blue_ratio}%"},
                 {"label": "Mood load", "value": mean_mood_load or "—"},
                 {"label": "Capture days", "value": saga_days},
             ],
@@ -3049,8 +3044,8 @@ def _meta_analysis(
         }
 
     archetype_counts = Counter(p["archetype"] for p in day_profiles)
-    risky_names = {"Busy Drift", "Red Spillover", "Blue Drag"}
-    positive_names = {"Clean Alignment", "Red Forge", "Green Reset", "Yellow Spark", "Recovery Turn"}
+    risky_names = {"Busy Drift", "Hellfire Spillover", "Abyss Drag"}
+    positive_names = {"Clean Alignment", "Hellfire Forge", "Sanctuary Reset", "Radiance Spark", "Recovery Turn"}
     transitions = Counter()
     for prev, current in zip(day_profiles, day_profiles[1:]):
         if prev["archetype"] != current["archetype"]:
@@ -3123,7 +3118,7 @@ def _meta_analysis(
             "dominant_archetype": archetype_counts.most_common(1)[0][0] if archetype_counts else "No Signal",
             "risky_archetype_count": sum(count for name, count in archetype_counts.items() if name in risky_names),
             "positive_archetype_count": sum(count for name, count in archetype_counts.items() if name in positive_names),
-            "pressure_recovery_transitions": transitions.get("Red Forge -> Recovery Turn", 0) + transitions.get("Red Spillover -> Recovery Turn", 0),
+            "pressure_recovery_transitions": transitions.get("Hellfire Forge -> Recovery Turn", 0) + transitions.get("Hellfire Spillover -> Recovery Turn", 0),
             "key_transitions": [{"transition": key, "count": count} for key, count in transitions.most_common(5)],
         },
         "mood_map": {
