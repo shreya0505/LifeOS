@@ -24,6 +24,99 @@ GATE_WEEKDAY = 14
 GATE_TASK_SIGNAL = 14
 GATE_TIER_VELOCITY = 14
 
+HOLIDAY_RATIO_THRESHOLD = 0.20
+HOLIDAY_STREAK_THRESHOLD = 3
+
+
+def _holiday_date(row) -> _date | None:
+    value = row.get("log_date") if isinstance(row, dict) else row
+    if isinstance(value, _date):
+        return value
+    if not value:
+        return None
+    try:
+        return _date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
+
+
+def _longest_holiday_streak(days: list[_date]) -> int:
+    if not days:
+        return 0
+    best = 1
+    current = 1
+    for previous, day in zip(days, days[1:]):
+        if (day - previous).days == 1:
+            current += 1
+        else:
+            current = 1
+        best = max(best, current)
+    return best
+
+
+def _current_holiday_streak(days: set[_date], today: _date) -> int:
+    current = today
+    streak = 0
+    while current in days:
+        streak += 1
+        current = _date.fromordinal(current.toordinal() - 1)
+    return streak
+
+
+def holiday_cadence(
+    holidays: list[dict],
+    start_date,
+    today,
+) -> dict:
+    """Diagnostic holiday frequency signal. Does not score challenge failure."""
+    fallback_end = _holiday_date(today) or _date.today()
+    start = _holiday_date(start_date) or fallback_end
+    end = fallback_end
+    if end < start:
+        start, end = end, start
+    window_days = max(1, (end - start).days + 1)
+    holiday_days = sorted({
+        day for day in (_holiday_date(row) for row in holidays)
+        if day is not None and start <= day <= end
+    })
+    count = len(holiday_days)
+    ratio = count / window_days
+    longest_streak = _longest_holiday_streak(holiday_days)
+    day_set = set(holiday_days)
+    current_streak = _current_holiday_streak(day_set, end)
+
+    ratio_pressure = 0.0
+    if ratio > HOLIDAY_RATIO_THRESHOLD:
+        ratio_pressure = min(65.0, ((ratio - HOLIDAY_RATIO_THRESHOLD) / 0.30) * 65)
+    streak_pressure = 0.0
+    if longest_streak >= HOLIDAY_STREAK_THRESHOLD:
+        streak_pressure = min(35.0, ((longest_streak - (HOLIDAY_STREAK_THRESHOLD - 1)) / 5) * 35)
+    load_score = int(round(max(0, min(100, ratio_pressure + streak_pressure))))
+
+    if load_score == 0:
+        label, tone = "Neutral", "muted"
+    elif load_score < 30:
+        label, tone = "Elevated", "watch"
+    elif load_score < 65:
+        label, tone = "Recovery Demand", "watch"
+    else:
+        label, tone = "Saturation", "risk"
+
+    return {
+        "count": count,
+        "window_days": window_days,
+        "ratio": ratio,
+        "ratio_pct": int(round(ratio * 100)),
+        "threshold_pct": int(HOLIDAY_RATIO_THRESHOLD * 100),
+        "longest_streak": longest_streak,
+        "current_streak": current_streak,
+        "projected_extension_days": count,
+        "load_score": load_score,
+        "label": label,
+        "tone": tone,
+        "dates": [day.isoformat() for day in holiday_days],
+    }
+
 
 def per_task_health(entries: list[dict]) -> dict:
     """Entries chronological oldest→newest. Returns health breakdown."""

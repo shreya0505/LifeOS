@@ -309,6 +309,16 @@
         <span class="ch-stat-caption">{{ enricher.logged }} of {{ enricher.total }} days engaged</span>
       </div>
 
+      <div class="ch-stat-block" title="Holiday days freeze progress and are reported as cadence, not failure.">
+        <span class="ch-stat-eyebrow">HOLIDAY CADENCE</span>
+        <span class="ch-stat-num">{{ holiday_metrics.count }}</span>
+        <span class="ch-stat-unit">days</span>
+        <span class="ch-stat-caption">
+          {{ holiday_metrics.ratio_pct }}% of calendar · longest {{ holiday_metrics.longest_streak }}d · {{ holiday_metrics.label }}
+        </span>
+        <span class="ch-stat-caption">projected extension +{{ holiday_metrics.projected_extension_days }}d</span>
+      </div>
+
       <div class="ch-stat-block" title="Per-week share of entries that included a written note.">
         <span class="ch-stat-eyebrow">REFLECTION DENSITY</span>
         {% if engagement %}

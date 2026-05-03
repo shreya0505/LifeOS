@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from datetime import timedelta
 
-from core.challenge import level_engine, reset_engine
+from core.challenge import level_engine, metrics_engine, reset_engine
 from core.challenge.config import CHALLENGE_LENGTH_DAYS
 from core.storage.challenge_backend import (
     SqliteChallengeEntryRepo,
@@ -161,6 +161,72 @@ async def test_challenge_holiday_repo_creates_once_and_queues_sync(db):
         "SELECT table_name FROM sync_changes WHERE table_name = 'challenge_holidays'"
     )).fetchall()
     assert rows
+
+
+def test_holiday_cadence_one_day_stays_neutral():
+    cadence = metrics_engine.holiday_cadence(
+        [{"log_date": "2026-01-03"}],
+        "2026-01-01",
+        "2026-01-10",
+    )
+
+    assert cadence["count"] == 1
+    assert cadence["ratio_pct"] == 10
+    assert cadence["load_score"] == 0
+    assert cadence["label"] == "Neutral"
+
+
+def test_holiday_cadence_exact_twenty_percent_stays_neutral():
+    cadence = metrics_engine.holiday_cadence(
+        [{"log_date": "2026-01-03"}, {"log_date": "2026-01-08"}],
+        "2026-01-01",
+        "2026-01-10",
+    )
+
+    assert cadence["ratio_pct"] == 20
+    assert cadence["load_score"] == 0
+
+
+def test_holiday_cadence_above_twenty_percent_raises_load():
+    cadence = metrics_engine.holiday_cadence(
+        [{"log_date": "2026-01-02"}, {"log_date": "2026-01-05"}, {"log_date": "2026-01-08"}],
+        "2026-01-01",
+        "2026-01-10",
+    )
+
+    assert cadence["ratio_pct"] == 30
+    assert cadence["longest_streak"] == 1
+    assert cadence["load_score"] > 0
+
+
+def test_holiday_cadence_three_day_streak_raises_load():
+    cadence = metrics_engine.holiday_cadence(
+        [{"log_date": "2026-01-01"}, {"log_date": "2026-01-02"}, {"log_date": "2026-01-03"}],
+        "2026-01-01",
+        "2026-01-30",
+    )
+
+    assert cadence["ratio_pct"] == 10
+    assert cadence["longest_streak"] == 3
+    assert cadence["load_score"] > 0
+
+
+def test_holidays_do_not_change_survival_or_task_health_scores():
+    entries_by_task = {"anchor-1": []}
+    tasks = [{"id": "anchor-1", "bucket": "anchor"}]
+    health = metrics_engine.build_task_health_map(entries_by_task, tasks)
+    before = metrics_engine.survival_index(health)
+    cadence = metrics_engine.holiday_cadence(
+        [{"log_date": "2026-01-01"}, {"log_date": "2026-01-02"}, {"log_date": "2026-01-03"}],
+        "2026-01-01",
+        "2026-01-10",
+    )
+    after = metrics_engine.survival_index(health)
+
+    assert cadence["load_score"] > 0
+    assert health["anchor-1"]["hard_progress"] == 0
+    assert health["anchor-1"]["soft_progress"] == 0
+    assert before == after == 1.0
 
 
 @pytest.mark.asyncio
@@ -847,14 +913,19 @@ async def test_experiment_stays_linked_to_original_era_after_forfeit(client, db)
 
 
 @pytest.mark.asyncio
-async def test_challenge_metrics_renders(client):
+async def test_challenge_metrics_renders(client, db):
     await client.post(
         "/challenge/setup",
         data={"anchor[]": "Morning run", "improver[]": "Read"},
     )
+    ch = await SqliteChallengeRepo(db).get_active()
+    await SqliteChallengeHolidayRepo(db).create(ch["id"], today_local().isoformat(), "travel")
+
     r = await client.get("/challenge/metrics")
     assert r.status_code == 200
     assert "Day" in r.text
+    assert "HOLIDAY CADENCE" in r.text
+    assert "projected extension +1d" in r.text
 
 
 @pytest.mark.asyncio

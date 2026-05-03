@@ -64,6 +64,15 @@ async def _insert_challenge(db, entry_id: str, day: str, bucket: str = "anchor",
     )
 
 
+async def _insert_holiday(db, holiday_id: str, day: str, reason: str = "rest"):
+    await db.execute(
+        "INSERT INTO challenge_holidays "
+        "(id, challenge_id, log_date, reason, created_at) "
+        "VALUES (?, 'dash-ch', ?, ?, ?)",
+        (holiday_id, day, reason, f"{day}T07:00:00+05:30"),
+    )
+
+
 async def _insert_pomo(db, session_id: str, day: str, quest_id: str = "q-focus", pomos: int = 3, interruptions: int = 0):
     await db.execute(
         "INSERT INTO pomo_sessions "
@@ -121,10 +130,10 @@ async def test_saga_dashboard_shape_and_mood_meter_metrics(db):
     }
     assert expected.issubset(dashboard.keys())
     assert len(dashboard["mood_grid"]) == 196
-    assert set(dashboard["timeseries"].keys()) >= {"mood_load", "avg_energy", "avg_pleasantness"}
+    assert set(dashboard["timeseries"].keys()) >= {"mood_load", "avg_energy", "avg_pleasantness", "holiday_load"}
     assert [item["quadrant"] for item in dashboard["quadrant_stream"]["series"]] == ["yellow", "red", "green", "blue"]
     assert [item["label"] for item in dashboard["quadrant_stream"]["series"]] == ["Radiance", "Hellfire", "Sanctuary", "Abyss"]
-    assert set(dashboard["meta_analysis"].keys()) >= {"emotion_load", "recovery", "mood_map"}
+    assert set(dashboard["meta_analysis"].keys()) >= {"emotion_load", "recovery", "mood_map", "holiday_load"}
     assert all(len(kpi["spark"]) == 7 for kpi in dashboard["headline"]["kpis"].values())
     assert dashboard["narrative"]["grain"] == "week"
     assert "state_sentence" in dashboard["narrative"]
@@ -136,6 +145,7 @@ async def test_saga_dashboard_shape_and_mood_meter_metrics(db):
         "tendencies",
         "charts",
         "missing_data",
+        "holiday_impact",
     }
     assert [pillar["key"] for pillar in dashboard["grimoire"]["pillars"]] == [
         "daily_execution",
@@ -152,6 +162,9 @@ async def test_saga_dashboard_shape_and_mood_meter_metrics(db):
         "mood_daily",
         "mood_long",
         "curiosity_long",
+        "holiday_mood",
+        "holiday_daily",
+        "holiday_focus",
     ]
     for relationship in dashboard["grimoire"]["charts"]["relationships"][:2]:
         assert relationship["x_min"] == -7
@@ -161,6 +174,7 @@ async def test_saga_dashboard_shape_and_mood_meter_metrics(db):
     assert component_labels == ["Adaptive valence", "Low acute load", "Stability", "Pleasant access"]
     correlation = dashboard["grimoire"]["charts"]["correlation_matrix"]
     assert correlation["series"]
+    assert "Holiday load" in [item["label"] for item in correlation["metrics"]]
     first_cell = correlation["series"][0]["data"][0]
     assert set(first_cell.keys()) >= {"metric_x", "metric_y", "y", "paired_days"}
 
@@ -185,6 +199,10 @@ async def test_saga_metrics_route_window_fallback_and_modes(client):
     assert "chart-timeline-heartbeat" in full.text
     assert "chart-relationship-truth" in full.text
     assert "chart-correlation-map" in full.text
+    assert "Holiday Impact" in full.text
+    assert "Holiday → Mood" in full.text
+    assert "Holiday → Daily" in full.text
+    assert "Holiday → Focus" in full.text
     assert "How to read:" in full.text
     assert "Strong positive" in full.text
     assert "Curved pattern" in full.text
@@ -216,6 +234,60 @@ async def test_saga_dashboard_empty_db_is_complete(db):
     assert dashboard["grimoire"]["verdict"]["label"] == "Data Thin"
     heartbeat = dashboard["grimoire"]["charts"]["timeline_heartbeat"]
     assert all(value is None for series in heartbeat["series"] for value in series["data"])
+
+
+@pytest.mark.asyncio
+async def test_saga_dashboard_exposes_neutral_holiday_without_long_game_penalty(db):
+    await _challenge_setup(db)
+    today = _day()
+    await _insert_holiday(db, "holiday-today", today, "travel")
+    await db.commit()
+
+    dashboard = await saga_dashboard(db, 7)
+
+    holiday_load = dashboard["meta_analysis"]["holiday_load"]
+    assert holiday_load["count"] == 1
+    assert holiday_load["load_score"] == 0
+    assert dashboard["grimoire"]["holiday_impact"]["cadence"]["label"] == "Neutral"
+    long_game_series = next(
+        series for series in dashboard["grimoire"]["charts"]["timeline_heartbeat"]["series"]
+        if series["name"] == "Long Game"
+    )
+    assert long_game_series["data"][-1] is None
+
+
+@pytest.mark.asyncio
+async def test_saga_dashboard_raises_high_frequency_holiday_signal_and_impact_rows(db):
+    await _challenge_setup(db)
+    today = datetime.now(USER_TZ).date()
+    for idx, offset in enumerate((-2, -1, 0), start=1):
+        day = (today + timedelta(days=offset)).isoformat()
+        await _insert_holiday(db, f"holiday-{idx}", day, "recovery")
+    await db.commit()
+
+    dashboard = await saga_dashboard(db, 7)
+
+    holiday_load = dashboard["meta_analysis"]["holiday_load"]
+    assert holiday_load["count"] == 3
+    assert holiday_load["longest_streak"] == 3
+    assert holiday_load["load_score"] > 0
+    impact = dashboard["grimoire"]["holiday_impact"]
+    assert impact["cadence"]["load_score"] == holiday_load["load_score"]
+    assert {
+        "Mood load",
+        "Pleasantness",
+        "Energy",
+        "Daily Execution",
+        "Quest output",
+        "Focus quality",
+        "Pomos",
+        "Interruptions",
+    }.issubset({row["label"] for row in impact["comparisons"]})
+    assert {
+        "holiday_mood",
+        "holiday_daily",
+        "holiday_focus",
+    }.issubset({row["key"] for row in dashboard["grimoire"]["charts"]["relationships"]})
 
 
 @pytest.mark.asyncio

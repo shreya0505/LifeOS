@@ -368,6 +368,9 @@
       mood_daily: "Each dot is one day with Saga mood and Daily Execution data. X is mood pleasantness from -7 to +7; Y is Quest/Pomo execution from 0 to 100.",
       mood_long: "Each dot is one day with Saga mood and Hard 90 data. X is mood pleasantness from -7 to +7; Y is long-game integrity from 0 to 100.",
       curiosity_long: "Each dot is one day with Tiny Experiment and Hard 90 data. X is Curiosity/Evolution from 0 to 100; Y is long-game integrity from 0 to 100.",
+      holiday_mood: "Each dot is one day with Saga mood data. X is Holiday Load, where holiday days sit at 100; Y is mood load from 0 to 100.",
+      holiday_daily: "Each dot is one day with Daily Execution data. X is Holiday Load, where holiday days sit at 100; Y is Quest/Pomo execution from 0 to 100.",
+      holiday_focus: "Each dot is one day with focus data. X is Holiday Load, where holiday days sit at 100; Y is focus quality from 0 to 100.",
     };
     return copy[relationship.key] || "Each dot is one day. The chart tests whether the selected signals move together.";
   }

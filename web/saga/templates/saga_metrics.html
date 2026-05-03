@@ -164,6 +164,44 @@
       </article>
 
       <article class="saga-chart-card saga-grid__span-12">
+        <h3 class="saga-chart-card__title">Holiday Impact</h3>
+        <p class="saga-chart-card__deck">{{ g.holiday_impact.body }}</p>
+        <div class="saga-meta-facts">
+          <article>
+            <span>Holiday Load</span>
+            <strong>{{ g.holiday_impact.cadence.load_score }}</strong>
+            <small>{{ g.holiday_impact.cadence.label }}</small>
+          </article>
+          <article>
+            <span>Holiday Days</span>
+            <strong>{{ g.holiday_impact.cadence.count }}</strong>
+            <small>{{ g.holiday_impact.cadence.ratio_pct }}% of this {{ grain }}</small>
+          </article>
+          <article>
+            <span>Longest Streak</span>
+            <strong>{{ g.holiday_impact.cadence.longest_streak }}</strong>
+            <small>3d starts load signal</small>
+          </article>
+          <article>
+            <span>Next-Day Samples</span>
+            <strong>{{ g.holiday_impact.rebound.samples }}</strong>
+            <small>{% if g.holiday_impact.rebound.mood_load is not none %}mood {{ g.holiday_impact.rebound.mood_load }}{% else %}rebound forming{% endif %}</small>
+          </article>
+        </div>
+        <div class="saga-meta-facts">
+          {% for comparison in g.holiday_impact.comparisons %}
+          {% if comparison.label in ["Mood load", "Daily Execution", "Focus quality", "Pomos"] %}
+          <article>
+            <span>{{ comparison.label }}</span>
+            <strong>{% if comparison.delta is not none %}{{ "%+.1f"|format(comparison.delta) }}{% else %}--{% endif %}</strong>
+            <small>{% if comparison.holiday_avg is not none %}holiday {{ comparison.holiday_avg }} · base {{ comparison.baseline_avg }}{% else %}needs paired signal{% endif %}</small>
+          </article>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </article>
+
+      <article class="saga-chart-card saga-grid__span-12">
         <h3 class="saga-chart-card__title">What actually connects?</h3>
         <p class="saga-chart-card__deck" data-relationship-copy>Each dot is one day. Use the switches to test whether mood, curiosity, execution, and long-game integrity actually move together.</p>
         <p class="saga-chart-card__guide">How to read: dots that climb from bottom-left to top-right suggest a positive relationship. A loose cloud means weak connection; lonely dots are outlier days worth inspecting.</p>
@@ -171,6 +209,9 @@
           <button class="is-active" type="button" data-relationship="mood_daily">Mood → Daily</button>
           <button type="button" data-relationship="mood_long">Mood → Long Game</button>
           <button type="button" data-relationship="curiosity_long">Curiosity → Long Game</button>
+          <button type="button" data-relationship="holiday_mood">Holiday → Mood</button>
+          <button type="button" data-relationship="holiday_daily">Holiday → Daily</button>
+          <button type="button" data-relationship="holiday_focus">Holiday → Focus</button>
         </div>
         <div class="saga-chart saga-chart--scatter" id="chart-relationship-truth"></div>
       </article>
@@ -215,7 +256,7 @@
     </div>
   </section>
 
-  <span hidden>The Field Report Hellfire Spillover Mood load consumed execution Mood × Output co-movement Energy × Pleasantness drift Challenge posture Mood Atlas</span>
+  <span hidden>The Field Report Hellfire Spillover Mood load consumed execution Mood × Output co-movement Energy × Pleasantness drift Challenge posture Mood Atlas Holiday Impact</span>
   <script id="saga-payload-{{ window }}" type="application/json">{{ d | tojson | safe }}</script>
   <script>
     (function () {

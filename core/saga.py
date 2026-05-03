@@ -1421,6 +1421,25 @@ async def _collect_window(db: aiosqlite.Connection, days: int) -> dict:
             "era": row[5],
         })
 
+    holiday_cursor = await db.execute(
+        "SELECT h.id, h.challenge_id, h.log_date, h.reason, h.created_at, c.era_name "
+        "FROM challenge_holidays h "
+        "LEFT JOIN challenges c ON c.id = h.challenge_id "
+        "WHERE h.log_date >= ? AND h.log_date <= ? "
+        "ORDER BY h.log_date, h.created_at",
+        (start.isoformat(), end.isoformat()),
+    )
+    holidays_by_day: dict[str, list[dict]] = defaultdict(list)
+    for row in await holiday_cursor.fetchall():
+        holidays_by_day[row[2]].append({
+            "id": row[0],
+            "challenge_id": row[1],
+            "log_date": row[2],
+            "reason": row[3],
+            "created_at": row[4],
+            "era": row[5],
+        })
+
     exp_cursor = await db.execute(
         "SELECT e.id, e.action, e.status, e.started_at, e.ends_at, e.verdict, "
         "e.created_at, e.observation_notes, e.conclusion_notes, ee.log_date, ee.state, ee.notes "
@@ -1513,6 +1532,7 @@ async def _collect_window(db: aiosqlite.Connection, days: int) -> dict:
             "abandoned": 0,
             "logged": 0,
         }))
+        holidays_by_day[day] = list(holidays_by_day.get(day, []))
     quest_quality_totals = [sum(_quest_weight(quest) for quest in quests_by_day.get(day, [])) for day in calendar_days]
     quest_baseline = mean(quest_quality_totals[:-1]) if len(quest_quality_totals) > 1 else 0
     day_profiles = [
@@ -1525,6 +1545,16 @@ async def _collect_window(db: aiosqlite.Connection, days: int) -> dict:
         )
         for day in calendar_days
     ]
+    for profile in day_profiles:
+        holiday_rows = holidays_by_day.get(profile["date"], [])
+        reasons = [(row.get("reason") or "").strip() for row in holiday_rows if (row.get("reason") or "").strip()]
+        profile["holiday"] = {
+            "is_holiday": bool(holiday_rows),
+            "count": len(holiday_rows),
+            "reasons": reasons,
+            "holiday_load_day": 100 if holiday_rows else 0,
+            "era": next((row.get("era") for row in holiday_rows if row.get("era")), None),
+        }
     _apply_recovery_archetypes(day_profiles)
     for profile in day_profiles:
         weighted = _field_report_day_scores(
@@ -1546,6 +1576,7 @@ async def _collect_window(db: aiosqlite.Connection, days: int) -> dict:
         "quests_by_day": quests_by_day,
         "pomo_by_day": pomo_by_day,
         "challenges_by_day": challenges_by_day,
+        "holidays_by_day": holidays_by_day,
         "experiments_by_day": experiments_by_day,
         "experiments": list(experiments_by_id.values()),
         "raw_rows": raw_rows,
@@ -2025,6 +2056,137 @@ def _field_report_day_scores(day: dict, pomo: dict, exp: dict) -> dict:
         "emotional_climate": emotion,
         "alignment": alignment,
         "experiment_enricher_signal": exp_signal if has_evolution_signal else None,
+    }
+
+
+def _holiday_cadence_for_profiles(day_profiles: list[dict]) -> dict:
+    if not day_profiles:
+        return metrics_engine.holiday_cadence([], today_local().isoformat(), today_local().isoformat())
+    rows = [
+        {"log_date": day["date"]}
+        for day in day_profiles
+        if day.get("holiday", {}).get("is_holiday")
+    ]
+    cadence = metrics_engine.holiday_cadence(rows, day_profiles[0]["date"], day_profiles[-1]["date"])
+    reasons = Counter(
+        reason
+        for day in day_profiles
+        for reason in day.get("holiday", {}).get("reasons", [])
+    )
+    cadence["reason_counts"] = [
+        {"reason": reason, "count": count}
+        for reason, count in reasons.most_common(5)
+    ]
+    return cadence
+
+
+def _avg_delta(label: str, holiday_values: list[float | int | None], baseline_values: list[float | int | None]) -> dict:
+    holiday_avg = _mean_or_none(holiday_values)
+    baseline_avg = _mean_or_none(baseline_values)
+    delta = round(holiday_avg - baseline_avg, 1) if holiday_avg is not None and baseline_avg is not None else None
+    if delta is None:
+        direction = "insufficient"
+    elif delta > 0:
+        direction = "higher_on_holiday"
+    elif delta < 0:
+        direction = "lower_on_holiday"
+    else:
+        direction = "even"
+    return {
+        "label": label,
+        "holiday_avg": holiday_avg,
+        "baseline_avg": baseline_avg,
+        "delta": delta,
+        "direction": direction,
+    }
+
+
+def _holiday_impact(day_profiles: list[dict], pomo_by_day: dict[str, dict]) -> dict:
+    holiday_days = [day for day in day_profiles if day.get("holiday", {}).get("is_holiday")]
+    baseline_days = [day for day in day_profiles if not day.get("holiday", {}).get("is_holiday")]
+
+    def values(days: list[dict], getter) -> list[float | int | None]:
+        return [getter(day) for day in days]
+
+    comparisons = [
+        _avg_delta(
+            "Mood load",
+            values(holiday_days, lambda day: day["saga"]["mood_load"] if day["saga"]["entry_count"] else None),
+            values(baseline_days, lambda day: day["saga"]["mood_load"] if day["saga"]["entry_count"] else None),
+        ),
+        _avg_delta(
+            "Pleasantness",
+            values(holiday_days, lambda day: day["saga"]["avg_pleasantness"] if day["saga"]["entry_count"] else None),
+            values(baseline_days, lambda day: day["saga"]["avg_pleasantness"] if day["saga"]["entry_count"] else None),
+        ),
+        _avg_delta(
+            "Energy",
+            values(holiday_days, lambda day: day["saga"]["avg_energy"] if day["saga"]["entry_count"] else None),
+            values(baseline_days, lambda day: day["saga"]["avg_energy"] if day["saga"]["entry_count"] else None),
+        ),
+        _avg_delta(
+            "Daily Execution",
+            values(holiday_days, lambda day: (day.get("field_report") or {}).get("daily_execution")),
+            values(baseline_days, lambda day: (day.get("field_report") or {}).get("daily_execution")),
+        ),
+        _avg_delta(
+            "Quest output",
+            values(holiday_days, lambda day: day["quest"]["output_index"] if day["quest"]["count"] else None),
+            values(baseline_days, lambda day: day["quest"]["output_index"] if day["quest"]["count"] else None),
+        ),
+        _avg_delta(
+            "Focus quality",
+            values(holiday_days, lambda day: (day.get("field_report") or {}).get("focus_quality")),
+            values(baseline_days, lambda day: (day.get("field_report") or {}).get("focus_quality")),
+        ),
+        _avg_delta(
+            "Pomos",
+            values(holiday_days, lambda day: pomo_by_day.get(day["date"], {}).get("actual_pomos", 0) if pomo_by_day.get(day["date"], {}).get("focus_days") else None),
+            values(baseline_days, lambda day: pomo_by_day.get(day["date"], {}).get("actual_pomos", 0) if pomo_by_day.get(day["date"], {}).get("focus_days") else None),
+        ),
+        _avg_delta(
+            "Interruptions",
+            values(holiday_days, lambda day: pomo_by_day.get(day["date"], {}).get("interruptions", 0) if pomo_by_day.get(day["date"], {}).get("focus_days") else None),
+            values(baseline_days, lambda day: pomo_by_day.get(day["date"], {}).get("interruptions", 0) if pomo_by_day.get(day["date"], {}).get("focus_days") else None),
+        ),
+    ]
+
+    next_day_profiles = []
+    by_date = {day["date"]: idx for idx, day in enumerate(day_profiles)}
+    for holiday in holiday_days:
+        idx = by_date.get(holiday["date"])
+        if idx is not None and idx + 1 < len(day_profiles):
+            next_day_profiles.append(day_profiles[idx + 1])
+    rebound = {
+        "mood_load": _mean_or_none([
+            day["saga"]["mood_load"] if day["saga"]["entry_count"] else None
+            for day in next_day_profiles
+        ]),
+        "daily_execution": _mean_or_none([
+            (day.get("field_report") or {}).get("daily_execution")
+            for day in next_day_profiles
+        ]),
+        "samples": len(next_day_profiles),
+    }
+
+    cadence = _holiday_cadence_for_profiles(day_profiles)
+    if not holiday_days:
+        headline = "No holidays in this grain"
+        body = "Holiday impact is waiting for a holiday day before it can compare mood, productivity, and focus."
+    elif cadence["load_score"] > 0:
+        headline = f"Holiday Load is {cadence['label']}"
+        body = f"{cadence['count']} holiday days across {cadence['window_days']} calendar days. The Field Report treats this as cadence signal, not failure."
+    else:
+        headline = "Holidays are in a neutral range"
+        body = f"{cadence['count']} holiday day{'s' if cadence['count'] != 1 else ''} observed. Frequency is below the lenient load threshold."
+
+    return {
+        "headline": headline,
+        "body": body,
+        "tone": cadence["tone"],
+        "cadence": cadence,
+        "comparisons": comparisons,
+        "rebound": rebound,
     }
 
 
@@ -2622,6 +2784,8 @@ def build_grimoire_charts(
             "curiosity": evolution_value,
             "experiment_touches": exp.get("touched", 0) if has_evolution_signal else None,
             "verdict_debt": exp.get("verdict_due", 0) if has_evolution_signal else None,
+            "holiday_load": day.get("holiday", {}).get("holiday_load_day", 0),
+            "focus_quality": round(weighted["focus_quality"]) if weighted.get("focus_quality") is not None else None,
         })
         focus_quality.append({
             "label": day["label"],
@@ -2668,6 +2832,7 @@ def build_grimoire_charts(
         ("curiosity", "Curiosity"),
         ("experiment_touches", "Experiment touches"),
         ("verdict_debt", "Verdict debt"),
+        ("holiday_load", "Holiday load"),
     ]
     metric_values = {
         key: [row.get(key) for row in metric_rows]
@@ -2735,6 +2900,51 @@ def build_grimoire_charts(
                 {"x": row["curiosity"], "y": row["long_game"], "label": row["label"], "date": row["date"]}
                 for row in metric_rows
                 if row["curiosity"] is not None and row["long_game"] is not None
+            ],
+        },
+        {
+            "key": "holiday_mood",
+            "label": "Holiday → Mood",
+            "x_label": "Holiday load",
+            "y_label": "Mood load",
+            "x_min": 0,
+            "x_max": 100,
+            "y_min": 0,
+            "y_max": 100,
+            "points": [
+                {"x": row["holiday_load"], "y": row["mood_load"], "label": row["label"], "date": row["date"]}
+                for row in metric_rows
+                if row["mood_load"] is not None
+            ],
+        },
+        {
+            "key": "holiday_daily",
+            "label": "Holiday → Daily",
+            "x_label": "Holiday load",
+            "y_label": "Daily execution",
+            "x_min": 0,
+            "x_max": 100,
+            "y_min": 0,
+            "y_max": 100,
+            "points": [
+                {"x": row["holiday_load"], "y": row["daily_execution"], "label": row["label"], "date": row["date"]}
+                for row in metric_rows
+                if row["daily_execution"] is not None
+            ],
+        },
+        {
+            "key": "holiday_focus",
+            "label": "Holiday → Focus",
+            "x_label": "Holiday load",
+            "y_label": "Focus quality",
+            "x_min": 0,
+            "x_max": 100,
+            "y_min": 0,
+            "y_max": 100,
+            "points": [
+                {"x": row["holiday_load"], "y": row["focus_quality"], "label": row["label"], "date": row["date"]}
+                for row in metric_rows
+                if row["focus_quality"] is not None
             ],
         },
     ]
@@ -2814,6 +3024,7 @@ def build_grimoire(
     recommendations = build_recommendations(pillars, missing_data, context)
     tendencies = build_tendencies(day_profiles, pomo_by_day, experiments_by_day)
     charts = build_grimoire_charts(day_profiles, pomo_by_day, experiments_by_day)
+    holiday_impact = _holiday_impact(day_profiles, pomo_by_day)
     return {
         "grain": grain,
         "verdict": verdict,
@@ -2821,6 +3032,7 @@ def build_grimoire(
         "recommendations": recommendations,
         "tendencies": tendencies,
         "charts": charts,
+        "holiday_impact": holiday_impact,
         "missing_data": missing_data,
         "context": context,
     }
@@ -3053,6 +3265,7 @@ def _meta_analysis(
 
     red_blue_count = sum(1 for row in raw_rows if row.get("quadrant") in {"red", "blue"})
     pleasant_count = sum(1 for row in raw_rows if row.get("pleasantness", 0) > 0)
+    holiday_load = _holiday_cadence_for_profiles(day_profiles)
 
     return {
         "capture": {
@@ -3127,6 +3340,7 @@ def _meta_analysis(
             "red_blue_ratio": round((red_blue_count / len(raw_rows)) * 100) if raw_rows else 0,
             "pleasant_ratio": round((pleasant_count / len(raw_rows)) * 100) if raw_rows else 0,
         },
+        "holiday_load": holiday_load,
         "summary_flags": [],
     }
 
@@ -3224,6 +3438,7 @@ async def saga_dashboard(db: aiosqlite.Connection, days: int = 7) -> dict:
     alignment_series = [p["alignment"]["score"] for p in day_profiles]
     energy_series = [p["saga"]["avg_energy"] if p["saga"]["entry_count"] else None for p in day_profiles]
     pleasantness_series = [p["saga"]["avg_pleasantness"] if p["saga"]["entry_count"] else None for p in day_profiles]
+    holiday_series = [p.get("holiday", {}).get("holiday_load_day", 0) for p in day_profiles]
 
     today_profile = day_profiles[-1] if day_profiles else None
     archetype = today_profile["archetype"] if today_profile else "No Signal"
@@ -3442,6 +3657,7 @@ async def saga_dashboard(db: aiosqlite.Connection, days: int = 7) -> dict:
             "alignment": alignment_series,
             "avg_energy": energy_series,
             "avg_pleasantness": pleasantness_series,
+            "holiday_load": holiday_series,
         },
         "quadrant_stream": {
             "dates": calendar_days,

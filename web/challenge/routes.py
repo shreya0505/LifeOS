@@ -640,6 +640,7 @@ async def metrics_page(
     challenge_repo=Depends(get_challenge_repo),
     task_repo=Depends(get_challenge_task_repo),
     entry_repo=Depends(get_challenge_entry_repo),
+    holiday_repo=Depends(get_challenge_holiday_repo),
 ):
     ch = await challenge_repo.get_active()
     if ch is None:
@@ -647,6 +648,7 @@ async def metrics_page(
 
     tasks = await task_repo.get_by_challenge(ch["id"])
     all_entries = await entry_repo.get_all_for_challenge(ch["id"])
+    holidays = await holiday_repo.get_by_challenge(ch["id"])
     rated_entries = [entry for entry in all_entries if entry.get("state") in C.STATES]
 
     entries_by_task: dict[str, list] = {t["id"]: [] for t in tasks}
@@ -715,6 +717,11 @@ async def metrics_page(
     m_engagement = metrics_engine.engagement_curve(
         [e for tid in tracked_ids for e in entries_by_task.get(tid, [])]
     )
+    holiday_metrics = metrics_engine.holiday_cadence(
+        holidays,
+        ch["start_date"],
+        today_local().isoformat(),
+    )
 
     # Data-gate countdowns: 0 = ready
     gates = {
@@ -777,6 +784,7 @@ async def metrics_page(
         "fragile": m_fragile,
         "tier_velocity": m_velocity,
         "engagement": m_engagement,
+        "holiday_metrics": holiday_metrics,
         "pulse_quote": metrics_engine.pulse_quote(m_momentum),
         "rhythm_quote": metrics_engine.rhythm_quote(m_weekday),
         "closing_narrative": metrics_engine.closing_narrative(narrative_state),
