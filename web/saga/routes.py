@@ -5,10 +5,18 @@ from __future__ import annotations
 from datetime import date
 
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
-from core.saga import render_markdown_note, saga_dashboard, timeline_days
-from core.storage.saga_backend import SqliteSagaRepo, mood_catalog
+from core.saga import (
+    extract_legacy_headings,
+    legacy_heading_index,
+    legacy_source_preview,
+    render_legacy_markdown,
+    render_markdown_note,
+    saga_dashboard,
+    timeline_days,
+)
+from core.storage.saga_backend import SqliteSagaLegacyRepo, SqliteSagaRepo, mood_catalog
 from core.utils import today_local
 
 router = APIRouter(prefix="/saga")
@@ -29,6 +37,20 @@ def _rendered_entries(entries: list[dict]) -> list[dict]:
 
 def _today_context(entries: list[dict]) -> dict:
     return {"entries": _rendered_entries(entries)}
+
+
+async def _legacy_render_context(repo: SqliteSagaLegacyRepo, entry: dict) -> dict:
+    all_entries = await repo.list_all()
+    index = legacy_heading_index(all_entries)
+    headings = extract_legacy_headings(entry.get("markdown"), entry.get("id"))
+    return {
+        "entry": {
+            **entry,
+            "headings": headings,
+            "markdown_html": render_legacy_markdown(entry.get("markdown"), index, entry.get("id")),
+            "source_preview": legacy_source_preview(entry.get("source_url"), entry.get("source_kind")),
+        }
+    }
 
 
 async def _recent_response(request: Request, repo: SqliteSagaRepo) -> HTMLResponse:
@@ -113,6 +135,64 @@ async def create_entry(
     response = await _today_notes_response(request, repo)
     response.headers["HX-Trigger"] = "saga-changed"
     return response
+
+
+@router.post("/legacy", response_class=HTMLResponse)
+async def create_legacy_entry(
+    request: Request,
+    source_url: str = Form(""),
+    labels: str = Form(""),
+    markdown: str = Form(""),
+):
+    repo = SqliteSagaLegacyRepo(request.app.state.db)
+    try:
+        await repo.create(source_url, labels, markdown)
+    except ValueError as exc:
+        return HTMLResponse(str(exc), status_code=400)
+    response = HTMLResponse("")
+    response.headers["HX-Trigger"] = "saga-changed"
+    return response
+
+
+@router.post("/legacy/preview", response_class=HTMLResponse)
+async def legacy_preview(request: Request, markdown: str = Form("")):
+    repo = SqliteSagaLegacyRepo(request.app.state.db)
+    index = legacy_heading_index(await repo.list_all())
+    return _render(request, "saga_legacy_preview.html", {
+        "markdown_html": render_legacy_markdown(markdown, index),
+    })
+
+
+@router.get("/legacy/headings")
+async def legacy_heading_search(request: Request, q: str = ""):
+    repo = SqliteSagaLegacyRepo(request.app.state.db)
+    return JSONResponse({"results": await repo.search_headings(q)})
+
+
+@router.get("/legacy/labels")
+async def legacy_label_search(request: Request, q: str = ""):
+    repo = SqliteSagaLegacyRepo(request.app.state.db)
+    results = [
+        {
+            "id": entry["id"],
+            "local_date": entry["local_date"],
+            "labels": entry["labels"],
+            "href": f"/saga/legacy/{entry['id']}",
+        }
+        for entry in await repo.list_by_label(q)
+    ]
+    return JSONResponse({"results": results})
+
+
+@router.get("/legacy/{entry_id}", response_class=HTMLResponse)
+async def legacy_detail(request: Request, entry_id: str):
+    repo = SqliteSagaLegacyRepo(request.app.state.db)
+    entry = await repo.get(entry_id)
+    if entry is None:
+        return HTMLResponse("Legacy entry not found.", status_code=404)
+    context = await _legacy_render_context(repo, entry)
+    context["active_tab"] = "timeline"
+    return _render(request, "saga_legacy_detail.html", context)
 
 
 @router.patch("/entries/{entry_id}", response_class=HTMLResponse)

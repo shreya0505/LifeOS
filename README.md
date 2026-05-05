@@ -187,7 +187,7 @@ Scopes:
 | `questlog` | Quests, artifact keys, pomos, trophies | Yes |
 | `challenge` | Hard 90 challenge data and linked Tiny Experiments | Yes |
 | `tiny_experiments` | Tiny Experiment protocols and daily signals only | Yes |
-| `saga` | Saga emotion log entries | Yes |
+| `saga` | Saga emotion log and legacy entries | Yes |
 | `all` | All Web app data | Yes |
 
 The `challenge` scope includes Tiny Experiments because those rows are linked to challenge rows. The `tiny_experiments` scope is safe when you only want to remove experiment protocols/signals while keeping the parent Hard 90 challenge.

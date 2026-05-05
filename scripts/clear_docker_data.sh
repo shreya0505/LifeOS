@@ -34,7 +34,7 @@ if [[ -z "$SCOPE" ]]; then
   echo "  1) QuestLog      quests, artifacts, pomos, trophies"
   echo "  2) Hard 90       challenges, tasks, entries, eras, tiny experiments"
   echo "  3) Tiny Expts    experiment protocols and daily experiment signals only"
-  echo "  4) Saga          emotion log entries"
+  echo "  4) Saga          emotion log and legacy entries"
   echo "  5) All Web Apps  QuestLog, Hard 90, Tiny Experiments, and Saga"
   echo ""
   read -p "Choose 1-5, or q to cancel: " choice
@@ -100,6 +100,7 @@ case "$SCOPE" in
     echo "  - Hard 90 challenge data"
     echo "  - Tiny Experiments data"
     echo "  - Saga emotion log data"
+    echo "  - Saga legacy notes"
     ;;
 esac
 echo ""

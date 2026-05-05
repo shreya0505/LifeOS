@@ -57,6 +57,62 @@
           </section>
           {% endif %}
 
+          {% if day.legacy_entries %}
+          <section class="saga-day-section saga-day-section--legacy" x-data="{ depth: 1 }">
+            <button class="saga-day-section__head saga-day-section__toggle"
+                    type="button"
+                    :aria-expanded="(depth > 0).toString()"
+                    @click="depth = depth === 0 ? 1 : depth === 1 ? 2 : 0">
+              <h2>Legacy</h2>
+              <div class="saga-day-glance" aria-label="Legacy summary">
+                <span class="saga-day-glance__metric">{{ day.legacy_entries|length }} note{% if day.legacy_entries|length != 1 %}s{% endif %}</span>
+              </div>
+            </button>
+            <div class="saga-legacy-list" x-show="depth > 0" x-collapse>
+              {% for legacy in day.legacy_entries %}
+              <article class="saga-legacy-card">
+                <header class="saga-legacy-card__head">
+                  <time>{{ legacy.time or "--:--" }}</time>
+                  <a href="/saga/legacy/{{ legacy.id }}">Open note</a>
+                </header>
+
+                {% if legacy.source_preview %}
+                {% set preview = legacy.source_preview %}
+                <a class="saga-source-card saga-source-card--{{ preview.kind }}"
+                   href="{{ preview.url }}"
+                   target="_blank"
+                   rel="noopener noreferrer">
+                  {% if preview.kind == "youtube" and preview.thumbnail %}
+                  <img src="{{ preview.thumbnail }}" alt="" loading="lazy">
+                  <span class="saga-source-card__play" aria-hidden="true">Play</span>
+                  {% elif preview.kind == "image" and preview.image_url %}
+                  <img src="{{ preview.image_url }}" alt="" loading="lazy">
+                  {% endif %}
+                  <span class="saga-source-card__body">
+                    <strong>{{ preview.title }}</strong>
+                    <small>{{ preview.detail }}</small>
+                  </span>
+                </a>
+                {% endif %}
+
+                <div class="saga-legacy-prose saga-legacy-prose--compact"
+                     :class="{ 'is-expanded': depth > 1 }">
+                  {{ legacy.markdown_html | safe }}
+                </div>
+
+                {% if legacy.labels %}
+                <footer class="saga-label-row">
+                  {% for label in legacy.labels %}
+                  <span>{{ label }}</span>
+                  {% endfor %}
+                </footer>
+                {% endif %}
+              </article>
+              {% endfor %}
+            </div>
+          </section>
+          {% endif %}
+
           {% if day.quests %}
           <section class="saga-day-section saga-day-section--quests" x-data="{ depth: 0 }">
             <button class="saga-day-section__head saga-day-section__toggle"

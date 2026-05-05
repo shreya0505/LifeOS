@@ -42,9 +42,15 @@
     }
   }
 
+  function canRenderChart(el) {
+    const box = el.getBoundingClientRect();
+    return box.width > 0 && box.height > 0;
+  }
+
   function render(root, selector, options) {
     const el = root.querySelector(selector);
     if (!el || !window.ApexCharts) return;
+    if (!canRenderChart(el)) return;
     destroyChart(el);
     const chart = new ApexCharts(el, options);
     el._sagaChart = chart;

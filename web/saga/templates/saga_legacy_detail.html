@@ -1,0 +1,46 @@
+{% extends "saga_base.html" %}
+
+{% block title %}Legacy | Saga{% endblock %}
+
+{% block content %}
+<article class="saga-legacy-detail">
+  <header class="saga-legacy-detail__head">
+    <a href="/saga" class="saga-back-link">Chronicle</a>
+    <div>
+      <p class="saga-kicker">{{ entry.local_date }}</p>
+      <h1 class="saga-prompt">Legacy</h1>
+    </div>
+  </header>
+
+  {% if entry.source_preview %}
+  {% set preview = entry.source_preview %}
+  <a class="saga-source-card saga-source-card--{{ preview.kind }} saga-source-card--detail"
+     href="{{ preview.url }}"
+     target="_blank"
+     rel="noopener noreferrer">
+    {% if preview.kind == "youtube" and preview.thumbnail %}
+    <img src="{{ preview.thumbnail }}" alt="" loading="lazy">
+    <span class="saga-source-card__play" aria-hidden="true">Play</span>
+    {% elif preview.kind == "image" and preview.image_url %}
+    <img src="{{ preview.image_url }}" alt="" loading="lazy">
+    {% endif %}
+    <span class="saga-source-card__body">
+      <strong>{{ preview.title }}</strong>
+      <small>{{ preview.detail }}</small>
+    </span>
+  </a>
+  {% endif %}
+
+  {% if entry.labels %}
+  <div class="saga-label-row saga-label-row--detail">
+    {% for label in entry.labels %}
+    <span>{{ label }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="saga-legacy-prose saga-legacy-prose--detail">
+    {{ entry.markdown_html | safe }}
+  </div>
+</article>
+{% endblock %}

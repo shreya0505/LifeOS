@@ -9,6 +9,7 @@ import json
 import math
 import re
 from statistics import mean
+from urllib.parse import parse_qs, urlparse
 
 import aiosqlite
 from markupsafe import Markup
@@ -145,6 +146,246 @@ def render_markdown_note(value: str | None) -> str:
     return "".join(blocks) or "<p>Moment captured.</p>"
 
 
+def _legacy_heading_slug(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    return slug or "heading"
+
+
+def _legacy_link_key(value: str) -> str:
+    return re.sub(r"\s+", " ", (value or "").strip()).casefold()
+
+
+def extract_legacy_headings(markdown: str | None, entry_id: str | None = None) -> list[dict]:
+    headings = []
+    seen: dict[str, int] = {}
+    for line in (markdown or "").splitlines():
+        match = re.match(r"^(#{1,6})\s+(.+?)\s*$", line)
+        if not match:
+            continue
+        title = match.group(2).strip(" #")
+        if not title:
+            continue
+        base = _legacy_heading_slug(title)
+        seen[base] = seen.get(base, 0) + 1
+        slug = base if seen[base] == 1 else f"{base}-{seen[base]}"
+        headings.append({
+            "entry_id": entry_id,
+            "title": title,
+            "slug": slug,
+            "level": len(match.group(1)),
+            "href": f"/saga/legacy/{entry_id}#{slug}" if entry_id else f"#{slug}",
+        })
+    return headings
+
+
+def legacy_heading_index(entries: list[dict]) -> dict[str, dict]:
+    index: dict[str, dict] = {}
+    newest_first = sorted(entries, key=lambda item: item.get("timestamp") or "", reverse=True)
+    for entry in newest_first:
+        for heading in extract_legacy_headings(entry.get("markdown"), entry.get("id")):
+            index.setdefault(_legacy_link_key(heading["title"]), heading)
+    return index
+
+
+def _youtube_id(value: str | None) -> str | None:
+    if not value:
+        return None
+    parsed = urlparse(value)
+    host = parsed.netloc.lower()
+    if "youtu.be" in host:
+        candidate = parsed.path.strip("/").split("/")[0]
+        return candidate or None
+    if "youtube.com" not in host:
+        return None
+    if parsed.path == "/watch":
+        return parse_qs(parsed.query).get("v", [None])[0]
+    parts = [part for part in parsed.path.split("/") if part]
+    if len(parts) >= 2 and parts[0] in {"embed", "shorts"}:
+        return parts[1]
+    return None
+
+
+def legacy_source_preview(source_url: str | None, source_kind: str | None = None) -> dict | None:
+    url = (source_url or "").strip()
+    if not url:
+        return None
+    parsed = urlparse(url)
+    host = parsed.netloc.lower().removeprefix("www.")
+    path = parsed.path.strip("/")
+    kind = source_kind or "article"
+    preview = {
+        "url": url,
+        "kind": kind,
+        "host": host,
+        "title": host or url,
+        "detail": path.replace("-", " ").replace("_", " ")[:96] if path else "Source link",
+    }
+    if kind == "youtube":
+        vid = _youtube_id(url)
+        preview.update({
+            "video_id": vid,
+            "thumbnail": f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg" if vid else None,
+            "embed_url": f"https://www.youtube.com/embed/{vid}" if vid else None,
+            "title": "YouTube",
+            "detail": host,
+        })
+    elif kind == "image":
+        preview.update({"image_url": url, "title": "Image", "detail": host})
+    return preview
+
+
+def render_legacy_markdown(
+    value: str | None,
+    heading_index: dict[str, dict] | None = None,
+    current_entry_id: str | None = None,
+) -> str:
+    text = (value or "").strip()
+    if not text:
+        return "<p>No legacy note yet.</p>"
+    heading_index = heading_index or {}
+    local_headings = {
+        _legacy_link_key(item["title"]): item
+        for item in extract_legacy_headings(text, current_entry_id)
+    }
+
+    def wiki_repl(match: re.Match) -> str:
+        label = html.unescape(match.group(1)).strip()
+        target = local_headings.get(_legacy_link_key(label)) or heading_index.get(_legacy_link_key(label))
+        escaped = html.escape(label, quote=True)
+        if not target:
+            return f'<span class="saga-wiki-link saga-wiki-link--missing">{escaped}</span>'
+        return f'<a class="saga-wiki-link" href="{html.escape(target["href"], quote=True)}">{escaped}</a>'
+
+    def inline(raw: str) -> str:
+        parts = re.split(r"(`[^`]+`)", raw)
+        rendered = []
+        for part in parts:
+            if part.startswith("`") and part.endswith("`") and len(part) >= 2:
+                rendered.append(f"<code>{html.escape(part[1:-1], quote=True)}</code>")
+                continue
+            escaped = html.escape(part, quote=True)
+            escaped = re.sub(
+                r"!\[([^\]]*)\]\((https?://[^)\s]+)\)",
+                lambda m: (
+                    f'<img src="{m.group(2)}" alt="{m.group(1)}" loading="lazy">'
+                ),
+                escaped,
+            )
+            escaped = re.sub(
+                r"\[([^\]]+)\]\((https?://[^)\s]+)\)",
+                lambda m: (
+                    f'<a href="{m.group(2)}" target="_blank" rel="noopener noreferrer">{m.group(1)}</a>'
+                ),
+                escaped,
+            )
+            escaped = re.sub(r"\[\[([^\]]+)\]\]", wiki_repl, escaped)
+            escaped = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", escaped)
+            escaped = re.sub(r"__([^_]+)__", r"<strong>\1</strong>", escaped)
+            escaped = re.sub(r"(?<!\*)\*([^*\n]+)\*(?!\*)", r"<em>\1</em>", escaped)
+            escaped = re.sub(r"(?<!_)_([^_\n]+)_(?!_)", r"<em>\1</em>", escaped)
+            rendered.append(escaped)
+        return "".join(rendered)
+
+    blocks: list[str] = []
+    paragraph: list[str] = []
+    bullet_items: list[str] = []
+    ordered_items: list[str] = []
+    quote_lines: list[str] = []
+    in_code = False
+    code_lines: list[str] = []
+    seen_slugs: dict[str, int] = {}
+
+    def flush_paragraph() -> None:
+        if paragraph:
+            blocks.append(f"<p>{'<br>'.join(inline(line) for line in paragraph)}</p>")
+            paragraph.clear()
+
+    def flush_bullets() -> None:
+        if bullet_items:
+            blocks.append("<ul>" + "".join(f"<li>{item}</li>" for item in bullet_items) + "</ul>")
+            bullet_items.clear()
+
+    def flush_ordered() -> None:
+        if ordered_items:
+            blocks.append("<ol>" + "".join(f"<li>{item}</li>" for item in ordered_items) + "</ol>")
+            ordered_items.clear()
+
+    def flush_quote() -> None:
+        if quote_lines:
+            blocks.append(f"<blockquote>{'<br>'.join(inline(line) for line in quote_lines)}</blockquote>")
+            quote_lines.clear()
+
+    def flush_code() -> None:
+        if code_lines:
+            blocks.append(f"<pre><code>{html.escape(chr(10).join(code_lines), quote=True)}</code></pre>")
+            code_lines.clear()
+
+    def flush_all() -> None:
+        flush_paragraph()
+        flush_bullets()
+        flush_ordered()
+        flush_quote()
+
+    for raw_line in text.splitlines():
+        if raw_line.strip().startswith("```"):
+            if in_code:
+                flush_code()
+                in_code = False
+            else:
+                flush_all()
+                in_code = True
+            continue
+        if in_code:
+            code_lines.append(raw_line.rstrip("\n"))
+            continue
+
+        line = raw_line.rstrip()
+        stripped = line.strip()
+        if not stripped:
+            flush_all()
+            continue
+        heading = re.match(r"^(#{1,6})\s+(.+?)\s*$", stripped)
+        bullet = re.match(r"^[-*+]\s+(.+)$", stripped)
+        ordered = re.match(r"^\d+[.)]\s+(.+)$", stripped)
+        quote = re.match(r"^>\s?(.+)$", stripped)
+        if re.match(r"^(-{3,}|\*{3,}|_{3,})$", stripped):
+            flush_all()
+            blocks.append("<hr>")
+        elif heading:
+            flush_all()
+            title = heading.group(2).strip(" #")
+            base = _legacy_heading_slug(title)
+            seen_slugs[base] = seen_slugs.get(base, 0) + 1
+            slug = base if seen_slugs[base] == 1 else f"{base}-{seen_slugs[base]}"
+            level = min(6, len(heading.group(1)))
+            blocks.append(f'<h{level} id="{slug}">{inline(title)}</h{level}>')
+        elif bullet:
+            flush_paragraph()
+            flush_ordered()
+            flush_quote()
+            bullet_items.append(inline(bullet.group(1)))
+        elif ordered:
+            flush_paragraph()
+            flush_bullets()
+            flush_quote()
+            ordered_items.append(inline(ordered.group(1)))
+        elif quote:
+            flush_paragraph()
+            flush_bullets()
+            flush_ordered()
+            quote_lines.append(quote.group(1))
+        else:
+            flush_bullets()
+            flush_ordered()
+            flush_quote()
+            paragraph.append(stripped)
+
+    if in_code:
+        flush_code()
+    flush_all()
+    return "".join(blocks) or "<p>No legacy note yet.</p>"
+
+
 def parse_iso(value: str | None) -> datetime | None:
     if not value:
         return None
@@ -177,6 +418,29 @@ def display_labels(value: str | None) -> str | None:
         return None
     cleaned = str(parsed).strip()
     return cleaned if cleaned and cleaned not in {"[]", "{}"} else None
+
+
+def legacy_label_list(value: str | list[str] | None) -> list[str]:
+    if isinstance(value, list):
+        raw = value
+    else:
+        try:
+            parsed = json.loads(value or "[]")
+        except json.JSONDecodeError:
+            parsed = []
+        raw = parsed if isinstance(parsed, list) else []
+    labels = []
+    seen = set()
+    for item in raw:
+        label = str(item).strip()
+        if not label:
+            continue
+        key = label.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        labels.append(label)
+    return labels
 
 
 def block_for_timestamp(value: str | None) -> str:
@@ -297,6 +561,7 @@ def _empty_timeline_day(local_date: str) -> dict:
         "challenges_signal": [],
         "challenges_done": [],
         "experiments": [],
+        "legacy_entries": [],
     }
 
 
@@ -576,6 +841,8 @@ def _timeline_day_title_meta(day: dict) -> dict:
     ]
     if day.get("experiments"):
         bits.append(_count_label(len(day["experiments"]), "experiment"))
+    if day.get("legacy_entries"):
+        bits.append(_count_label(len(day["legacy_entries"]), "legacy note"))
     if latest:
         bits.insert(1, f"latest {latest['mood_word']} E:{latest['energy']} P:{latest['pleasantness']}")
     return {
@@ -620,6 +887,37 @@ async def timeline_days(db: aiosqlite.Connection, page: int = 1, per_page: int =
             "mood_wash_pct": min(24, 5 + int(strength * 0.18)),
             "mood_glow_pct": min(28, 6 + int(strength * 0.20)),
             "mood_chip_pct": min(26, 7 + int(strength * 0.18)),
+        })
+
+    all_legacy_cursor = await db.execute(
+        "SELECT id, timestamp, local_date, source_url, source_kind, labels, markdown, created_at "
+        "FROM saga_legacy_entries ORDER BY timestamp DESC"
+    )
+    all_legacy_entries = [
+        {
+            "id": row[0],
+            "timestamp": row[1],
+            "local_date": row[2],
+            "source_url": row[3],
+            "source_kind": row[4] or "none",
+            "labels": legacy_label_list(row[5]),
+            "markdown": row[6],
+            "created_at": row[7],
+        }
+        for row in await all_legacy_cursor.fetchall()
+    ]
+    legacy_index = legacy_heading_index(all_legacy_entries)
+    for entry in all_legacy_entries:
+        if entry["local_date"] < start.isoformat():
+            continue
+        day = days.setdefault(entry["local_date"], _empty_timeline_day(entry["local_date"]))
+        headings = extract_legacy_headings(entry.get("markdown"), entry["id"])
+        day["legacy_entries"].append({
+            **entry,
+            "time": display_time(entry["timestamp"]),
+            "headings": headings,
+            "markdown_html": render_legacy_markdown(entry.get("markdown"), legacy_index, entry["id"]),
+            "source_preview": legacy_source_preview(entry.get("source_url"), entry.get("source_kind")),
         })
 
     quest_cursor = await db.execute(
@@ -692,6 +990,7 @@ async def timeline_days(db: aiosqlite.Connection, page: int = 1, per_page: int =
     for local_date in sorted(days.keys(), reverse=True):
         day = days[local_date]
         day["entries"].sort(key=lambda item: item.get("sort_at") or "")
+        day["legacy_entries"].sort(key=lambda item: item.get("timestamp") or "")
         day["challenges_signal"] = [
             item for item in day["challenges"]
             if item.get("state_key") != "COMPLETED_SATISFACTORY"

@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
 import math
+import re
+from urllib.parse import urlparse
 import uuid
 
 import aiosqlite
@@ -86,6 +89,67 @@ def _clean_note(note: str | None) -> str | None:
     return cleaned or None
 
 
+def _clean_markdown(markdown: str | None) -> str:
+    return (markdown or "").strip()
+
+
+def _clean_source_url(value: str | None) -> str | None:
+    cleaned = (value or "").strip()
+    if not cleaned:
+        return None
+    parsed = urlparse(cleaned)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("Legacy source link must be a valid http(s) URL.")
+    return cleaned
+
+
+def source_kind_for(value: str | None) -> str:
+    cleaned = (value or "").strip()
+    if not cleaned:
+        return "none"
+    parsed = urlparse(cleaned)
+    host = parsed.netloc.lower()
+    path = parsed.path.lower()
+    if "youtube.com" in host or "youtu.be" in host:
+        return "youtube"
+    if re.search(r"\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$", path):
+        return "image"
+    return "article"
+
+
+def _clean_labels(labels: str | list[str] | None) -> list[str]:
+    if isinstance(labels, str):
+        raw = labels.split(",")
+    else:
+        raw = labels or []
+    cleaned = []
+    seen = set()
+    for item in raw:
+        label = str(item).strip()
+        if not label:
+            continue
+        key = label.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(label[:48])
+    return cleaned[:24]
+
+
+def _labels_json(labels: str | list[str] | None) -> str:
+    return json.dumps(_clean_labels(labels), separators=(",", ":"))
+
+
+def _parse_labels(value: str | None) -> list[str]:
+    try:
+        parsed = json.loads(value or "[]")
+    except json.JSONDecodeError:
+        parsed = []
+    if not isinstance(parsed, list):
+        return []
+    return _clean_labels(parsed)
+
+
 def _validate_coord(value: int | str, axis: str) -> int:
     try:
         coord = int(value)
@@ -157,6 +221,41 @@ def _row_to_entry(row: tuple) -> dict:
         "created_at": row[8],
         "quadrant_accent": QUADRANT_COLORS.get(quadrant, "#CF9D7B"),
     }
+
+
+def _row_to_legacy(row: tuple) -> dict:
+    return {
+        "id": row[0],
+        "timestamp": row[1],
+        "local_date": row[2],
+        "source_url": row[3],
+        "source_kind": row[4] or "none",
+        "labels": _parse_labels(row[5]),
+        "markdown": row[6],
+        "created_at": row[7],
+    }
+
+
+def _legacy_heading_slug(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    return slug or "heading"
+
+
+def _legacy_headings(markdown: str | None) -> list[dict]:
+    headings = []
+    seen: dict[str, int] = {}
+    for line in (markdown or "").splitlines():
+        match = re.match(r"^(#{1,6})\s+(.+?)\s*$", line)
+        if not match:
+            continue
+        title = match.group(2).strip(" #")
+        if not title:
+            continue
+        base = _legacy_heading_slug(title)
+        seen[base] = seen.get(base, 0) + 1
+        slug = base if seen[base] == 1 else f"{base}-{seen[base]}"
+        headings.append({"title": title, "slug": slug, "level": len(match.group(1))})
+    return headings
 
 
 class SqliteSagaRepo:
@@ -257,3 +356,95 @@ class SqliteSagaRepo:
             (local_date,),
         )
         return [_row_to_entry(row) for row in await cursor.fetchall()]
+
+
+class SqliteSagaLegacyRepo:
+    """Saga Legacy entries backed by SQLite."""
+
+    def __init__(self, db: aiosqlite.Connection) -> None:
+        self._db = db
+
+    async def create(
+        self,
+        source_url: str | None,
+        labels: str | list[str] | None,
+        markdown: str,
+        timestamp: str | None = None,
+    ) -> dict:
+        body = _clean_markdown(markdown)
+        if not body:
+            raise ValueError("Legacy markdown note cannot be empty.")
+        url = _clean_source_url(source_url)
+        ts = timestamp or _now_iso()
+        eid = _gen_id()
+        now = _now_iso()
+        await self._db.execute(
+            "INSERT INTO saga_legacy_entries "
+            "(id, timestamp, local_date, source_url, source_kind, labels, markdown, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (eid, ts, _local_date(ts), url, source_kind_for(url), _labels_json(labels), body, now),
+        )
+        await self._db.commit()
+        return await self.get(eid) or {
+            "id": eid,
+            "timestamp": ts,
+            "local_date": _local_date(ts),
+            "source_url": url,
+            "source_kind": source_kind_for(url),
+            "labels": _clean_labels(labels),
+            "markdown": body,
+            "created_at": now,
+        }
+
+    async def get(self, entry_id: str) -> dict | None:
+        cursor = await self._db.execute(
+            "SELECT id, timestamp, local_date, source_url, source_kind, labels, markdown, created_at "
+            "FROM saga_legacy_entries WHERE id = ?",
+            (entry_id,),
+        )
+        row = await cursor.fetchone()
+        return _row_to_legacy(row) if row else None
+
+    async def list_since(self, local_date: str) -> list[dict]:
+        cursor = await self._db.execute(
+            "SELECT id, timestamp, local_date, source_url, source_kind, labels, markdown, created_at "
+            "FROM saga_legacy_entries WHERE local_date >= ? ORDER BY timestamp",
+            (local_date,),
+        )
+        return [_row_to_legacy(row) for row in await cursor.fetchall()]
+
+    async def list_all(self) -> list[dict]:
+        cursor = await self._db.execute(
+            "SELECT id, timestamp, local_date, source_url, source_kind, labels, markdown, created_at "
+            "FROM saga_legacy_entries ORDER BY timestamp DESC"
+        )
+        return [_row_to_legacy(row) for row in await cursor.fetchall()]
+
+    async def search_headings(self, query: str, limit: int = 8) -> list[dict]:
+        needle = (query or "").strip().casefold()
+        if not needle:
+            return []
+        matches = []
+        for entry in await self.list_all():
+            for heading in _legacy_headings(entry.get("markdown")):
+                if needle not in heading["title"].casefold():
+                    continue
+                matches.append({
+                    "entry_id": entry["id"],
+                    "title": heading["title"],
+                    "slug": heading["slug"],
+                    "local_date": entry["local_date"],
+                    "href": f"/saga/legacy/{entry['id']}#{heading['slug']}",
+                })
+                if len(matches) >= limit:
+                    return matches
+        return matches
+
+    async def list_by_label(self, label: str) -> list[dict]:
+        needle = (label or "").strip().casefold()
+        if not needle:
+            return []
+        return [
+            entry for entry in await self.list_all()
+            if needle in {item.casefold() for item in entry.get("labels", [])}
+        ]

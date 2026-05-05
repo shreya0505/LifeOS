@@ -27,7 +27,7 @@ SCOPE_TABLES: dict[str, tuple[str, ...]] = {
         "challenges",
     ),
     "tiny_experiments": ("challenge_experiment_entries", "challenge_experiments"),
-    "saga": ("saga_entries",),
+    "saga": ("saga_entries", "saga_legacy_entries"),
 }
 SCOPE_TABLES["all"] = (
     *SCOPE_TABLES["challenge"],

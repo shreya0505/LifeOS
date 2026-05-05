@@ -249,4 +249,144 @@
       },
     };
   };
+
+  window.sagaLegacyCapture = function sagaLegacyCapture() {
+    return {
+      sourceUrl: "",
+      labels: "",
+      markdown: "",
+      confirmation: "",
+      status: "Markdown",
+      topicOpen: false,
+      topicResults: [],
+      topicQuery: "",
+      draftPaused: false,
+      init() {
+        const saved = localStorage.getItem("saga.legacy.draft.v1");
+        if (saved) {
+          try {
+            const draft = JSON.parse(saved);
+            this.sourceUrl = draft.sourceUrl || "";
+            this.labels = draft.labels || "";
+            this.markdown = draft.markdown || "";
+          } catch (_) {}
+        }
+        this.$watch("sourceUrl", () => this.saveDraft());
+        this.$watch("labels", () => this.saveDraft());
+        this.$watch("markdown", () => this.saveDraft());
+      },
+      saveDraft() {
+        if (this.draftPaused) return;
+        localStorage.setItem("saga.legacy.draft.v1", JSON.stringify({
+          sourceUrl: this.sourceUrl,
+          labels: this.labels,
+          markdown: this.markdown,
+        }));
+      },
+      canSubmit() {
+        return this.markdown.trim().length > 0;
+      },
+      selection() {
+        const input = this.$refs.markdownInput;
+        return {
+          input,
+          start: input.selectionStart || 0,
+          end: input.selectionEnd || 0,
+          selected: input.value.slice(input.selectionStart || 0, input.selectionEnd || 0),
+        };
+      },
+      replaceSelection(value, cursorOffset) {
+        const { input, start, end } = this.selection();
+        this.markdown = input.value.slice(0, start) + value + input.value.slice(end);
+        this.$nextTick(() => {
+          input.focus();
+          const cursor = start + (cursorOffset == null ? value.length : cursorOffset);
+          input.setSelectionRange(cursor, cursor);
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+      },
+      applyFormat(kind) {
+        const { selected } = this.selection();
+        const text = selected || "text";
+        const formats = {
+          heading: [`## ${text}`, 3 + text.length],
+          bold: [`**${text}**`, 2 + text.length],
+          italic: [`*${text}*`, 1 + text.length],
+          link: [`[${text}](https://)`, text.length + 10],
+          list: [`- ${text}`, 2 + text.length],
+          quote: [`> ${text}`, 2 + text.length],
+          code: ["```\n" + text + "\n```", 4 + text.length],
+        };
+        const [value, cursor] = formats[kind] || [text, text.length];
+        this.replaceSelection(value, cursor);
+      },
+      handleInput() {
+        this.status = this.markdown.trim() ? "Previewing" : "Markdown";
+        const input = this.$refs.markdownInput;
+        const before = input.value.slice(0, input.selectionStart || 0);
+        const match = before.match(/\[\[([^\]\n]{1,64})$/);
+        if (!match) {
+          this.topicOpen = false;
+          this.topicResults = [];
+          this.topicQuery = "";
+          return;
+        }
+        this.topicQuery = match[1];
+        if (!this.topicQuery.trim()) {
+          this.topicOpen = false;
+          this.topicResults = [];
+          return;
+        }
+        fetch(`/saga/legacy/headings?q=${encodeURIComponent(this.topicQuery)}`, {
+          headers: { "Accept": "application/json" },
+        })
+          .then(response => response.ok ? response.json() : { results: [] })
+          .then(data => {
+            this.topicResults = data.results || [];
+            this.topicOpen = this.topicResults.length > 0;
+          })
+          .catch(() => {
+            this.topicOpen = false;
+            this.topicResults = [];
+          });
+      },
+      insertTopic(topic) {
+        const input = this.$refs.markdownInput;
+        const before = input.value.slice(0, input.selectionStart || 0);
+        const start = before.lastIndexOf("[[");
+        if (start < 0) return;
+        const end = input.selectionStart || 0;
+        this.markdown = input.value.slice(0, start) + `[[${topic.title}]]` + input.value.slice(end);
+        this.topicOpen = false;
+        this.topicResults = [];
+        this.$nextTick(() => {
+          const cursor = start + topic.title.length + 4;
+          input.focus();
+          input.setSelectionRange(cursor, cursor);
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+      },
+      finishLegacy() {
+        this.draftPaused = true;
+        this.sourceUrl = "";
+        this.labels = "";
+        this.markdown = "";
+        this.topicOpen = false;
+        this.topicResults = [];
+        this.confirmation = "Legacy saved.";
+        this.status = "Saved";
+        localStorage.removeItem("saga.legacy.draft.v1");
+        this.$nextTick(() => {
+          this.draftPaused = false;
+          if (this.$refs.markdownInput) this.$refs.markdownInput.focus();
+          const preview = document.getElementById("saga-legacy-preview");
+          if (preview) preview.innerHTML = "<p>No legacy note yet.</p>";
+        });
+        setTimeout(() => {
+          this.confirmation = "";
+          this.status = "Markdown";
+        }, 1800);
+      },
+    };
+  };
 })();

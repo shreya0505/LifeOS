@@ -9,7 +9,7 @@ import re
 import pytest
 
 from core.config import USER_TZ
-from core.saga import saga_metrics, timeline_days
+from core.saga import legacy_source_preview, render_legacy_markdown, saga_dashboard, saga_metrics, timeline_days
 from core.storage.saga_backend import mood_catalog
 from core.sync.config import SyncConfig
 from core.sync.schema import sync_table_names
@@ -104,6 +104,39 @@ async def test_saga_migration_adds_synced_table(db):
 
 
 @pytest.mark.asyncio
+async def test_saga_legacy_migration_adds_synced_table(db):
+    columns = [r[1] for r in await (await db.execute("PRAGMA table_info(saga_legacy_entries)")).fetchall()]
+    for column in (
+        "id",
+        "timestamp",
+        "local_date",
+        "source_url",
+        "source_kind",
+        "labels",
+        "markdown",
+        "updated_at",
+        "deleted_at",
+        "sync_revision",
+        "sync_origin_device",
+    ):
+        assert column in columns
+
+    assert "saga_legacy_entries" in sync_table_names()
+
+    await db.execute(
+        "INSERT INTO saga_legacy_entries "
+        "(id, timestamp, local_date, source_url, source_kind, labels, markdown) "
+        "VALUES ('legacy-1', '2026-05-05T09:00:00+05:30', '2026-05-05', "
+        "'https://example.com/post', 'article', '[\"research\"]', '# Heading')"
+    )
+    await db.commit()
+    row = await (await db.execute(
+        "SELECT table_name, record_id, op FROM sync_changes WHERE table_name = 'saga_legacy_entries'"
+    )).fetchone()
+    assert row == ("saga_legacy_entries", "legacy-1", "INSERT")
+
+
+@pytest.mark.asyncio
 async def test_saga_entries_sync(sync_db):
     store = MemoryObjectStore()
     db1 = await sync_db("saga-one")
@@ -183,6 +216,73 @@ async def test_saga_crud_routes(client, db):
     assert r.status_code == 200
     row = await (await db.execute("SELECT COUNT(*) FROM saga_entries")).fetchone()
     assert row[0] == 0
+
+
+@pytest.mark.asyncio
+async def test_saga_legacy_routes_timeline_and_metrics_guard(client, db):
+    before = await saga_dashboard(db, 7)
+    assert before["total_entries"] == 0
+
+    r = await client.get("/saga")
+    assert r.status_code == 200
+    assert "Save Legacy" in r.text
+    assert "sagaLegacyCapture" in r.text
+
+    r = await client.post("/saga/legacy", data={
+        "source_url": "https://youtu.be/dQw4w9WgXcQ",
+        "labels": "Research, research, Meaning",
+        "markdown": "# Legacy Heading\n\nA thought connected to [[Legacy Heading]].",
+    })
+    assert r.status_code == 200
+
+    row = await (await db.execute(
+        "SELECT source_kind, labels FROM saga_legacy_entries"
+    )).fetchone()
+    assert row[0] == "youtube"
+    assert row[1] == '["Research","Meaning"]'
+
+    after = await saga_dashboard(db, 7)
+    assert after["total_entries"] == 0
+
+    headings = await client.get("/saga/legacy/headings?q=legacy")
+    assert headings.status_code == 200
+    assert headings.json()["results"][0]["title"] == "Legacy Heading"
+
+    labels = await client.get("/saga/legacy/labels?q=meaning")
+    assert labels.status_code == 200
+    assert labels.json()["results"][0]["labels"] == ["Research", "Meaning"]
+
+    timeline = await client.get("/saga/timeline")
+    assert timeline.status_code == 200
+    assert "Legacy" in timeline.text
+    assert "saga-source-card--youtube" in timeline.text
+    assert "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg" in timeline.text
+    assert "Research" in timeline.text
+    assert "Meaning" in timeline.text
+    assert "saga-wiki-link" in timeline.text
+
+    entry_id = (await (await db.execute("SELECT id FROM saga_legacy_entries")).fetchone())[0]
+    detail = await client.get(f"/saga/legacy/{entry_id}")
+    assert detail.status_code == 200
+    assert 'id="legacy-heading"' in detail.text
+
+
+def test_saga_legacy_markdown_escapes_html_and_resolves_wiki_links():
+    html = render_legacy_markdown(
+        "# Saved Thought\n\n<script>alert(1)</script>\n\n[[Saved Thought]]",
+        {"saved thought": {"href": "/saga/legacy/abc#saved-thought", "title": "Saved Thought"}},
+        "abc",
+    )
+    assert "<script>" not in html
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+    assert 'href="/saga/legacy/abc#saved-thought"' in html
+
+
+def test_saga_legacy_preview_classifies_sources():
+    assert legacy_source_preview("https://youtu.be/dQw4w9WgXcQ", "youtube")["video_id"] == "dQw4w9WgXcQ"
+    assert legacy_source_preview("https://example.com/photo.webp", "image")["image_url"].endswith("photo.webp")
+    article = legacy_source_preview("https://example.com/a-good-essay", "article")
+    assert article["host"] == "example.com"
 
 
 @pytest.mark.asyncio

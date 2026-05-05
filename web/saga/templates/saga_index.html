@@ -1,7 +1,7 @@
 {% extends "saga_base.html" %}
 
 {% block content %}
-<div class="saga-root" data-saga-root x-data="{ tab: 'today' }"
+<div class="saga-root" data-saga-root x-data="{ tab: 'today', channel: 'mood' }"
      x-init="$watch('tab', value => {
        document.querySelectorAll('.saga-nav-link[data-saga-tab]').forEach(btn => {
          btn.classList.toggle('is-active', btn.dataset.sagaTab === value);
@@ -9,7 +9,21 @@
      })">
 
   <section class="saga-panel" x-show="tab === 'today'">
+    <div class="saga-channel-switch" role="tablist" aria-label="Campfire entry type">
+      <button type="button"
+              role="tab"
+              :aria-selected="(channel === 'mood').toString()"
+              :class="{ 'is-active': channel === 'mood' }"
+              @click="channel = 'mood'">Mood</button>
+      <button type="button"
+              role="tab"
+              :aria-selected="(channel === 'legacy').toString()"
+              :class="{ 'is-active': channel === 'legacy' }"
+              @click="channel = 'legacy'">Legacy</button>
+    </div>
+
     <div class="saga-today"
+         x-show="channel === 'mood'"
          x-data='sagaMoodCapture({{ mood_catalog | tojson }})'
          x-init="init()">
       <div class="saga-today__prompt">
@@ -155,12 +169,100 @@
         </div>
       </form>
     </div>
+
+    <div class="saga-legacy-capture"
+         x-show="channel === 'legacy'"
+         x-cloak
+         x-data="sagaLegacyCapture()"
+         x-init="init()">
+      <div class="saga-today__prompt">
+        <p class="saga-kicker">{{ today_label }}</p>
+        <h1 class="saga-prompt">What should future-you inherit?</h1>
+        <p class="saga-today__sub">Save the thought, the source, and the threads it connects to. Legacy notes stay out of the emotional metrics.</p>
+      </div>
+
+      <form id="saga-legacy-form"
+            class="saga-legacy-form"
+            hx-post="/saga/legacy"
+            hx-swap="none"
+            @htmx:after-request="if ($event.detail.elt === $el && $event.detail.successful) finishLegacy()">
+        <div class="saga-legacy-grid">
+          <label class="saga-field">
+            <span>Source link</span>
+            <input name="source_url"
+                   type="url"
+                   x-model="sourceUrl"
+                   placeholder="https://youtu.be/... or https://example.com/...">
+          </label>
+          <label class="saga-field">
+            <span>Labels</span>
+            <input name="labels"
+                   x-model="labels"
+                   placeholder="philosophy, research, self">
+          </label>
+        </div>
+
+        <div class="saga-md-editor">
+          <div class="saga-md-toolbar" aria-label="Markdown tools">
+            <button type="button" title="Heading" @click="applyFormat('heading')">H</button>
+            <button type="button" title="Bold" @click="applyFormat('bold')">B</button>
+            <button type="button" title="Italic" @click="applyFormat('italic')">I</button>
+            <button type="button" title="Link" @click="applyFormat('link')">Link</button>
+            <button type="button" title="List" @click="applyFormat('list')">List</button>
+            <button type="button" title="Quote" @click="applyFormat('quote')">Quote</button>
+            <button type="button" title="Code block" @click="applyFormat('code')">Code</button>
+          </div>
+
+          <div class="saga-md-split">
+            <label class="saga-note saga-note--legacy">
+              <span class="saga-note__prompt">Articulated thoughts</span>
+              <textarea id="saga-legacy-markdown"
+                        name="markdown"
+                        rows="14"
+                        x-ref="markdownInput"
+                        x-model="markdown"
+                        @input="handleInput()"
+                        hx-post="/saga/legacy/preview"
+                        hx-trigger="input changed delay:350ms, load"
+                        hx-target="#saga-legacy-preview"
+                        hx-swap="innerHTML"
+                        placeholder="# Heading&#10;&#10;Write in markdown. Use [[Heading]] to connect ideas."></textarea>
+              <div class="saga-topic-popover"
+                   x-show="topicOpen && topicResults.length"
+                   x-cloak>
+                <template x-for="topic in topicResults" :key="topic.href">
+                  <button type="button" @click="insertTopic(topic)">
+                    <strong x-text="topic.title"></strong>
+                    <span x-text="topic.local_date"></span>
+                  </button>
+                </template>
+              </div>
+            </label>
+
+            <section class="saga-md-preview" aria-live="polite">
+              <div class="saga-md-preview__head">
+                <span>Preview</span>
+                <small x-text="status"></small>
+              </div>
+              <div id="saga-legacy-preview" class="saga-legacy-prose">
+                <p>No legacy note yet.</p>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div class="saga-capture__footer">
+          <p class="saga-confirm" x-text="confirmation"></p>
+          <button class="saga-capture__submit" type="submit" :disabled="!canSubmit()">Save Legacy</button>
+        </div>
+      </form>
+    </div>
   </section>
 
   <section class="saga-panel" x-show="tab === 'timeline'">
     <div id="saga-timeline-slot"
          hx-get="/saga/timeline"
-         hx-trigger="load, saga-changed from:body, quest-done from:body, refresh"
+         hx-trigger="refresh"
          hx-swap="innerHTML">
     </div>
   </section>
@@ -168,7 +270,7 @@
   <section class="saga-panel" x-show="tab === 'metrics'">
     <div id="saga-metrics-slot"
          hx-get="/saga/metrics"
-         hx-trigger="load, saga-changed from:body, quest-done from:body, refresh"
+         hx-trigger="refresh"
          hx-swap="innerHTML">
     </div>
   </section>

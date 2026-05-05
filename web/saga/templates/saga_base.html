@@ -60,8 +60,10 @@
       window.location.href = '/saga';
       return;
     }
-    if (tabName === 'timeline') htmx.trigger('#saga-timeline-slot', 'refresh');
-    if (tabName === 'metrics') htmx.trigger('#saga-metrics-slot', 'refresh');
+    window.requestAnimationFrame(() => {
+      if (tabName === 'timeline') htmx.trigger('#saga-timeline-slot', 'refresh');
+      if (tabName === 'metrics') htmx.trigger('#saga-metrics-slot', 'refresh');
+    });
   }
 </script>
 </body>

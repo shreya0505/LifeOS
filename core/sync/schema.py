@@ -35,6 +35,7 @@ SYNC_TABLES: tuple[SyncTable, ...] = (
     SyncTable("pomo_segments", "id"),
     SyncTable("trophy_records", "id"),
     SyncTable("saga_entries", "id"),
+    SyncTable("saga_legacy_entries", "id"),
 )
 
 SYNC_TABLE_BY_NAME = {table.name: table for table in SYNC_TABLES}
